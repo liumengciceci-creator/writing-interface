@@ -22,7 +22,10 @@ console.log(
 );
 
 const app = express();
-const PORT = 3001;
+
+const PORT =
+  Number(process.env.PORT) ||
+  3001;
 
 const WRITING_MODEL =
   process.env.OPENAI_WRITING_MODEL ||
@@ -33,19 +36,35 @@ const WEB_SEARCH_CONTEXT_SIZE =
   "medium";
 
 
-const proxyAgent = new ProxyAgent(
+const proxyUrl =
   process.env.HTTPS_PROXY ||
-    process.env.HTTP_PROXY ||
-    "http://127.0.0.1:7897"
-);
+  process.env.HTTP_PROXY ||
+  process.env.ALL_PROXY ||
+  "";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const proxyAgent = proxyUrl
+  ? new ProxyAgent(proxyUrl)
+  : null;
+
+const openaiConfig = {
+  apiKey:
+    process.env.OPENAI_API_KEY,
   fetch,
-  fetchOptions: {
+};
+
+if (proxyAgent) {
+  openaiConfig.fetchOptions = {
     dispatcher: proxyAgent,
-  },
-});
+  };
+}
+
+const openai =
+  new OpenAI(openaiConfig);
+
+console.log(
+  "OpenAI proxy enabled:",
+  Boolean(proxyAgent)
+);
 
 app.use(cors());
 app.use(express.json());
@@ -2107,8 +2126,12 @@ app.post(
   }
 );
 
-app.listen(PORT, () => {
-  console.log(
-    `服务器已启动：http://localhost:${PORT}`
-  );
-});
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `服务器已启动，端口：${PORT}`
+    );
+  }
+);
