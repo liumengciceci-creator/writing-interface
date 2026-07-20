@@ -1,0 +1,528 @@
+
+import {
+  BLOCK_SELECTOR,
+  normalizeId,
+} from "./semanticEditorUtils";
+
+/**
+ * 获取编辑器中的所有语义模块元素。
+ *
+ * excludedBlockId 用于拖动已有模块时，
+ * 排除当前正在被拖动的模块。
+ */
+function getSemanticBlockElements(
+  editor,
+  excludedBlockId = null
+) {
+  if (!editor) {
+    return [];
+  }
+
+  const normalizedExcludedId =
+    normalizeId(excludedBlockId);
+
+  return Array.from(
+    editor.querySelectorAll(
+      BLOCK_SELECTOR
+    )
+  ).filter((element) => {
+    const blockId =
+      normalizeId(
+        element.dataset
+          .semanticBlockId
+      );
+
+    if (
+      normalizedExcludedId &&
+      blockId ===
+        normalizedExcludedId
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+/**
+ * 将一个模块可能跨行产生的多个 DOMRect，
+ * 整理成可以用于拖拽判断的位置数据。
+ */
+function getVisualFragments(
+  editor,
+  excludedBlockId = null
+) {
+  const elements =
+    getSemanticBlockElements(
+      editor,
+      excludedBlockId
+    );
+
+  const fragments = [];
+
+  elements.forEach(
+    (element, blockIndex) => {
+      const rects =
+        Array.from(
+          element.getClientRects()
+        ).filter(
+          (rect) =>
+            rect.width > 0 &&
+            rect.height > 0
+        );
+
+      /**
+       * 某些情况下 getClientRects 没有结果，
+       * 使用 getBoundingClientRect 作为兜底。
+       */
+      if (rects.length === 0) {
+        const fallbackRect =
+          element.getBoundingClientRect();
+
+        if (
+          fallbackRect.width > 0 ||
+          fallbackRect.height > 0
+        ) {
+          rects.push(
+            fallbackRect
+          );
+        }
+      }
+
+      rects.forEach(
+        (rect, fragmentIndex) => {
+          fragments.push({
+            element,
+            blockIndex,
+            fragmentIndex,
+            rect,
+          });
+        }
+      );
+    }
+  );
+
+  return {
+    elements,
+    fragments,
+  };
+}
+
+/**
+ * 按视觉上的行对模块片段进行分组。
+ */
+function groupFragmentsByLine(
+  fragments
+) {
+  const sorted = [
+    ...fragments,
+  ].sort((a, b) => {
+    const verticalDifference =
+      a.rect.top - b.rect.top;
+
+    if (
+      Math.abs(
+        verticalDifference
+      ) > 4
+    ) {
+      return verticalDifference;
+    }
+
+    return (
+      a.rect.left -
+      b.rect.left
+    );
+  });
+
+  const lines = [];
+
+  sorted.forEach((fragment) => {
+    const centerY =
+      fragment.rect.top +
+      fragment.rect.height / 2;
+
+    let matchedLine = null;
+
+    for (const line of lines) {
+      const verticalTolerance =
+        Math.max(
+          6,
+          Math.min(
+            line.height,
+            fragment.rect.height
+          ) * 0.5
+        );
+
+      if (
+        Math.abs(
+          centerY -
+          line.centerY
+        ) <= verticalTolerance
+      ) {
+        matchedLine = line;
+        break;
+      }
+    }
+
+    if (!matchedLine) {
+      matchedLine = {
+        fragments: [],
+        top:
+          fragment.rect.top,
+        bottom:
+          fragment.rect.bottom,
+        centerY,
+        height:
+          fragment.rect.height,
+      };
+
+      lines.push(
+        matchedLine
+      );
+    }
+
+    matchedLine.fragments.push(
+      fragment
+    );
+
+    matchedLine.top =
+      Math.min(
+        matchedLine.top,
+        fragment.rect.top
+      );
+
+    matchedLine.bottom =
+      Math.max(
+        matchedLine.bottom,
+        fragment.rect.bottom
+      );
+
+    matchedLine.height =
+      matchedLine.bottom -
+      matchedLine.top;
+
+    matchedLine.centerY =
+      matchedLine.top +
+      matchedLine.height / 2;
+  });
+
+  lines.forEach((line) => {
+    line.fragments.sort(
+      (a, b) =>
+        a.rect.left -
+        b.rect.left
+    );
+  });
+
+  lines.sort(
+    (a, b) =>
+      a.top - b.top
+  );
+
+  return lines;
+}
+
+/**
+ * 找出鼠标当前位置最接近的视觉行。
+ */
+function findClosestLine(
+  lines,
+  clientY
+) {
+  if (lines.length === 0) {
+    return null;
+  }
+
+  let closestLine =
+    lines[0];
+
+  let closestDistance =
+    Infinity;
+
+  lines.forEach((line) => {
+    let distance = 0;
+
+    if (
+      clientY < line.top
+    ) {
+      distance =
+        line.top - clientY;
+    } else if (
+      clientY > line.bottom
+    ) {
+      distance =
+        clientY -
+        line.bottom;
+    }
+
+    if (
+      distance <
+      closestDistance
+    ) {
+      closestDistance =
+        distance;
+
+      closestLine = line;
+    }
+  });
+
+  return closestLine;
+}
+
+/**
+ * 根据鼠标位置计算模块插入索引。
+ *
+ * 返回值范围：
+ * 0 到剩余模块数量之间。
+ */
+export function getDropIndex(
+  editor,
+  clientX,
+  clientY,
+  excludedBlockId = null
+) {
+  if (!editor) {
+    return 0;
+  }
+
+  const {
+    elements,
+    fragments,
+  } = getVisualFragments(
+    editor,
+    excludedBlockId
+  );
+
+  if (
+    elements.length === 0
+  ) {
+    return 0;
+  }
+
+  const lines =
+    groupFragmentsByLine(
+      fragments
+    );
+
+  if (
+    lines.length === 0
+  ) {
+    return elements.length;
+  }
+
+  const firstLine =
+    lines[0];
+
+  const lastLine =
+    lines[
+      lines.length - 1
+    ];
+
+  /**
+   * 鼠标在所有内容上方。
+   */
+  if (
+    clientY <
+    firstLine.top
+  ) {
+    return 0;
+  }
+
+  /**
+   * 鼠标在所有内容下方。
+   */
+  if (
+    clientY >
+    lastLine.bottom
+  ) {
+    return elements.length;
+  }
+
+  const closestLine =
+    findClosestLine(
+      lines,
+      clientY
+    );
+
+  if (
+    !closestLine ||
+    closestLine.fragments
+      .length === 0
+  ) {
+    return elements.length;
+  }
+
+  const lineFragments =
+    closestLine.fragments;
+
+  /**
+   * 根据鼠标横向位置，
+   * 判断是插入在某个模块前还是后。
+   */
+  for (
+    let index = 0;
+    index <
+    lineFragments.length;
+    index += 1
+  ) {
+    const fragment =
+      lineFragments[index];
+
+    const midpoint =
+      fragment.rect.left +
+      fragment.rect.width / 2;
+
+    if (
+      clientX < midpoint
+    ) {
+      return fragment.blockIndex;
+    }
+  }
+
+  const lastFragment =
+    lineFragments[
+      lineFragments.length - 1
+    ];
+
+  return Math.min(
+    elements.length,
+    lastFragment.blockIndex + 1
+  );
+}
+
+/**
+ * 判断当前位置是否应该让新模块另起一行。
+ *
+ * 主要用于从工具栏拖入一个新模块时，
+ * 决定是否设置 forceNewLine。
+ */
+export function shouldStartNewLine(
+  editor,
+  clientX,
+  clientY,
+  excludedBlockId = null
+) {
+  if (!editor) {
+    return false;
+  }
+
+  const {
+    fragments,
+  } = getVisualFragments(
+    editor,
+    excludedBlockId
+  );
+
+  if (
+    fragments.length === 0
+  ) {
+    return false;
+  }
+
+  const lines =
+    groupFragmentsByLine(
+      fragments
+    );
+
+  if (
+    lines.length === 0
+  ) {
+    return false;
+  }
+
+  const closestLine =
+    findClosestLine(
+      lines,
+      clientY
+    );
+
+  if (
+    !closestLine ||
+    closestLine.fragments
+      .length === 0
+  ) {
+    return false;
+  }
+
+  const firstFragment =
+    closestLine.fragments[0];
+
+  const lastFragment =
+    closestLine.fragments[
+      closestLine.fragments
+        .length - 1
+    ];
+
+  const lineLeft =
+    firstFragment.rect.left;
+
+  const lineRight =
+    lastFragment.rect.right;
+
+  const averageHeight =
+    closestLine.fragments.reduce(
+      (total, fragment) =>
+        total +
+        fragment.rect.height,
+      0
+    ) /
+    closestLine.fragments.length;
+
+  const verticalThreshold =
+    Math.max(
+      8,
+      averageHeight * 0.45
+    );
+
+  /**
+   * 鼠标明显位于当前行下方时，
+   * 认为用户希望另起一行。
+   */
+  const belowCurrentLine =
+    clientY >
+    closestLine.bottom +
+      verticalThreshold;
+
+  if (belowCurrentLine) {
+    return true;
+  }
+
+  /**
+   * 鼠标靠近一行最左侧，
+   * 且纵向位置接近行首时，
+   * 也可以理解为另起一行。
+   */
+  const nearLineStart =
+    clientX <
+    lineLeft +
+      Math.max(
+        18,
+        averageHeight
+      );
+
+  const nearTopHalf =
+    clientY <=
+    closestLine.centerY;
+
+  if (
+    nearLineStart &&
+    nearTopHalf
+  ) {
+    return true;
+  }
+
+  /**
+   * 鼠标在行尾很远的位置时，
+   * 通常仍然表示接在当前行后，
+   * 不强制换行。
+   */
+  if (
+    clientX >
+    lineRight
+  ) {
+    return false;
+  }
+
+  return false;
+}
+

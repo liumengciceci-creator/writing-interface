@@ -1,0 +1,1153 @@
+import {
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  CONTENT_LEFT,
+  CONTENT_TOP,
+  CONTENT_WIDTH,
+  PAGE_HEIGHT,
+  PAGE_WIDTH,
+} from "../../constants";
+
+import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
+
+import CompletedSection from "./CompletedSection";
+import FloatingEditableBlock from "./FloatingEditableBlock";
+import SingleSemanticEditor from "./SingleSemanticEditor";
+
+const BLOCK_TYPE_LABELS = {
+  Claim: "论点",
+  Evidence: "证据",
+  Reason: "推理",
+  Counter: "反论",
+  Conclusion: "结论",
+  Question: "问题",
+  Generated: "生成",
+  Transition: "过渡",
+  Merged: "融合",
+};
+
+function getBlockTypeLabel(type) {
+  return (
+    BLOCK_TYPE_LABELS[type] ||
+    type ||
+    "模块"
+  );
+}
+
+function normalizeId(value) {
+  return value == null
+    ? ""
+    : String(value);
+}
+
+function collectContinuousBlocks(
+  sectionLayouts = []
+) {
+  const result = [];
+  const visited = new Set();
+
+  for (const section of sectionLayouts) {
+    if (
+      section?.mode ===
+      "completed"
+    ) {
+      continue;
+    }
+
+    if (
+      !Array.isArray(
+        section?.blocks
+      )
+    ) {
+      continue;
+    }
+
+    for (
+      const block of
+      section.blocks
+    ) {
+      if (
+        !block ||
+        block.placement ===
+          "floating"
+      ) {
+        continue;
+      }
+
+      const key =
+        normalizeId(block.id);
+
+      if (
+        !key ||
+        visited.has(key)
+      ) {
+        continue;
+      }
+
+      visited.add(key);
+      result.push(block);
+    }
+  }
+
+  return result;
+}
+
+function InlineDragPreview({
+  preview,
+  zIndex = 1200,
+}) {
+  if (!preview?.block) {
+    return null;
+  }
+
+  const block =
+    preview.block;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: preview.x,
+        top: preview.y,
+
+        display: "inline-block",
+        width: "max-content",
+        maxWidth: 280,
+        minWidth: 0,
+
+        border:
+          `1.5px solid ${
+            block.color ||
+            "#7c83fd"
+          }`,
+
+        borderRadius: 10,
+
+        background:
+          block.fill ||
+          "rgba(124,131,253,0.10)",
+
+        padding: "8px 14px",
+        boxSizing: "border-box",
+
+        color: "#202124",
+        fontSize: 16,
+        lineHeight: "24px",
+
+        whiteSpace: "pre-wrap",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+
+        boxShadow:
+          "0 12px 24px rgba(0,0,0,0.14)",
+
+        opacity: 0.96,
+
+        zIndex,
+        pointerEvents: "none",
+
+        userSelect: "none",
+        WebkitUserSelect:
+          "none",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: -14,
+          zIndex: 1,
+
+          height: 16,
+          padding: "0 8px",
+          borderRadius: 6,
+
+          background:
+            block.color ||
+            "#7c83fd",
+
+          color: "#fff",
+          fontSize: 9,
+          fontWeight: 600,
+          lineHeight: "16px",
+          whiteSpace: "nowrap",
+
+          pointerEvents: "none",
+          userSelect: "none",
+          WebkitUserSelect:
+            "none",
+        }}
+      >
+        {getBlockTypeLabel(
+          block.type
+        )}
+      </div>
+
+      {block.text ||
+        block.label ||
+        block.type ||
+        ""}
+    </div>
+  );
+}
+
+export default function PageCanvas(
+  props
+) {
+  const {
+    zoom = 1,
+
+    pageRef,
+    stageRef,
+    contentRef,
+
+    draggingBlockId,
+    sectionLayouts = [],
+    totalContentHeight = 0,
+
+    selectedIds = [],
+    selectionRect,
+
+    onDragEnd,
+    onCanvasMouseUp,
+    onSelectionMove,
+    onSelectionStart,
+    onSelectionEnd,
+
+    onBlockMouseDown,
+    onBlockDragStart,
+
+    getBlockById,
+    updateBlockPlacement,
+
+    onChangeText,
+    onCommitBlocks,
+    onTextBlur,
+    onTextEditStart,
+
+    isGenerating = false,
+    generatingBlockIds = [],
+    generatingBlinkOn = false,
+    isAdjustingLength = false,
+    adjustingLengthBlockId = null,
+
+    isAdjustingStyle = false,
+    adjustingStyleBlockId = null,
+
+    onClearSelection,
+
+    onRestoreCompletedSection,
+    onRestoreCompletedParagraph,
+    onUpdateCompletedSectionText,
+
+    onUpdateFloatingBlockText,
+    onUpdateFloatingBlockWidth,
+
+    onSelectBlockForPanel,
+    onApplyBlockInstruction,
+    onAdjustBlockLength,
+
+    onInsertInlineBlock,
+    onReorderInlineBlocks,
+    onDeleteInlineBlock,
+  } = props;
+
+  const continuousEditorRef =
+    useRef(null);
+
+  const [
+    activeEditingBlockId,
+    setActiveEditingBlockId,
+  ] = useState(null);
+
+  const [
+    measuredEditorHeight,
+    setMeasuredEditorHeight,
+  ] = useState(0);
+
+  const handleApplyInstructionToBlock =
+    (
+      block,
+      instruction,
+      lifecycle = {}
+    ) => {
+      if (
+        !block ||
+        !instruction?.instruction
+      ) {
+        return;
+      }
+
+      return Promise.resolve(
+        onApplyBlockInstruction?.({
+          block,
+          style:
+            instruction.instruction,
+          styleLabel:
+            instruction.label ||
+            instruction.instruction,
+          isCustom: true,
+          onTextStart:
+            lifecycle.onTextStart,
+        })
+      ).catch((error) => {
+        console.error(
+          "[PageCanvas] 应用拖拽指令失败：",
+          error
+        );
+      });
+    };
+
+  /**
+   * 原生 dragstart 到 React 状态更新之间存在一个渲染间隔。
+   * 用 ref 同步保存当前模块，避免快速拖出时拿到旧 ID。
+   */
+  const nativeDraggingBlockIdRef =
+    useRef(null);
+
+  const completedSections =
+    useMemo(
+      () =>
+        sectionLayouts.filter(
+          (section) =>
+            section?.mode ===
+            "completed"
+        ),
+      [sectionLayouts]
+    );
+
+  const continuousBlocks =
+    useMemo(() => {
+      const directBlocks =
+        collectContinuousBlocks(
+          sectionLayouts
+        );
+
+      const visited =
+        new Set(
+          directBlocks.map(
+            (block) =>
+              normalizeId(
+                block.id
+              )
+          )
+        );
+
+      const result = [
+        ...directBlocks,
+      ];
+
+      for (
+        const section of
+        sectionLayouts
+      ) {
+        if (
+          section?.mode ===
+          "completed"
+        ) {
+          continue;
+        }
+
+        const fragments =
+          section
+            ?.localFragments ||
+          [];
+
+        for (
+          const fragment of
+          fragments
+        ) {
+          const blockId =
+            fragment?.blockId;
+
+          const key =
+            normalizeId(
+              blockId
+            );
+
+          if (
+            !key ||
+            visited.has(key)
+          ) {
+            continue;
+          }
+
+          const block =
+            getBlockById?.(
+              blockId
+            );
+
+          if (
+            !block ||
+            block.placement ===
+              "floating"
+          ) {
+            continue;
+          }
+
+          visited.add(key);
+          result.push(block);
+        }
+      }
+
+      return result;
+    }, [
+      getBlockById,
+      sectionLayouts,
+    ]);
+
+  const {
+    beginDragTracking,
+    updateDragPointer,
+    clearDragPointer,
+
+    draggingFloatingPreview,
+    draggingBackToPagePreview,
+
+    handleFloatingDrop,
+    floatingBlocks,
+  } = useFloatingBlocks({
+    zoom,
+    stageRef,
+    pageRef,
+    totalContentHeight,
+    sectionLayouts,
+    draggingBlockId,
+    getBlockById,
+    updateBlockPlacement,
+    handleCanvasMouseUp:
+      onCanvasMouseUp,
+  });
+
+  const draggingBlock =
+    draggingBlockId != null
+      ? getBlockById?.(
+          draggingBlockId
+        )
+      : null;
+
+  const isDraggingFloatingBlock =
+    draggingBlockId != null &&
+    draggingBlock?.placement ===
+      "floating";
+
+  const visualContentHeight =
+    Math.max(
+      totalContentHeight,
+      measuredEditorHeight,
+      640
+    );
+
+  const pageHeight =
+    Math.max(
+      PAGE_HEIGHT,
+      CONTENT_TOP +
+        visualContentHeight +
+        100
+    );
+
+  /**
+   * 检查鼠标事件是否发生在
+   * SingleSemanticEditor 内部。
+   *
+   * 注意：
+   * 必须使用新的属性名称：
+   * data-single-semantic-editor
+   */
+  const isInsideSemanticEditor =
+    (event) => {
+      const target =
+        event?.target;
+
+      if (
+        !target ||
+        typeof target.closest !==
+          "function"
+      ) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          "[data-single-semantic-editor='true']"
+        )
+      );
+    };
+
+  const isInsideSemanticBlock =
+    (event) => {
+      const target =
+        event?.target;
+
+      if (
+        !target ||
+        typeof target.closest !==
+          "function"
+      ) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          "[data-semantic-block-id]"
+        )
+      );
+    };
+
+  /**
+   * 画布按下。
+   *
+   * 编辑器内部的点击不能启动框选，
+   * 否则会覆盖浏览器文字光标。
+   */
+  const handleStageMouseDown =
+    (event) => {
+      if (
+        isInsideSemanticBlock(
+          event
+        )
+      ) {
+        return;
+      }
+
+      onSelectionStart?.(
+        event
+      );
+    };
+
+  /**
+   * 画布移动。
+   *
+   * 正在拖动浮动模块时继续更新拖动位置。
+   * 普通文字编辑时不处理画布框选。
+   */
+  const handleStageMouseMove =
+    (event) => {
+      if (
+        draggingBlockId != null
+      ) {
+        updateDragPointer(
+          event
+        );
+
+        onSelectionMove?.(
+          event
+        );
+
+        return;
+      }
+
+      onSelectionMove?.(
+        event
+      );
+    };
+
+  /**
+   * 原生 HTML 拖拽使用 dragover/drop，
+   * 不会稳定触发 mousemove/mouseup。
+   * 因此单独接入 useFloatingBlocks。
+   */
+  const handleStageDragOver =
+    (event) => {
+      const activeBlockId =
+        nativeDraggingBlockIdRef.current ??
+        draggingBlockId;
+
+      if (
+        activeBlockId == null
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect =
+          "move";
+      }
+
+      updateDragPointer(
+        event
+      );
+    };
+
+  const handleStageDrop =
+    (event) => {
+      const activeBlockId =
+        nativeDraggingBlockIdRef.current ??
+        draggingBlockId;
+
+      if (
+        activeBlockId == null
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const result =
+        handleFloatingDrop(
+          event,
+          activeBlockId
+        );
+
+      if (
+        result?.type ===
+          "to-floating" ||
+        (
+          result?.type ===
+            "floating-move" &&
+          result?.moved
+        )
+      ) {
+        onClearSelection?.();
+      }
+
+      clearDragPointer();
+      nativeDraggingBlockIdRef.current =
+        null;
+      onDragEnd?.();
+    };
+
+  /**
+   * 画布松开。
+   *
+   * 普通文字点击结束时不能执行：
+   * - onCanvasMouseUp
+   * - onSelectionEnd
+   * - 浮动模块放置
+   *
+   * 否则编辑器刚建立的光标会被 React
+   * 状态更新覆盖。
+   */
+  const handleStageMouseUp =
+    (event) => {
+      const insideEditor =
+        isInsideSemanticEditor(
+          event
+        );
+
+      if (
+        insideEditor &&
+        draggingBlockId == null
+      ) {
+        onSelectionEnd?.(event);
+        return;
+      }
+
+      if (
+        selectionRect &&
+        draggingBlockId == null
+      ) {
+        onSelectionEnd?.(event);
+        return;
+      }
+
+      if (
+        draggingBlockId != null
+      ) {
+        const result =
+          handleFloatingDrop(
+            event,
+            draggingBlockId
+          );
+
+        if (
+          result?.type ===
+            "to-floating" ||
+          (
+            result?.type ===
+              "floating-move" &&
+            result?.moved
+          )
+        ) {
+          onClearSelection?.();
+        }
+
+        clearDragPointer();
+        onDragEnd?.();
+      } else {
+        onCanvasMouseUp?.(
+          event
+        );
+      }
+
+      onSelectionEnd?.(event);
+    };
+
+  return (
+    <div
+      ref={stageRef}
+      onMouseDown={
+        handleStageMouseDown
+      }
+      onMouseMove={
+        handleStageMouseMove
+      }
+      onMouseUp={
+        handleStageMouseUp
+      }
+      onDragOver={
+        handleStageDragOver
+      }
+      onDrop={
+        handleStageDrop
+      }
+      style={{
+        width: "100%",
+        minWidth: 0,
+        flex: 1,
+
+        overflow: "visible",
+        position: "relative",
+        zIndex: 100,
+
+        display: "flex",
+        justifyContent:
+          "center",
+
+        alignItems:
+          "flex-start",
+
+        padding:
+          "8px 16px 20px",
+
+        boxSizing:
+          "border-box",
+
+        userSelect: "none",
+        WebkitUserSelect:
+          "none",
+      }}
+    >
+      <div
+        style={{
+          transform:
+            `scale(${zoom})`,
+
+          transformOrigin:
+            "top center",
+
+          width: PAGE_WIDTH,
+          minWidth: PAGE_WIDTH,
+          flex: "0 0 auto",
+
+          height: pageHeight,
+
+          position: "relative",
+          overflow: "visible",
+        }}
+      >
+        <div
+          ref={pageRef}
+          onMouseDown={(
+            event
+          ) => {
+            /**
+             * 点击 Page 本身的空白处才清除选择。
+             * 点击子元素时不处理。
+             */
+            if (
+              event.target !==
+              event.currentTarget
+            ) {
+              return;
+            }
+
+            if (
+              draggingBlockId ==
+              null
+            ) {
+              onClearSelection?.();
+            }
+          }}
+          style={{
+            width: PAGE_WIDTH,
+            minHeight:
+              pageHeight,
+
+            background:
+              "#ffffff",
+
+            boxShadow:
+              "0 0 0 1px rgba(0,0,0,0.06)",
+
+            position:
+              "relative",
+
+            overflow:
+              "visible",
+          }}
+        >
+          <div
+            ref={contentRef}
+            style={{
+              position:
+                "absolute",
+
+              left:
+                CONTENT_LEFT,
+
+              top:
+                CONTENT_TOP,
+
+              width:
+                CONTENT_WIDTH,
+
+              minHeight:
+                visualContentHeight,
+
+              overflow:
+                "visible",
+
+              userSelect:
+                "text",
+
+              WebkitUserSelect:
+                "text",
+            }}
+          >
+            <SingleSemanticEditor
+              ref={
+                continuousEditorRef
+              }
+
+              blocks={
+                continuousBlocks
+              }
+
+              selectedIds={
+                selectedIds
+              }
+
+              onChangeText={
+                onChangeText
+              }
+
+              onCommitBlocks={
+                onCommitBlocks
+              }
+
+              onTextBlur={
+                onTextBlur
+              }
+
+              onTextEditStart={
+                onTextEditStart
+              }
+
+              onBlockMouseDown={
+                onBlockMouseDown
+              }
+
+              onSelectBlockForPanel={
+                onSelectBlockForPanel
+              }
+
+              onClearSelection={
+                onClearSelection
+              }
+
+              onInsertBlock={
+                onInsertInlineBlock
+              }
+
+              onReorderBlocks={
+                onReorderInlineBlocks
+              }
+
+              onDeleteBlock={
+                onDeleteInlineBlock
+              }
+
+              onRestoreCompletedParagraph={
+                onRestoreCompletedParagraph
+              }
+
+              onApplyInstruction={
+                handleApplyInstructionToBlock
+              }
+
+              onAdjustLength={
+                onAdjustBlockLength
+              }
+
+              onExistingBlockDragStart={(
+                event,
+                block
+              ) => {
+                nativeDraggingBlockIdRef.current =
+                  block.id;
+
+                onBlockDragStart?.(
+                  block.id,
+                  event
+                );
+
+                beginDragTracking(
+                  event,
+                  block
+                );
+              }}
+
+              onExistingBlockDragOver={(
+                event
+              ) => {
+                updateDragPointer(
+                  event
+                );
+              }}
+
+              onExistingBlockDragEnd={() => {
+                nativeDraggingBlockIdRef.current =
+                  null;
+
+                clearDragPointer();
+                onDragEnd?.();
+              }}
+
+              isGenerating={
+                isGenerating
+              }
+
+              generatingBlockIds={
+                generatingBlockIds
+              }
+
+              generatingBlinkOn={
+                generatingBlinkOn
+              }
+
+              isAdjustingLength={
+                isAdjustingLength
+              }
+
+              adjustingLengthBlockId={
+                adjustingLengthBlockId
+              }
+
+              isAdjustingStyle={
+                isAdjustingStyle
+              }
+
+              adjustingStyleBlockId={
+                adjustingStyleBlockId
+              }
+
+              focusedEditingBlockId={
+                activeEditingBlockId
+              }
+
+              onEditingBlockChange={
+                setActiveEditingBlockId
+              }
+
+              onContentHeightChange={
+                setMeasuredEditorHeight
+              }
+            />
+
+            {completedSections.map(
+              (section) => (
+                <CompletedSection
+                  key={
+                    `completed-${section.id}`
+                  }
+                  section={{
+                    ...section,
+
+                    /**
+                     * buildSectionLayouts 已经计算好了 completed
+                     * section 在内容区中的真实位置。
+                     *
+                     * 不能再加 visualContentHeight，否则点击“完成”
+                     * 后正文会被推到页面下方，看起来像消失了。
+                     */
+                    top:
+                      section.top ||
+                      0,
+                  }}
+                  onRestoreCompletedSection={
+                    onRestoreCompletedSection
+                  }
+                  onUpdateCompletedSectionText={
+                    onUpdateCompletedSectionText
+                  }
+                  isDimmed={
+                    activeEditingBlockId != null
+                  }
+                />
+              )
+            )}
+
+            {selectionRect && (
+              <div
+                style={{
+                  position:
+                    "absolute",
+
+                  left:
+                    selectionRect.x,
+
+                  top:
+                    selectionRect.y,
+
+                  width:
+                    selectionRect.width,
+
+                  height:
+                    selectionRect.height,
+
+                  border:
+                    "1px dashed #2563eb",
+
+                  background:
+                    "rgba(37,99,235,0.08)",
+
+                  pointerEvents:
+                    "none",
+
+                  zIndex:
+                    1000,
+                }}
+              />
+            )}
+
+            <InlineDragPreview
+              preview={
+                draggingBackToPagePreview
+              }
+              zIndex={1200}
+            />
+          </div>
+        </div>
+      </div>
+
+      <InlineDragPreview
+        preview={
+          draggingFloatingPreview
+        }
+        zIndex={9999}
+      />
+
+      {floatingBlocks
+        .filter(
+          (block) =>
+            !isDraggingFloatingBlock ||
+            normalizeId(
+              block.id
+            ) !==
+              normalizeId(
+                draggingBlockId
+              )
+        )
+        .map((block) => {
+          const isSelected =
+            selectedIds.some(
+              (id) =>
+                normalizeId(
+                  id
+                ) ===
+                normalizeId(
+                  block.id
+                )
+            );
+
+          const isBlockGenerating =
+            generatingBlockIds.some(
+              (id) =>
+                normalizeId(
+                  id
+                ) ===
+                normalizeId(
+                  block.id
+                )
+            );
+
+          return (
+            <FloatingEditableBlock
+              key={
+                `floating-${block.id}`
+              }
+
+              block={block}
+
+              isSelected={
+                isSelected
+              }
+
+              isGenerating={
+                isBlockGenerating
+              }
+
+              generatingBlinkOn={
+                generatingBlinkOn
+              }
+
+              isDimmed={
+                activeEditingBlockId != null &&
+                normalizeId(
+                  activeEditingBlockId
+                ) !==
+                  normalizeId(
+                    block.id
+                  )
+              }
+
+              onEditingChange={
+                setActiveEditingBlockId
+              }
+
+              onApplyInstruction={
+                handleApplyInstructionToBlock
+              }
+
+              onSelect={(
+                event
+              ) => {
+                event.stopPropagation();
+
+                onBlockMouseDown?.(
+                  event,
+                  block.id
+                );
+
+                onSelectBlockForPanel?.(
+                  block
+                );
+              }}
+
+              onDragStart={(
+                event
+              ) => {
+                event.stopPropagation();
+
+                onBlockDragStart?.(
+                  block.id,
+                  event
+                );
+
+                beginDragTracking(
+                  event,
+                  block
+                );
+              }}
+
+              onUpdateText={
+                onUpdateFloatingBlockText
+              }
+
+              onUpdateWidth={
+                onUpdateFloatingBlockWidth
+              }
+            />
+          );
+        })}
+    </div>
+  );
+}
