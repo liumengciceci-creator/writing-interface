@@ -1,5 +1,7 @@
+import { API_BASE_URL } from "../apiConfig";
+
 const DEFAULT_API_URL =
-  "http://localhost:3001/api/adjust-length";
+  `${API_BASE_URL}/api/adjust-length`;
 
 /**
  * 调整单个模块的文本长度。

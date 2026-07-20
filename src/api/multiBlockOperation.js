@@ -29,6 +29,7 @@
  * transition
  * 转折
  */
+import { API_BASE_URL } from "../apiConfig";
 export async function multiBlockOperation({
   operation,
   firstBlock,
@@ -40,7 +41,7 @@ export async function multiBlockOperation({
    * 发送请求到 Express 后端。
    */
   const response = await fetch(
-    "http://localhost:3001/api/multi-block-operation",
+  `${API_BASE_URL}/api/multi-block-operation`,
     {
       method: "POST",
 
