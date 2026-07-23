@@ -126,142 +126,206 @@ export function useBlockDuplicate({
   createEditingSectionFn,
 }) {
   /**
-   * 获取模块在 Stage 中的初始 floating 坐标。
-   *
-   * floating 源模块：
-   * 直接使用原 floating 坐标。
-   *
-   * inline 源模块：
-   * 读取对应 DOM 的实际位置，
-   * 再转换为 Stage 坐标。
-   */
-  const getSourceStagePosition =
-    useCallback(
-      (
-        block,
-        options = {}
-      ) => {
-        const {
-          clientX,
-          clientY,
-          offsetX = 20,
-          offsetY = 20,
-          index = 0,
-        } = options;
-
-        const cascadeX =
-          offsetX +
-          index * 12;
-
-        const cascadeY =
-          offsetY +
-          index * 12;
-
-        const stageElement =
-          stageRef?.current;
-
-        const stageRect =
-          stageElement
-            ?.getBoundingClientRect();
+ * 获取副本在 Stage 中的初始 floating 坐标。
+ *
+ * 规则：
+ * 1. 拖拽复制时，从鼠标附近创建。
+ * 2. floating 源模块，在原模块右下方创建。
+ * 3. inline 源模块，根据真实 DOM 位置，在右下方创建。
+ */
+const getSourceStagePosition =
+  useCallback(
+    (
+      block,
+      options = {}
+    ) => {
+      const {
+        clientX,
+        clientY,
 
         /**
-         * drag-copy 时优先从鼠标按下位置创建，
-         * 让副本立即出现在指针附近并跟随拖动。
+         * 默认让副本出现在原模块右下方。
+         */
+        offsetX = 24,
+        offsetY = 24,
+
+        index = 0,
+      } = options;
+
+      /**
+       * 同时复制多个模块时逐个错开，
+       * 避免所有副本完全重叠。
+       */
+      const cascadeX =
+        offsetX +
+        index * 14;
+
+      const cascadeY =
+        offsetY +
+        index * 14;
+
+      const stageElement =
+        stageRef?.current;
+
+      const stageRect =
+        stageElement
+          ?.getBoundingClientRect();
+
+      /**
+       * Option + Shift 拖拽复制。
+       *
+       * 直接在鼠标附近创建，
+       * 方便副本立即跟随鼠标拖动。
+       */
+      if (
+        stageRect &&
+        Number.isFinite(
+          clientX
+        ) &&
+        Number.isFinite(
+          clientY
+        )
+      ) {
+        return {
+          x:
+            clientX -
+            stageRect.left -
+            24,
+
+          y:
+            clientY -
+            stageRect.top -
+            20,
+        };
+      }
+
+      /**
+       * 源模块本身已经是 floating。
+       *
+       * 直接根据原模块保存的位置，
+       * 在右下方生成副本。
+       */
+      if (
+        block?.placement ===
+          "floating"
+      ) {
+        return {
+          x:
+            Number(
+              block.floatingX
+            ) +
+            cascadeX,
+
+          y:
+            Number(
+              block.floatingY
+            ) +
+            cascadeY,
+        };
+      }
+
+      /**
+       * inline 模块。
+       *
+       * 读取原模块在页面中的真实 DOM 坐标，
+       * 再转换成相对于 Stage 的坐标。
+       */
+      if (
+        stageElement &&
+        stageRect
+      ) {
+        const selector =
+          `[data-semantic-block-id="${escapeAttributeValue(
+            block?.id
+          )}"]`;
+
+        const blockElements =
+          stageElement.querySelectorAll(
+            selector
+          );
+
+        /**
+         * inline 模块可能跨行，
+         * 同一个模块可能存在多个 DOM fragment。
+         *
+         * 这里寻找最右下方的 fragment，
+         * 让副本出现在整个模块的右下附近。
          */
         if (
-          stageRect &&
-          Number.isFinite(
-            clientX
-          ) &&
-          Number.isFinite(
-            clientY
-          )
+          blockElements.length >
+          0
         ) {
-          return {
-            x:
-              clientX -
-              stageRect.left -
-              24,
+          let sourceRect =
+            null;
 
-            y:
-              clientY -
-              stageRect.top -
-              20,
-          };
-        }
+          blockElements.forEach(
+            (element) => {
+              const rect =
+                element.getBoundingClientRect();
 
-        if (
-          block?.placement ===
-            "floating"
-        ) {
-          return {
-            x:
-              (
-                block.floatingX ??
-                0
-              ) +
-              cascadeX,
+              if (!sourceRect) {
+                sourceRect =
+                  rect;
 
-            y:
-              (
-                block.floatingY ??
-                0
-              ) +
-              cascadeY,
-          };
-        }
+                return;
+              }
 
-        if (
-          stageElement &&
-          stageRect
-        ) {
-          const selector =
-            `[data-semantic-block-id="${escapeAttributeValue(
-              block?.id
-            )}"]`;
+              const currentBottom =
+                sourceRect.bottom;
 
-          const blockElement =
-            stageElement.querySelector(
-              selector
-            );
+              const nextBottom =
+                rect.bottom;
 
-          if (blockElement) {
-            const blockRect =
-              blockElement
-                .getBoundingClientRect();
+              if (
+                nextBottom >
+                  currentBottom ||
+                (
+                  nextBottom ===
+                    currentBottom &&
+                  rect.right >
+                    sourceRect.right
+                )
+              ) {
+                sourceRect =
+                  rect;
+              }
+            }
+          );
 
+          if (sourceRect) {
             return {
               x:
-                blockRect.left -
+                sourceRect.left -
                 stageRect.left +
                 cascadeX,
 
               y:
-                blockRect.top -
+                sourceRect.top -
                 stageRect.top +
                 cascadeY,
             };
           }
         }
+      }
 
-        /**
-         * DOM 暂时找不到时使用安全回退位置。
-         */
-        return {
-          x:
-            40 +
-            cascadeX,
+      /**
+       * 找不到源模块 DOM 时，
+       * 放到页面左上方的安全位置。
+       */
+      return {
+        x:
+          64 +
+          index * 14,
 
-          y:
-            40 +
-            cascadeY,
-        };
-      },
-      [
-        stageRef,
-        zoom,
-      ]
-    );
+        y:
+          64 +
+          index * 14,
+      };
+    },
+    [
+      stageRef,
+    ]
+  );
 
   /**
    * 找到可保存 floating 副本的 section。
@@ -610,32 +674,31 @@ export function useBlockDuplicate({
       ]
     );
 
-  /**
- * 根据指定模块 ID 创建 floating 副本。
- *
- * 目前由：
- * 1. Cmd/Ctrl + V
- * 2. Option + Shift 拖拽复制
- *
- * 两种操作共同调用。
+/**
+ * Cmd/Ctrl + V：
+ * 在原模块右下方创建 floating 副本。
  */
-  const duplicateSelectedBlocks =
-    useCallback(
-      (
+const duplicateSelectedBlocks =
+  useCallback(
+    (
+      selectedIds,
+      options = {}
+    ) => {
+      return duplicateBlocks(
         selectedIds,
-        options = {}
-      ) => {
-        return duplicateBlocks(
-          selectedIds,
-          {
-            ...options,
-            startDragging:
-              false,
-          }
-        );
-      },
-      [duplicateBlocks]
-    );
+        {
+          offsetX: 24,
+          offsetY: 24,
+
+          ...options,
+
+          startDragging:
+            false,
+        }
+      );
+    },
+    [duplicateBlocks]
+  );
 
   /**
    * Option + Shift + 左键：
