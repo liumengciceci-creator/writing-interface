@@ -12,106 +12,395 @@ import {
   normalizeSections,
 } from "./sectionHelpers";
 
-function normalizeId(value) {
+/**
+ * 统一把 ID 转为字符串进行比较。
+ */
+function normalizeId(
+  value
+) {
   return value == null
     ? ""
     : String(value);
 }
 
-function escapeAttributeValue(
-  value
+/**
+ * 转换为可靠数字。
+ */
+function toFiniteNumber(
+  value,
+  fallback = 0
 ) {
-  const text =
-    String(value ?? "");
+  const number =
+    Number(value);
 
-  if (
-    typeof CSS !==
-      "undefined" &&
-    typeof CSS.escape ===
-      "function"
-  ) {
-    return CSS.escape(
-      text
-    );
-  }
-
-  return text.replace(
-    /["\\]/g,
-    "\\$&"
-  );
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : fallback;
 }
 
-function getCompactWidth(
+/**
+ * 深度复制模块数据。
+ *
+ * 这样副本不会和原模块共享：
+ * - completedBlocks
+ * - appearance
+ * - style
+ * - metadata
+ * - 其他嵌套对象或数组
+ *
+ * 即使以后单独修改副本，也不会意外修改原模块。
+ */
+function cloneBlockData(
   block
 ) {
-  if (
-    Number.isFinite(
-      block?.floatingWidth
-    )
-  ) {
-    return Math.max(
-      72,
-      block.floatingWidth
-    );
+  if (!block) {
+    return null;
   }
 
   if (
-    Number.isFinite(
-      block?.width
-    )
+    typeof structuredClone ===
+    "function"
   ) {
-    return Math.max(
-      72,
-      block.width
+    try {
+      return structuredClone(
+        block
+      );
+    } catch {
+      // 某些对象不能 structuredClone，
+      // 继续使用递归复制。
+    }
+  }
+
+  if (
+    Array.isArray(block)
+  ) {
+    return block.map(
+      cloneBlockData
     );
   }
 
-  const text =
-    String(
-      block?.label ||
-        block?.text ||
-        block?.type ||
-        ""
+  if (
+    typeof block ===
+      "object" &&
+    block !== null
+  ) {
+    const result = {};
+
+    Object.entries(
+      block
+    ).forEach(
+      ([key, value]) => {
+        result[key] =
+          cloneBlockData(
+            value
+          );
+      }
     );
 
-  let estimatedWidth = 0;
-
-  for (
-    const character of text
-  ) {
-    estimatedWidth +=
-      /[\u4e00-\u9fff]/.test(
-        character
-      )
-        ? 16
-        : 8;
+    return result;
   }
 
-  return Math.max(
-    72,
-    Math.min(
-      280,
-      estimatedWidth + 32
-    )
+  return block;
+}
+
+/**
+ * 找到 sectionLayouts 中属于指定模块的全部 fragment。
+ *
+ * 同时兼容：
+ * - localFragments
+ * - fragments
+ * - globalFragments
+ */
+function collectBlockFragments(
+  sectionLayouts,
+  blockId
+) {
+  const targetId =
+    normalizeId(blockId);
+
+  if (!targetId) {
+    return [];
+  }
+
+  const result = [];
+
+  (
+    sectionLayouts || []
+  ).forEach((section) => {
+    const fragmentGroups = [
+      section?.localFragments,
+      section?.fragments,
+      section?.globalFragments,
+    ];
+
+    fragmentGroups.forEach(
+      (fragments) => {
+        if (
+          !Array.isArray(
+            fragments
+          )
+        ) {
+          return;
+        }
+
+        fragments.forEach(
+          (fragment) => {
+            if (
+              normalizeId(
+                fragment?.blockId
+              ) !== targetId
+            ) {
+              return;
+            }
+
+            result.push(
+              fragment
+            );
+          }
+        );
+      }
+    );
+  });
+
+  return result;
+}
+
+/**
+ * 将同一模块的多个 fragment 合并成一个整体区域。
+ *
+ * 用于支持：
+ * - 普通单行模块
+ * - 多行模块
+ * - 跨行 inline 模块
+ */
+function buildFragmentBounds(
+  fragments
+) {
+  if (
+    !Array.isArray(
+      fragments
+    ) ||
+    fragments.length === 0
+  ) {
+    return null;
+  }
+
+  let left =
+    Infinity;
+
+  let top =
+    Infinity;
+
+  let right =
+    -Infinity;
+
+  let bottom =
+    -Infinity;
+
+  fragments.forEach(
+    (fragment) => {
+      const x =
+        toFiniteNumber(
+          fragment?.x
+        );
+
+      const y =
+        toFiniteNumber(
+          fragment?.y
+        );
+
+      const width =
+        Math.max(
+          0,
+          toFiniteNumber(
+            fragment?.width
+          )
+        );
+
+      const height =
+        Math.max(
+          0,
+          toFiniteNumber(
+            fragment?.height
+          )
+        );
+
+      left =
+        Math.min(
+          left,
+          x
+        );
+
+      top =
+        Math.min(
+          top,
+          y
+        );
+
+      right =
+        Math.max(
+          right,
+          x + width
+        );
+
+      bottom =
+        Math.max(
+          bottom,
+          y + height
+        );
+    }
   );
+
+  if (
+    !Number.isFinite(left) ||
+    !Number.isFinite(top) ||
+    !Number.isFinite(right) ||
+    !Number.isFinite(bottom)
+  ) {
+    return null;
+  }
+
+  return {
+    x: left,
+    y: top,
+
+    width:
+      Math.max(
+        0,
+        right - left
+      ),
+
+    height:
+      Math.max(
+        0,
+        bottom - top
+      ),
+
+    right,
+    bottom,
+  };
+}
+
+/**
+ * 获取源模块应该被复制的准确宽度。
+ *
+ * 规则：
+ *
+ * 1. floating 模块：
+ *    优先完整保留 floatingWidth。
+ *
+ * 2. inline 模块：
+ *    优先使用实时布局中的视觉宽度。
+ *
+ * 3. 只有实时布局不存在时，
+ *    才使用源模块保存的 width。
+ *
+ * 4. 副本再次被复制时，
+ *    会继续使用第一次副本保存的 floatingWidth，
+ *    因此不会越复制越宽或越窄。
+ */
+function getSourceVisualWidth({
+  sourceBlock,
+  sourceBounds,
+  zoom,
+}) {
+  if (
+    sourceBlock?.placement ===
+      "floating" &&
+    Number.isFinite(
+      Number(
+        sourceBlock
+          ?.floatingWidth
+      )
+    )
+  ) {
+    return Math.max(
+      1,
+      Number(
+        sourceBlock
+          .floatingWidth
+      )
+    );
+  }
+
+  if (
+    sourceBounds &&
+    Number.isFinite(
+      sourceBounds.width
+    ) &&
+    sourceBounds.width > 0
+  ) {
+    return Math.max(
+      1,
+      sourceBounds.width *
+        zoom
+    );
+  }
+
+  if (
+    Number.isFinite(
+      Number(
+        sourceBlock
+          ?.floatingWidth
+      )
+    )
+  ) {
+    return Math.max(
+      1,
+      Number(
+        sourceBlock
+          .floatingWidth
+      )
+    );
+  }
+
+  if (
+    Number.isFinite(
+      Number(
+        sourceBlock?.width
+      )
+    )
+  ) {
+    return Math.max(
+      1,
+      Number(
+        sourceBlock.width
+      )
+    );
+  }
+
+  return BLOCK_WIDTH;
 }
 
 /**
  * 模块复制 Hook。
  *
  * 统一规则：
+ *
  * 1. 无论源模块是 inline 还是 floating，
- *    副本初始状态始终是 floating。
- * 2. Command + C 可在原模块附近生成副本。
- * 3. Option + Shift + 左键可在按下位置创建副本，
- *    并把 draggingBlockId 切换到副本。
- * 4. 副本之后可通过现有 floating -> inline
- *    逻辑拖进正文的指定位置。
+ *    新副本初始状态始终是 floating。
+ *
+ * 2. Cmd/Ctrl + V：
+ *    副本出现在源模块右下方。
+ *
+ * 3. Option + Shift + 拖动：
+ *    副本出现在鼠标附近，并立即进入拖拽。
+ *
+ * 4. 副本拖回正文时，
+ *    再由现有 floating -> inline 逻辑处理。
+ *
+ * 5. 连续复制多少次，
+ *    模块的文字、宽度、样式和其他数据都保持一致。
  */
 export function useBlockDuplicate({
   sections = [],
+  sectionLayouts = [],
 
   stageRef,
+  contentRef,
+
   zoom = 1,
 
   setSections,
@@ -125,229 +414,283 @@ export function useBlockDuplicate({
   pushHistorySnapshot,
   createEditingSectionFn,
 }) {
+  const normalizedZoom =
+    Number.isFinite(
+      Number(zoom)
+    ) &&
+    Number(zoom) > 0
+      ? Number(zoom)
+      : 1;
+
   /**
- * 获取副本在 Stage 中的初始 floating 坐标。
- *
- * 规则：
- * 1. 拖拽复制时，从鼠标附近创建。
- * 2. floating 源模块，在原模块右下方创建。
- * 3. inline 源模块，根据真实 DOM 位置，在右下方创建。
- */
-const getSourceStagePosition =
-  useCallback(
-    (
-      block,
-      options = {}
-    ) => {
-      const {
-        clientX,
-        clientY,
-
-        /**
-         * 默认让副本出现在原模块右下方。
-         */
-        offsetX = 24,
-        offsetY = 24,
-
-        index = 0,
-      } = options;
-
-      /**
-       * 同时复制多个模块时逐个错开，
-       * 避免所有副本完全重叠。
-       */
-      const cascadeX =
-        offsetX +
-        index * 14;
-
-      const cascadeY =
-        offsetY +
-        index * 14;
-
-      const stageElement =
-        stageRef?.current;
-
-      const stageRect =
-        stageElement
-          ?.getBoundingClientRect();
-
-      /**
-       * Option + Shift 拖拽复制。
-       *
-       * 直接在鼠标附近创建，
-       * 方便副本立即跟随鼠标拖动。
-       */
-      if (
-        stageRect &&
-        Number.isFinite(
-          clientX
-        ) &&
-        Number.isFinite(
-          clientY
-        )
-      ) {
-        return {
-          x:
-            clientX -
-            stageRect.left -
-            24,
-
-          y:
-            clientY -
-            stageRect.top -
-            20,
-        };
-      }
-
-      /**
-       * 源模块本身已经是 floating。
-       *
-       * 直接根据原模块保存的位置，
-       * 在右下方生成副本。
-       */
-      if (
-        block?.placement ===
-          "floating"
-      ) {
-        return {
-          x:
-            Number(
-              block.floatingX
-            ) +
-            cascadeX,
-
-          y:
-            Number(
-              block.floatingY
-            ) +
-            cascadeY,
-        };
-      }
-
-      /**
-       * inline 模块。
-       *
-       * 读取原模块在页面中的真实 DOM 坐标，
-       * 再转换成相对于 Stage 的坐标。
-       */
-      if (
-        stageElement &&
-        stageRect
-      ) {
-        const selector =
-          `[data-semantic-block-id="${escapeAttributeValue(
-            block?.id
-          )}"]`;
-
-        const blockElements =
-          stageElement.querySelectorAll(
-            selector
+   * 获取源模块的实时布局区域。
+   */
+  const getSourceLayoutBounds =
+    useCallback(
+      (blockId) => {
+        const fragments =
+          collectBlockFragments(
+            sectionLayouts,
+            blockId
           );
 
+        return buildFragmentBounds(
+          fragments
+        );
+      },
+      [sectionLayouts]
+    );
+
+  /**
+   * 将 content 内部的布局坐标转换成
+   * 相对于 Stage 的 floating 坐标。
+   *
+   * 这里只使用 DOM 来转换坐标系，
+   * 不再通过 DOM 查询具体模块。
+   */
+  const convertContentPositionToStage =
+    useCallback(
+      (
+        contentX,
+        contentY
+      ) => {
+        const stageElement =
+          stageRef?.current;
+
+        const contentElement =
+          contentRef?.current;
+
+        const stageRect =
+          stageElement
+            ?.getBoundingClientRect();
+
+        const contentRect =
+          contentElement
+            ?.getBoundingClientRect();
+
+        if (
+          stageRect &&
+          contentRect
+        ) {
+          return {
+            x:
+              contentRect.left -
+              stageRect.left +
+              contentX *
+                normalizedZoom,
+
+            y:
+              contentRect.top -
+              stageRect.top +
+              contentY *
+                normalizedZoom,
+          };
+        }
+
         /**
-         * inline 模块可能跨行，
-         * 同一个模块可能存在多个 DOM fragment。
-         *
-         * 这里寻找最右下方的 fragment，
-         * 让副本出现在整个模块的右下附近。
+         * contentRef 暂时不存在时，
+         * 使用布局坐标作为安全回退。
+         */
+        return {
+          x:
+            contentX *
+            normalizedZoom,
+
+          y:
+            contentY *
+            normalizedZoom,
+        };
+      },
+      [
+        stageRef,
+        contentRef,
+        normalizedZoom,
+      ]
+    );
+
+  /**
+   * 计算副本在 Stage 中的初始 floating 坐标。
+   */
+  const getSourceStagePosition =
+    useCallback(
+      (
+        sourceBlock,
+        sourceBounds,
+        options = {}
+      ) => {
+        const {
+          clientX,
+          clientY,
+
+          offsetX = 24,
+          offsetY = 24,
+
+          index = 0,
+        } = options;
+
+        const cascadeX =
+          offsetX +
+          index * 12;
+
+        const cascadeY =
+          offsetY +
+          index * 12;
+
+        const stageElement =
+          stageRef?.current;
+
+        const stageRect =
+          stageElement
+            ?.getBoundingClientRect();
+
+        /**
+         * Option + Shift 拖拽复制：
+         * 副本直接从鼠标附近开始。
          */
         if (
-          blockElements.length >
-          0
+          stageRect &&
+          Number.isFinite(
+            Number(clientX)
+          ) &&
+          Number.isFinite(
+            Number(clientY)
+          )
         ) {
-          let sourceRect =
-            null;
+          return {
+            x:
+              Number(clientX) -
+              stageRect.left -
+              24,
 
-          blockElements.forEach(
-            (element) => {
-              const rect =
-                element.getBoundingClientRect();
-
-              if (!sourceRect) {
-                sourceRect =
-                  rect;
-
-                return;
-              }
-
-              const currentBottom =
-                sourceRect.bottom;
-
-              const nextBottom =
-                rect.bottom;
-
-              if (
-                nextBottom >
-                  currentBottom ||
-                (
-                  nextBottom ===
-                    currentBottom &&
-                  rect.right >
-                    sourceRect.right
-                )
-              ) {
-                sourceRect =
-                  rect;
-              }
-            }
-          );
-
-          if (sourceRect) {
-            return {
-              x:
-                sourceRect.left -
-                stageRect.left +
-                cascadeX,
-
-              y:
-                sourceRect.top -
-                stageRect.top +
-                cascadeY,
-            };
-          }
+            y:
+              Number(clientY) -
+              stageRect.top -
+              20,
+          };
         }
-      }
 
-      /**
-       * 找不到源模块 DOM 时，
-       * 放到页面左上方的安全位置。
-       */
-      return {
-        x:
-          64 +
-          index * 14,
+        /**
+         * floating 源模块：
+         * 在原 floating 坐标右下方创建。
+         */
+        if (
+          sourceBlock
+            ?.placement ===
+          "floating"
+        ) {
+          return {
+            x:
+              toFiniteNumber(
+                sourceBlock
+                  .floatingX,
+                40
+              ) +
+              cascadeX,
 
-        y:
-          64 +
-          index * 14,
-      };
-    },
-    [
-      stageRef,
-    ]
-  );
+            y:
+              toFiniteNumber(
+                sourceBlock
+                  .floatingY,
+                40
+              ) +
+              cascadeY,
+          };
+        }
+
+        /**
+         * inline 源模块：
+         * 使用 sectionLayouts 的实时位置，
+         * 在其右下方创建 floating 副本。
+         */
+        if (sourceBounds) {
+          const stagePosition =
+            convertContentPositionToStage(
+              sourceBounds.x,
+              sourceBounds.y
+            );
+
+          return {
+            x:
+              stagePosition.x +
+              cascadeX,
+
+            y:
+              stagePosition.y +
+              cascadeY,
+          };
+        }
+
+        /**
+         * 极端情况下没有找到布局时，
+         * 尽量放在白色内容区域附近，
+         * 而不是灰色区域的固定左上角。
+         */
+        const contentElement =
+          contentRef?.current;
+
+        const contentRect =
+          contentElement
+            ?.getBoundingClientRect();
+
+        if (
+          stageRect &&
+          contentRect
+        ) {
+          return {
+            x:
+              contentRect.left -
+              stageRect.left +
+              cascadeX,
+
+            y:
+              contentRect.top -
+              stageRect.top +
+              cascadeY,
+          };
+        }
+
+        return {
+          x:
+            80 +
+            index * 12,
+
+          y:
+            80 +
+            index * 12,
+        };
+      },
+      [
+        stageRef,
+        contentRef,
+        convertContentPositionToStage,
+      ]
+    );
 
   /**
-   * 找到可保存 floating 副本的 section。
+   * 找到保存 floating 副本的 section。
    *
    * 优先：
-   * - 源模块所在 section
-   * - 第一个 editing section
-   * - 第一个非 completed section
+   * 1. 原模块所在 section
+   * 2. 第一个 editing section
+   * 3. 第一个非 completed section
    */
   const getTargetSectionId =
     useCallback(
       (
         sourceBlockId
       ) => {
-        const source =
+        const sourceLocation =
           findBlockLocation(
             sections,
             sourceBlockId
           );
 
-        if (source?.sectionId != null) {
-          return source.sectionId;
+        if (
+          sourceLocation
+            ?.sectionId != null
+        ) {
+          return sourceLocation
+            .sectionId;
         }
 
         const editingSection =
@@ -382,14 +725,6 @@ const getSourceStagePosition =
 
   /**
    * 复制一个或多个模块。
-   *
-   * 返回：
-   * {
-   *   blocks: 新副本数组,
-   *   ids: 新 ID 数组,
-   *   primaryBlock: 第一个副本,
-   *   primaryId: 第一个副本 ID
-   * }
    */
   const duplicateBlocks =
     useCallback(
@@ -397,27 +732,30 @@ const getSourceStagePosition =
         blockIds,
         options = {}
       ) => {
-        const ids = Array.from(
-          new Set(
-            (
-              Array.isArray(
-                blockIds
+        const normalizedIds =
+          Array.from(
+            new Set(
+              (
+                Array.isArray(
+                  blockIds
+                )
+                  ? blockIds
+                  : [blockIds]
               )
-                ? blockIds
-                : [blockIds]
+                .filter(
+                  (id) =>
+                    id !== null &&
+                    id !== undefined
+                )
+                .map(
+                  normalizeId
+                )
             )
-              .filter(
-                (id) =>
-                  id != null
-              )
-              .map(
-                normalizeId
-              )
-          )
-        );
+          );
 
         if (
-          ids.length === 0 ||
+          normalizedIds.length ===
+            0 ||
           !nextBlockIdRef
         ) {
           return {
@@ -432,109 +770,146 @@ const getSourceStagePosition =
         const {
           clientX,
           clientY,
-          offsetX = 20,
-          offsetY = 20,
+
+          offsetX = 24,
+          offsetY = 24,
+
           startDragging =
             false,
         } = options;
 
         const copies = [];
 
-        for (
-          let index = 0;
-          index < ids.length;
-          index += 1
-        ) {
-          const sourceId =
-            ids[index];
+        normalizedIds.forEach(
+          (
+            sourceId,
+            index
+          ) => {
+            const sourceBlock =
+              getBlockById?.(
+                sourceId
+              );
 
-          const sourceBlock =
-            getBlockById?.(
-              sourceId
-            );
+            if (!sourceBlock) {
+              return;
+            }
 
-          if (!sourceBlock) {
-            continue;
+            const targetSectionId =
+              getTargetSectionId(
+                sourceId
+              );
+
+            if (
+              targetSectionId ==
+              null
+            ) {
+              return;
+            }
+
+            const sourceBounds =
+              getSourceLayoutBounds(
+                sourceId
+              );
+
+            const position =
+              getSourceStagePosition(
+                sourceBlock,
+                sourceBounds,
+                {
+                  clientX,
+                  clientY,
+
+                  offsetX,
+                  offsetY,
+
+                  index,
+                }
+              );
+
+            const sourceWidth =
+              getSourceVisualWidth({
+                sourceBlock,
+                sourceBounds,
+                zoom:
+                  normalizedZoom,
+              });
+
+            const newId =
+              nextBlockIdRef
+                .current++;
+
+            /**
+             * 完整深度复制原模块。
+             *
+             * 文字、类型、颜色、填充、边框、
+             * 自定义样式和嵌套数据全部保留。
+             */
+            const copiedBlock =
+              cloneBlockData(
+                sourceBlock
+              );
+
+            if (!copiedBlock) {
+              return;
+            }
+
+            copiedBlock.id =
+              newId;
+
+            /**
+             * 无论源模块是不是 inline，
+             * 副本刚创建时都必须是 floating。
+             */
+            copiedBlock.placement =
+              "floating";
+
+            copiedBlock.floatingX =
+              position.x;
+
+            copiedBlock.floatingY =
+              position.y;
+
+            /**
+             * 同时保存一致的 width 和 floatingWidth。
+             *
+             * 这样从：
+             * 原模块 -> 副本 -> 再次复制
+             *
+             * 无论复制多少次，宽度都不会变化。
+             */
+            copiedBlock.floatingWidth =
+              sourceWidth;
+
+            copiedBlock.width =
+              sourceWidth;
+
+            /**
+             * 不继承旧完成组关系。
+             */
+            copiedBlock.completionGroupId =
+              null;
+
+            /**
+             * 清除只属于当前交互过程的状态。
+             */
+            copiedBlock.isEditing =
+              false;
+
+            copiedBlock.isSelected =
+              false;
+
+            copiedBlock.isDragging =
+              false;
+
+            copies.push({
+              block:
+                copiedBlock,
+
+              sectionId:
+                targetSectionId,
+            });
           }
-
-          const targetSectionId =
-            getTargetSectionId(
-              sourceId
-            );
-
-          if (
-            targetSectionId ==
-            null
-          ) {
-            continue;
-          }
-
-          const position =
-            getSourceStagePosition(
-              sourceBlock,
-              {
-                clientX,
-                clientY,
-                offsetX,
-                offsetY,
-                index,
-              }
-            );
-
-          const newId =
-            nextBlockIdRef
-              .current++;
-
-          const floatingWidth =
-            getCompactWidth(
-              sourceBlock
-            );
-
-          const copiedBlock = {
-            ...sourceBlock,
-
-            id: newId,
-
-            /**
-             * 副本永远先脱离正文流。
-             */
-            placement:
-              "floating",
-
-            floatingX:
-              position.x,
-
-            floatingY:
-              position.y,
-
-            floatingWidth,
-
-            width:
-              sourceBlock.width ??
-              BLOCK_WIDTH,
-
-            /**
-             * 复制后不再归属于旧的完成组。
-             */
-            completionGroupId:
-              null,
-
-            /**
-             * 避免复制编辑器内部临时状态。
-             */
-            isEditing: false,
-            isSelected: false,
-            isDragging: false,
-          };
-
-          copies.push({
-            block:
-              copiedBlock,
-
-            sectionId:
-              targetSectionId,
-          });
-        }
+        );
 
         if (
           copies.length === 0
@@ -561,51 +936,51 @@ const getSourceStagePosition =
               previousSections
             );
 
-            for (
-              const copy of
-              copies
-            ) {
-              const targetSection =
-                nextSections.find(
-                  (section) =>
-                    normalizeId(
-                      section.id
-                    ) ===
-                    normalizeId(
-                      copy.sectionId
-                    )
-                ) ||
-                nextSections.find(
-                  (section) =>
-                    section.mode ===
-                    "editing"
-                ) ||
-                nextSections.find(
-                  (section) =>
-                    section.mode !==
-                    "completed"
-                ) ||
-                nextSections[0];
+            copies.forEach(
+              (copy) => {
+                const targetSection =
+                  nextSections.find(
+                    (section) =>
+                      normalizeId(
+                        section.id
+                      ) ===
+                      normalizeId(
+                        copy.sectionId
+                      )
+                  ) ||
+                  nextSections.find(
+                    (section) =>
+                      section?.mode ===
+                      "editing"
+                  ) ||
+                  nextSections.find(
+                    (section) =>
+                      section?.mode !==
+                      "completed"
+                  ) ||
+                  nextSections[0];
 
-              if (
-                !targetSection
-              ) {
-                continue;
+                if (
+                  !targetSection
+                ) {
+                  return;
+                }
+
+                if (
+                  !Array.isArray(
+                    targetSection
+                      .blocks
+                  )
+                ) {
+                  targetSection.blocks =
+                    [];
+                }
+
+                targetSection.blocks.push(
+                  copy.block
+                );
               }
-
-              if (
-                !Array.isArray(
-                  targetSection.blocks
-                )
-              ) {
-                targetSection.blocks =
-                  [];
-              }
-
-              targetSection.blocks.push(
-                copy.block
-              );
-            }
+            );
 
             return normalizeSections(
               nextSections,
@@ -632,7 +1007,7 @@ const getSourceStagePosition =
 
         /**
          * Option + Shift 拖拽复制时，
-         * 让后续拖拽逻辑操作新副本而不是原模块。
+         * 后续拖拽目标切换为新副本。
          */
         if (
           startDragging &&
@@ -661,9 +1036,13 @@ const getSourceStagePosition =
       },
       [
         nextBlockIdRef,
+
         getBlockById,
         getTargetSectionId,
+        getSourceLayoutBounds,
         getSourceStagePosition,
+
+        normalizedZoom,
 
         setSections,
         setSelectedIds,
@@ -674,36 +1053,35 @@ const getSourceStagePosition =
       ]
     );
 
-/**
- * Cmd/Ctrl + V：
- * 在原模块右下方创建 floating 副本。
- */
-const duplicateSelectedBlocks =
-  useCallback(
-    (
-      selectedIds,
-      options = {}
-    ) => {
-      return duplicateBlocks(
+  /**
+   * Cmd/Ctrl + V：
+   * 在被复制模块右下方创建 floating 副本。
+   */
+  const duplicateSelectedBlocks =
+    useCallback(
+      (
         selectedIds,
-        {
-          offsetX: 24,
-          offsetY: 24,
+        options = {}
+      ) => {
+        return duplicateBlocks(
+          selectedIds,
+          {
+            offsetX: 24,
+            offsetY: 24,
 
-          ...options,
+            ...options,
 
-          startDragging:
-            false,
-        }
-      );
-    },
-    [duplicateBlocks]
-  );
+            startDragging:
+              false,
+          }
+        );
+      },
+      [duplicateBlocks]
+    );
 
   /**
-   * Option + Shift + 左键：
-   * 创建一个 floating 副本，
-   * 并立即把拖拽目标切换为该副本。
+   * Option + Shift + 左键拖动：
+   * 创建 floating 副本并立即拖动。
    */
   const beginDuplicateDrag =
     useCallback(
@@ -750,3 +1128,5 @@ const duplicateSelectedBlocks =
     beginDuplicateDrag,
   };
 }
+
+export default useBlockDuplicate;

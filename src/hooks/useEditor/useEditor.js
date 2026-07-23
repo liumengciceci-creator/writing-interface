@@ -435,26 +435,33 @@ export function useEditor() {
    * 后续可拖入正文并转换为 inline。
    */
   const {
-    duplicateBlocks,
-    duplicateSelectedBlocks,
-    beginDuplicateDrag,
-  } = useBlockDuplicate({
-    sections,
+  duplicateBlocks,
+  duplicateSelectedBlocks,
+  beginDuplicateDrag,
+} = useBlockDuplicate({
+  sections,
 
-    stageRef,
-    zoom,
+  /**
+   * 用于定位 inline 模块。
+   */
+  sectionLayouts,
 
-    setSections,
-    setSelectedIds,
-    setDraggingBlockId,
+  stageRef,
+  contentRef,
 
-    nextBlockIdRef,
+  zoom,
 
-    getBlockById,
+  setSections,
+  setSelectedIds,
+  setDraggingBlockId,
 
-    pushHistorySnapshot,
-    createEditingSectionFn,
-  });
+  nextBlockIdRef,
+
+  getBlockById,
+
+  pushHistorySnapshot,
+  createEditingSectionFn,
+});
 
   /**
    * inline 文档结构操作。
