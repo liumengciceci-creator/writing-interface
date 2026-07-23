@@ -64,6 +64,10 @@ import {
   useCanvasDrop,
 } from "./useCanvasDrop.jsx";
 
+import {
+  useBlockDuplicate,
+} from "./useBlockDuplicate";
+
 const INITIAL_SECTIONS = [
   {
     id: 1,
@@ -211,6 +215,9 @@ export function useEditor() {
   /**
    * 页面 DOM。
    */
+  const stageRef =
+    useRef(null);
+
   const pageRef =
     useRef(null);
 
@@ -416,6 +423,34 @@ export function useEditor() {
 
     selectedIds,
     setSelectedIds,
+
+    pushHistorySnapshot,
+    createEditingSectionFn,
+  });
+
+  /**
+   * 模块复制。
+   *
+   * 所有副本都会先以 floating 形式创建，
+   * 后续可拖入正文并转换为 inline。
+   */
+  const {
+    duplicateBlocks,
+    duplicateSelectedBlocks,
+    beginDuplicateDrag,
+  } = useBlockDuplicate({
+    sections,
+
+    stageRef,
+    zoom,
+
+    setSections,
+    setSelectedIds,
+    setDraggingBlockId,
+
+    nextBlockIdRef,
+
+    getBlockById,
 
     pushHistorySnapshot,
     createEditingSectionFn,
@@ -1155,6 +1190,7 @@ export function useEditor() {
     /**
      * DOM refs。
      */
+    stageRef,
     pageRef,
     contentRef,
 
@@ -1216,6 +1252,13 @@ export function useEditor() {
      */
     getBlockById,
     updateBlockPlacement,
+
+    /**
+     * 模块复制。
+     */
+    duplicateBlocks,
+    duplicateSelectedBlocks,
+    beginDuplicateDrag,
 
     /**
      * 选择操作。

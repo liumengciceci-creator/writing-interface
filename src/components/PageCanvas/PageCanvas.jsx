@@ -219,6 +219,12 @@ export default function PageCanvas(
     onBlockMouseDown,
     onBlockDragStart,
 
+    /**
+     * Option + Shift + 左键拖动复制。
+     * 由 useBlockDuplicate 提供。
+     */
+    beginDuplicateDrag,
+
     getBlockById,
     updateBlockPlacement,
 
@@ -912,6 +918,50 @@ export default function PageCanvas(
                 event,
                 block
               ) => {
+                /**
+                 * Option + Shift + 左键保持按住并开始拖动时：
+                 * 1. 立即复制原模块
+                 * 2. 副本初始为 floating
+                 * 3. 当前这次拖拽直接切换到副本
+                 * 4. 原模块保持在原位置
+                 */
+                if (
+                  event.altKey &&
+                  event.shiftKey
+                ) {
+                  const duplicateResult =
+                    beginDuplicateDrag?.(
+                      event,
+                      block.id
+                    );
+
+                  const copiedBlock =
+                    duplicateResult?.primaryBlock;
+
+                  const copiedBlockId =
+                    duplicateResult?.primaryId;
+
+                  if (
+                    copiedBlock &&
+                    copiedBlockId != null
+                  ) {
+                    nativeDraggingBlockIdRef.current =
+                      copiedBlockId;
+
+                    onBlockDragStart?.(
+                      copiedBlockId,
+                      event
+                    );
+
+                    beginDragTracking(
+                      event,
+                      copiedBlock
+                    );
+
+                    return;
+                  }
+                }
+
                 nativeDraggingBlockIdRef.current =
                   block.id;
 
@@ -1157,6 +1207,50 @@ export default function PageCanvas(
                 event
               ) => {
                 event.stopPropagation();
+
+                /**
+                 * Floating 模块同样支持
+                 * Option + Shift + 左键保持按住拖动复制。
+                 */
+                if (
+                  event.altKey &&
+                  event.shiftKey
+                ) {
+                  const duplicateResult =
+                    beginDuplicateDrag?.(
+                      event,
+                      block.id
+                    );
+
+                  const copiedBlock =
+                    duplicateResult?.primaryBlock;
+
+                  const copiedBlockId =
+                    duplicateResult?.primaryId;
+
+                  if (
+                    copiedBlock &&
+                    copiedBlockId != null
+                  ) {
+                    nativeDraggingBlockIdRef.current =
+                      copiedBlockId;
+
+                    onBlockDragStart?.(
+                      copiedBlockId,
+                      event
+                    );
+
+                    beginDragTracking(
+                      event,
+                      copiedBlock
+                    );
+
+                    return;
+                  }
+                }
+
+                nativeDraggingBlockIdRef.current =
+                  block.id;
 
                 onBlockDragStart?.(
                   block.id,

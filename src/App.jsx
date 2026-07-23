@@ -200,7 +200,9 @@ export default function App() {
      * AI 初次生成。
      */
     generateFromSelectedBlocks,
-  } = useEditor();
+  duplicateSelectedBlocks,
+    beginDuplicateDrag,
+} = useEditor();
 
   /**
    * 保存自定义标签。
@@ -711,12 +713,20 @@ export default function App() {
               }
 
               onApplyBlockInstruction={
-                handleApplyBlockStyle
-              }
+    handleApplyBlockStyle
+}
 
-              onAdjustBlockLength={
-                handleApplyBlockLength
-              }
+onAdjustBlockLength={
+    handleApplyBlockLength
+}
+
+duplicateSelectedBlocks={
+    duplicateSelectedBlocks
+}
+
+beginDuplicateDrag={
+    beginDuplicateDrag
+}
             />
           </div>
 

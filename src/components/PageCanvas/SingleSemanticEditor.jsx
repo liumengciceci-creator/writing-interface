@@ -343,6 +343,7 @@ const SingleSemanticEditor =
         onExistingBlockDragStart,
         onExistingBlockDragOver,
         onExistingBlockDragEnd,
+        onDuplicateBlockDragStart,
 
         isGenerating = false,
         generatingBlockIds = [],
@@ -372,6 +373,9 @@ const SingleSemanticEditor =
        */
       const draggingExistingBlockIdRef =
         useRef(null);
+
+      const suppressNextNativeDragRef =
+        useRef(false);
 
 
       const [
@@ -752,6 +756,21 @@ const SingleSemanticEditor =
              * draggable 模块的原生拖拽。
              */
 
+            if (
+              event.button === 0 &&
+              event.altKey &&
+              event.shiftKey
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              suppressNextNativeDragRef.current = true;
+              onDuplicateBlockDragStart?.(
+                event,
+                block
+              );
+              return;
+            }
+
             event.stopPropagation();
 
             onBlockMouseDown?.(
@@ -824,6 +843,18 @@ const SingleSemanticEditor =
             event,
             block
           ) => {
+            if (
+              suppressNextNativeDragRef.current
+            ) {
+              suppressNextNativeDragRef.current =
+                false;
+
+              event.preventDefault();
+              event.stopPropagation();
+
+              return;
+            }
+
             if (
               isGenerating ||
               normalizeId(

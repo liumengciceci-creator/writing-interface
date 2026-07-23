@@ -35,7 +35,7 @@ function isTypingElement(
   /**
    * 只有真正处于 contentEditable=true 的节点才算输入状态。
    * 不能因为元素位于语义编辑器内部就一律返回 true，
-   * 否则选中模块后 Cmd/Ctrl+Z 和 Delete 都会被拦截。
+   * 否则选中模块后 Cmd/Ctrl+Z、Cmd/Ctrl+C 和 Delete 都会被拦截。
    */
   return Boolean(
     element.closest(
@@ -65,6 +65,15 @@ export function useEditorShortcuts({
   handleDeleteSelected,
   generateFromSelectedBlocks,
 
+  /**
+   * 模块复制函数。
+   *
+   * Command/Ctrl + C 时调用。
+   * 副本初始状态由 useBlockDuplicate
+   * 统一创建为 floating。
+   */
+  duplicateSelectedBlocks,
+
   handleGlobalMouseUp,
 }) {
   /**
@@ -92,6 +101,13 @@ export function useEditorShortcuts({
             event.ctrlKey) &&
           !event.shiftKey &&
           key === "z";
+
+        const isCopyShortcut =
+          (event.metaKey ||
+            event.ctrlKey) &&
+          !event.shiftKey &&
+          !event.altKey &&
+          key === "c";
 
         const isZoomInShortcut =
           (event.metaKey ||
@@ -169,6 +185,56 @@ export function useEditorShortcuts({
           event.preventDefault();
 
           undoLastAction?.();
+
+          return;
+        }
+
+        /**
+         * Command/Ctrl + C：
+         * 复制当前选中的模块。
+         *
+         * 以下情况不拦截浏览器原生复制：
+         * 1. 当前正在编辑文字
+         * 2. 当前有文字选区
+         * 3. 当前没有选中任何模块
+         */
+        if (isCopyShortcut) {
+          const selection =
+            window.getSelection?.();
+
+          const selectedText =
+            selection?.toString?.() ||
+            "";
+
+          const hasTextSelection =
+            Boolean(
+              selection &&
+              !selection.isCollapsed &&
+              selectedText.length >
+                0
+            );
+
+          if (
+            isTyping ||
+            hasFocusedTextEditor ||
+            hasTextSelection
+          ) {
+            return;
+          }
+
+          if (
+            selectedIds.length ===
+            0
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          duplicateSelectedBlocks?.(
+            selectedIds
+          );
 
           return;
         }
@@ -276,6 +342,7 @@ export function useEditorShortcuts({
 
     handleDeleteSelected,
     generateFromSelectedBlocks,
+    duplicateSelectedBlocks,
   ]);
 
   /**
