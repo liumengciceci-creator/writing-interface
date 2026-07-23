@@ -1143,6 +1143,8 @@ export function useEditor() {
 
     handleDeleteSelected,
     generateFromSelectedBlocks,
+    duplicateSelectedBlocks,
+
 
     handleGlobalMouseUp,
   });

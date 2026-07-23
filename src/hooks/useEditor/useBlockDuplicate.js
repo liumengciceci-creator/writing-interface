@@ -611,9 +611,14 @@ export function useBlockDuplicate({
     );
 
   /**
-   * Command + C：
-   * 复制当前选中的模块，并在原模块旁边生成 floating 副本。
-   */
+ * 根据指定模块 ID 创建 floating 副本。
+ *
+ * 目前由：
+ * 1. Cmd/Ctrl + V
+ * 2. Option + Shift 拖拽复制
+ *
+ * 两种操作共同调用。
+ */
   const duplicateSelectedBlocks =
     useCallback(
       (

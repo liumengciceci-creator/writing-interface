@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
 } from "react";
 
 /**
@@ -34,8 +35,10 @@ function isTypingElement(
 
   /**
    * 只有真正处于 contentEditable=true 的节点才算输入状态。
+   *
    * 不能因为元素位于语义编辑器内部就一律返回 true，
-   * 否则选中模块后 Cmd/Ctrl+Z、Cmd/Ctrl+C 和 Delete 都会被拦截。
+   * 否则选中模块后的 Cmd/Ctrl+Z、Cmd/Ctrl+C、
+   * Cmd/Ctrl+V 和 Delete 都会被拦截。
    */
   return Boolean(
     element.closest(
@@ -45,6 +48,29 @@ function isTypingElement(
         "[data-editable-fragment='true'][contenteditable='true']",
       ].join(",")
     )
+  );
+}
+
+/**
+ * 判断页面当前是否存在真实文字选区。
+ */
+function hasActiveTextSelection() {
+  const selection =
+    window.getSelection?.();
+
+  if (!selection) {
+    return false;
+  }
+
+  if (selection.isCollapsed) {
+    return false;
+  }
+
+  return Boolean(
+    String(
+      selection.toString?.() ??
+        ""
+    ).length > 0
   );
 }
 
@@ -66,16 +92,28 @@ export function useEditorShortcuts({
   generateFromSelectedBlocks,
 
   /**
-   * 模块复制函数。
+   * 创建指定模块的副本。
    *
-   * Command/Ctrl + C 时调用。
-   * 副本初始状态由 useBlockDuplicate
+   * Cmd/Ctrl + V 时调用。
+   * 副本由 useBlockDuplicate
    * 统一创建为 floating。
    */
   duplicateSelectedBlocks,
 
   handleGlobalMouseUp,
 }) {
+  /**
+   * 编辑器内部模块剪贴板。
+   *
+   * Cmd/Ctrl + C 时只记录模块 ID，
+   * 不立即生成副本。
+   *
+   * Cmd/Ctrl + V 时读取这些 ID，
+   * 再调用 duplicateSelectedBlocks。
+   */
+  const copiedBlockIdsRef =
+    useRef([]);
+
   /**
    * 键盘快捷键。
    */
@@ -94,35 +132,48 @@ export function useEditorShortcuts({
         }
 
         const key =
-          event.key.toLowerCase();
+          String(
+            event.key ?? ""
+          ).toLowerCase();
+
+        const hasCommandModifier =
+          event.metaKey ||
+          event.ctrlKey;
 
         const isUndoShortcut =
-          (event.metaKey ||
-            event.ctrlKey) &&
+          hasCommandModifier &&
           !event.shiftKey &&
+          !event.altKey &&
           key === "z";
 
         const isCopyShortcut =
-          (event.metaKey ||
-            event.ctrlKey) &&
+          hasCommandModifier &&
           !event.shiftKey &&
           !event.altKey &&
           key === "c";
 
+        const isPasteShortcut =
+          hasCommandModifier &&
+          !event.shiftKey &&
+          !event.altKey &&
+          key === "v";
+
         const isZoomInShortcut =
-          (event.metaKey ||
-            event.ctrlKey) &&
-          (event.key === "=" ||
-            event.key === "+");
+          hasCommandModifier &&
+          !event.altKey &&
+          (
+            event.key === "=" ||
+            event.key === "+"
+          );
 
         const isZoomOutShortcut =
-          (event.metaKey ||
-            event.ctrlKey) &&
+          hasCommandModifier &&
+          !event.altKey &&
           event.key === "-";
 
         const isZoomResetShortcut =
-          (event.metaKey ||
-            event.ctrlKey) &&
+          hasCommandModifier &&
+          !event.altKey &&
           event.key === "0";
 
         const isEnterTrigger =
@@ -130,7 +181,8 @@ export function useEditorShortcuts({
             "Enter" &&
           !event.shiftKey &&
           !event.metaKey &&
-          !event.ctrlKey;
+          !event.ctrlKey &&
+          !event.altKey;
 
         const eventTarget =
           event.target instanceof
@@ -151,8 +203,9 @@ export function useEditorShortcuts({
 
         /**
          * 编辑锁只保护当前真正获得焦点的编辑器。
-         * 页面里其他残留或失焦的编辑状态不能阻止
-         * 单击选中模块后的 Delete/Backspace 删除。
+         *
+         * 页面中其他残留或失焦的编辑状态不能阻止
+         * 单击选中模块后的 Delete、Copy 和 Paste。
          */
         const hasFocusedTextEditor =
           Boolean(
@@ -183,6 +236,7 @@ export function useEditorShortcuts({
           }
 
           event.preventDefault();
+          event.stopPropagation();
 
           undoLastAction?.();
 
@@ -190,41 +244,30 @@ export function useEditorShortcuts({
         }
 
         /**
-         * Command/Ctrl + C：
-         * 复制当前选中的模块。
+         * Cmd/Ctrl + C：
+         * 将当前选中的模块写入内部模块剪贴板。
          *
-         * 以下情况不拦截浏览器原生复制：
+         * 此时不会立即创建副本。
+         *
+         * 以下情况保留浏览器原生文字复制：
          * 1. 当前正在编辑文字
-         * 2. 当前有文字选区
-         * 3. 当前没有选中任何模块
+         * 2. 当前存在真实文字选区
          */
         if (isCopyShortcut) {
-          const selection =
-            window.getSelection?.();
-
-          const selectedText =
-            selection?.toString?.() ||
-            "";
-
-          const hasTextSelection =
-            Boolean(
-              selection &&
-              !selection.isCollapsed &&
-              selectedText.length >
-                0
-            );
-
           if (
             isTyping ||
             hasFocusedTextEditor ||
-            hasTextSelection
+            hasActiveTextSelection()
           ) {
             return;
           }
 
           if (
+            !Array.isArray(
+              selectedIds
+            ) ||
             selectedIds.length ===
-            0
+              0
           ) {
             return;
           }
@@ -232,8 +275,69 @@ export function useEditorShortcuts({
           event.preventDefault();
           event.stopPropagation();
 
-          duplicateSelectedBlocks?.(
+          copiedBlockIdsRef.current =
             selectedIds
+              .filter(
+                (blockId) =>
+                  blockId !==
+                    null &&
+                  blockId !==
+                    undefined
+              )
+              .map(
+                (blockId) =>
+                  String(
+                    blockId
+                  )
+              );
+
+          return;
+        }
+
+        /**
+         * Cmd/Ctrl + V：
+         * 粘贴内部剪贴板中的模块。
+         *
+         * 正在编辑文字时，
+         * 保留浏览器原生文字粘贴。
+         */
+        if (isPasteShortcut) {
+          if (
+            isTyping ||
+            hasFocusedTextEditor
+          ) {
+            return;
+          }
+
+          const copiedBlockIds =
+            copiedBlockIdsRef.current;
+
+          if (
+            !Array.isArray(
+              copiedBlockIds
+            ) ||
+            copiedBlockIds.length ===
+              0
+          ) {
+            return;
+          }
+
+          if (
+            typeof duplicateSelectedBlocks !==
+            "function"
+          ) {
+            console.warn(
+              "[useEditorShortcuts] duplicateSelectedBlocks 未传入，无法粘贴模块。"
+            );
+
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          duplicateSelectedBlocks(
+            copiedBlockIds
           );
 
           return;
@@ -246,6 +350,7 @@ export function useEditorShortcuts({
           isZoomInShortcut
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           zoomIn?.();
 
@@ -256,6 +361,7 @@ export function useEditorShortcuts({
           isZoomOutShortcut
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           zoomOut?.();
 
@@ -266,6 +372,7 @@ export function useEditorShortcuts({
           isZoomResetShortcut
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           resetZoom?.();
 
@@ -279,10 +386,12 @@ export function useEditorShortcuts({
          * 非输入状态下才删除选中的模块。
          */
         if (
-          (event.key ===
-            "Delete" ||
+          (
             event.key ===
-              "Backspace") &&
+              "Delete" ||
+            event.key ===
+              "Backspace"
+          ) &&
           !isTyping &&
           !hasFocusedTextEditor
         ) {
@@ -294,6 +403,7 @@ export function useEditorShortcuts({
           }
 
           event.preventDefault();
+          event.stopPropagation();
 
           handleDeleteSelected?.();
 
@@ -309,11 +419,13 @@ export function useEditorShortcuts({
         if (
           isEnterTrigger &&
           !isTyping &&
+          !hasFocusedTextEditor &&
           selectedIds.length >
             0 &&
           !isGenerating
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           await generateFromSelectedBlocks?.();
         }
