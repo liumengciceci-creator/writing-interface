@@ -509,8 +509,29 @@ function normalizeMultiBlockResult({
 /**
  * 向 NDJSON 流中写入一行数据。
  */
+function canWriteResponse(res) {
+  return Boolean(
+    res &&
+      !res.writableEnded &&
+      !res.destroyed
+  );
+}
+
 function writeLine(res, payload) {
-  res.write(`${JSON.stringify(payload)}\n`);
+  if (!canWriteResponse(res)) {
+    return false;
+  }
+
+  try {
+    res.write(`${JSON.stringify(payload)}\n`);
+    return true;
+  } catch (error) {
+    console.warn(
+      "⚠️ 流式响应写入失败：",
+      error?.message || error
+    );
+    return false;
+  }
 }
 
 /**
@@ -1319,12 +1340,20 @@ async function generateValidatedBufferedBlocks({
   prompt,
   targetBlocks,
   res,
+  signal,
+  isClientClosed = () => false,
 }) {
   const maxAttempts = 3;
   let lastInvalid = [];
   let lastResponse = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (isClientClosed() || signal?.aborted) {
+      const error = new Error("客户端已断开，生成已取消");
+      error.name = "AbortError";
+      throw error;
+    }
+
     if (getWebSearchMode(targetBlocks) !== "disabled") {
       writeLine(res, {
         type: "search_progress",
@@ -1343,8 +1372,15 @@ async function generateValidatedBufferedBlocks({
       buildWritingRequestOptions({
         prompt: `${prompt}${retryInstruction}`,
         targetBlocks,
-      })
+      }),
+      signal ? { signal } : undefined
     );
+
+    if (isClientClosed() || signal?.aborted) {
+      const error = new Error("客户端已断开，生成已取消");
+      error.name = "AbortError";
+      throw error;
+    }
 
     if (getWebSearchMode(targetBlocks) !== "disabled") {
       writeLine(res, {
@@ -1398,19 +1434,33 @@ async function generateValidatedBufferedBlocks({
   throw error;
 }
 
-async function emitBufferedBlocks(res, targetBlocks, textById) {
+async function emitBufferedBlocks(
+  res,
+  targetBlocks,
+  textById,
+  isClientClosed = () => false
+) {
   for (const block of targetBlocks) {
+    if (isClientClosed() || !canWriteResponse(res)) {
+      return;
+    }
+
     const text = String(textById.get(String(block.id)) || "");
 
     writeLine(res, { type: "block_start", id: block.id });
 
     const characters = Array.from(text);
     for (let index = 0; index < characters.length; index += 6) {
+      if (isClientClosed() || !canWriteResponse(res)) {
+        return;
+      }
+
       writeLine(res, {
         type: "chunk",
         id: block.id,
         delta: characters.slice(index, index + 6).join(""),
       });
+
       await new Promise((resolve) => setTimeout(resolve, 8));
     }
 
@@ -2003,6 +2053,54 @@ app.post(
 app.post(
   "/api/generate-stream",
   async (req, res) => {
+    const abortController = new AbortController();
+    const streamTimeoutMs = Math.max(
+      30000,
+      Number(process.env.OPENAI_STREAM_TIMEOUT_MS) || 180000
+    );
+
+    let clientClosed = false;
+    let requestFinished = false;
+
+    const markClientClosed = (reason) => {
+      if (requestFinished || clientClosed) {
+        return;
+      }
+
+      clientClosed = true;
+      console.warn(`⚠️ generate-stream 客户端连接已关闭：${reason}`);
+
+      if (!abortController.signal.aborted) {
+        abortController.abort(
+          new Error("客户端已断开")
+        );
+      }
+    };
+
+    const handleRequestAborted = () => {
+      markClientClosed("request aborted");
+    };
+
+    const handleResponseClose = () => {
+      if (!res.writableEnded) {
+        markClientClosed("response socket closed");
+      }
+    };
+
+    req.once("aborted", handleRequestAborted);
+    res.once("close", handleResponseClose);
+
+    const timeoutId = setTimeout(() => {
+      if (!abortController.signal.aborted) {
+        console.error(
+          `❌ generate-stream 超过 ${streamTimeoutMs}ms，已取消 OpenAI 请求`
+        );
+        abortController.abort(
+          new Error("OpenAI 流式生成超时")
+        );
+      }
+    }, streamTimeoutMs);
+
     try {
       console.log(
         "🔥 /api/generate-stream 被调用了"
@@ -2036,6 +2134,13 @@ app.post(
         "keep-alive"
       );
 
+      res.setHeader(
+        "X-Accel-Buffering",
+        "no"
+      );
+
+      res.flushHeaders?.();
+
       writeLine(res, {
         type: "ready",
         ids: targetBlocks.map(
@@ -2060,9 +2165,6 @@ app.post(
         })),
       });
 
-      // 先让模型一次性理解全部目标并生成完整结果，再逐块流式呈现。
-      // 这样可以在任何内容写入画布之前检查“缺失/空白/原样返回”，
-      // 并自动重试，而不会把失败结果伪装成生成成功。
       const {
         textById,
         response: completedResponse,
@@ -2071,7 +2173,13 @@ app.post(
         prompt,
         targetBlocks,
         res,
+        signal: abortController.signal,
+        isClientClosed: () => clientClosed,
       });
+
+      if (clientClosed || abortController.signal.aborted) {
+        return;
+      }
 
       writeLine(res, {
         type: "debug",
@@ -2080,16 +2188,23 @@ app.post(
         attempt,
       });
 
-      await emitBufferedBlocks(res, targetBlocks, textById);
+      await emitBufferedBlocks(
+        res,
+        targetBlocks,
+        textById,
+        () => clientClosed
+      );
+
+      if (clientClosed || !canWriteResponse(res)) {
+        return;
+      }
 
       const sources = collectWebSources(completedResponse);
 
       if (sources.length) {
         writeLine(res, {
           type: "sources",
-          id:
-            targetBlocks[0]
-              ?.id,
+          id: targetBlocks[0]?.id,
           sources,
         });
       }
@@ -2098,30 +2213,44 @@ app.post(
         type: "done",
       });
 
+      requestFinished = true;
       res.end();
     } catch (error) {
+      const wasAborted =
+        abortController.signal.aborted ||
+        error?.name === "AbortError";
+
+      if (clientClosed) {
+        console.log(
+          "ℹ️ generate-stream 因客户端断开而结束"
+        );
+        return;
+      }
+
       console.error(
         "❌ OpenAI generate-stream error:",
         error
       );
 
-      try {
+      if (canWriteResponse(res)) {
         writeLine(res, {
           type: "error",
-
-          error:
-            error.message ||
-            "OpenAI request failed",
-
+          error: wasAborted
+            ? "生成请求超时或已取消"
+            : error.message || "OpenAI request failed",
           details:
             error.details ||
+            error.cause?.message ||
             error.message,
         });
 
+        requestFinished = true;
         res.end();
-      } catch {
-        // 忽略流已经关闭时产生的二次错误
       }
+    } finally {
+      clearTimeout(timeoutId);
+      req.off("aborted", handleRequestAborted);
+      res.off("close", handleResponseClose);
     }
   }
 );

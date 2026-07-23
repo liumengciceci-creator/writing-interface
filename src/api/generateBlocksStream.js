@@ -4,17 +4,22 @@ export async function generateBlocksStream({
   targetBlocks,
   contextBlocks = [],
   onEvent,
+  signal,
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/generate-stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      targetBlocks,
-      contextBlocks,
-    }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/generate-stream`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      signal,
+      body: JSON.stringify({
+        targetBlocks,
+        contextBlocks,
+      }),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
@@ -22,35 +27,73 @@ export async function generateBlocksStream({
   }
 
   if (!response.body) {
-    throw new Error("ReadableStream is not supported in this browser");
+    throw new Error(
+      "ReadableStream is not supported in this browser"
+    );
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
-  while (true) {
-    const { value, done } = await reader.read();
+  try {
+    while (true) {
+      const { value, done } =
+        await reader.read();
 
-    if (done) break;
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, {
+        stream: true,
+      });
 
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
 
-      const event = JSON.parse(trimmed);
-      onEvent?.(event);
+        try {
+          const event = JSON.parse(trimmed);
+          onEvent?.(event);
+        } catch (error) {
+          console.warn(
+            "[generateBlocksStream] JSON parse failed:",
+            trimmed,
+            error
+          );
+        }
+      }
     }
-  }
 
-  const finalText = buffer.trim();
-  if (finalText) {
-    const event = JSON.parse(finalText);
-    onEvent?.(event);
+    buffer += decoder.decode();
+
+    const finalText = buffer.trim();
+
+    if (finalText) {
+      try {
+        const event = JSON.parse(finalText);
+        onEvent?.(event);
+      } catch (error) {
+        console.warn(
+          "[generateBlocksStream] Final JSON parse failed:",
+          finalText,
+          error
+        );
+      }
+    }
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
+
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore
+    }
   }
 }

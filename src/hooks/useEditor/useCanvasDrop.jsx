@@ -47,6 +47,38 @@ function isInsideSingleSemanticEditor(
   );
 }
 
+
+/**
+ * 获取 PageCanvas 最外层 Stage。
+ *
+ * handleCanvasMouseUp 通常绑定在 Stage 上，
+ * 因此优先使用 event.currentTarget。
+ */
+function getStageElement(
+  event,
+  pageElement
+) {
+  const currentTarget =
+    event?.currentTarget;
+
+  if (
+    currentTarget instanceof
+      Element &&
+    pageElement &&
+    currentTarget.contains(
+      pageElement
+    )
+  ) {
+    return currentTarget;
+  }
+
+  return (
+    pageElement?.parentElement
+      ?.parentElement ||
+    null
+  );
+}
+
 export function useCanvasDrop({
   pageRef,
   zoom,
@@ -212,11 +244,11 @@ export function useCanvasDrop({
         }
 
         /**
-         * 侧边栏模板放进新的语义编辑器时，
-         * 不在旧逻辑中再次创建模块。
+         * Sidebar 模板直接放进新的语义编辑器时，
+         * 不在这里重复创建。
          *
-         * SingleSemanticEditor 的 onDrop 会读取
-         * application/x-writing-block 并完成插入。
+         * SingleSemanticEditor 自己的 onDrop 会把模块
+         * 插入到精确的文字 inline 位置。
          */
         if (
           draggingType &&
@@ -237,26 +269,51 @@ export function useCanvasDrop({
           return;
         }
 
+        const pageElement =
+          pageRef.current;
+
         const pageRect =
-          pageRef.current.getBoundingClientRect();
+          pageElement.getBoundingClientRect();
 
         /**
-         * 将鼠标坐标转换为内容区域坐标。
+         * 鼠标相对于整个白色页面的坐标。
+         * Page 位于缩放容器中，因此要除以 zoom。
          */
-        const x =
+        const pageX =
           (event.clientX -
             pageRect.left) /
-            zoom -
+          zoom;
+
+        const pageY =
+          (event.clientY -
+            pageRect.top) /
+          zoom;
+
+        /**
+         * 鼠标相对于正文内容区的坐标。
+         */
+        const x =
+          pageX -
           CONTENT_LEFT;
 
         const y =
-          (event.clientY -
-            pageRect.top) /
-            zoom -
+          pageY -
           CONTENT_TOP;
 
         /**
-         * 判断是否位于旧的内容区域。
+         * 只要放在白色页面中，就创建为 inline。
+         * 即使放在页边距，也会吸附到最近的正文位置。
+         */
+        const insidePage =
+          pageX >= 0 &&
+          pageX <=
+            pageElement.offsetWidth &&
+          pageY >= 0 &&
+          pageY <=
+            pageElement.offsetHeight;
+
+        /**
+         * 原有正文区域判断继续用于已有模块移动。
          */
         const insideContent =
           x >= 0 &&
@@ -266,51 +323,97 @@ export function useCanvasDrop({
           y <=
             totalContentHeight;
 
-        if (
-          !insideContent
-        ) {
-          clearDragState();
-
-          return;
-        }
-
-        const targetLayout =
-          getTargetEditingLayout(
-            y
-          );
-
-        if (
-          !targetLayout
-        ) {
-          clearDragState();
-
-          return;
-        }
-
-        const localY =
-          clamp(
-            y -
-              targetLayout.top,
-            0,
-            targetLayout.height
-          );
-
         /**
          * 情况一：
-         * 使用旧画布逻辑创建模板模块。
+         * 从 Sidebar 创建新模块。
          *
-         * 只有不在 SingleSemanticEditor 内时，
-         * 才会执行这里。
+         * 白色页面 -> inline
+         * 灰色区域 -> floating
          */
         if (draggingType) {
+          const newBlockId =
+            nextBlockIdRef
+              .current++;
+
+          const blockWidth =
+            draggingType.width ??
+            BLOCK_WIDTH;
+
+          /**
+           * 白色页面中的鼠标位置吸附到正文范围，
+           * 以便计算 inline 插入位置。
+           */
+          const inlineX =
+            clamp(
+              x,
+              0,
+              CONTENT_WIDTH
+            );
+
+          const inlineY =
+            clamp(
+              y,
+              0,
+              Math.max(
+                0,
+                totalContentHeight
+              )
+            );
+
+          const targetLayout =
+            insidePage
+              ? getTargetEditingLayout(
+                  inlineY
+                )
+              : null;
+
+          const localY =
+            targetLayout
+              ? clamp(
+                  inlineY -
+                    targetLayout.top,
+                  0,
+                  targetLayout.height
+                )
+              : 0;
+
+          /**
+           * floating 坐标相对于整个 Stage。
+           * 坐标体系与 useFloatingBlocks 完全一致。
+           */
+          const stageElement =
+            getStageElement(
+              event,
+              pageElement
+            );
+
+          const stageRect =
+            stageElement
+              ?.getBoundingClientRect();
+
+          const floatingX =
+            stageRect
+              ? event.clientX -
+                stageRect.left -
+                Math.min(
+                  blockWidth / 2,
+                  60
+                )
+              : 0;
+
+          const floatingY =
+            stageRect
+              ? event.clientY -
+                stageRect.top -
+                20
+              : 0;
+
           const newBlock = {
             id:
-              nextBlockIdRef
-                .current++,
+              newBlockId,
 
             width:
-              draggingType.width ??
-              BLOCK_WIDTH,
+              blockWidth,
 
             height:
               BLOCK_HEIGHT,
@@ -342,25 +445,25 @@ export function useCanvasDrop({
               null,
 
             placement:
-              "inline",
+              insidePage
+                ? "inline"
+                : "floating",
 
             floatingX:
-              null,
+              insidePage
+                ? null
+                : floatingX,
 
             floatingY:
-              null,
+              insidePage
+                ? null
+                : floatingY,
 
             floatingWidth:
-              null,
+              insidePage
+                ? null
+                : blockWidth,
           };
-
-          const insertIndex =
-            getInsertIndexFromPointer(
-              targetLayout.blocks,
-              targetLayout.localFragments,
-              x,
-              localY
-            );
 
           setSections(
             (
@@ -371,19 +474,50 @@ export function useCanvasDrop({
                   previousSections
                 );
 
+              /**
+               * inline 存入对应 editing section。
+               *
+               * floating 不参与文字流，但仍然保存在相同的
+               * blocks 数据结构中，所以之后可以拖回页面，
+               * 再转换为 inline。
+               */
               const targetSection =
-                nextSections.find(
-                  (section) =>
-                    String(
-                      section.id
-                    ) ===
-                    String(
-                      targetLayout.id
+                insidePage &&
+                targetLayout
+                  ? nextSections.find(
+                      (section) =>
+                        String(
+                          section.id
+                        ) ===
+                        String(
+                          targetLayout.id
+                        )
                     )
-                );
+                  : nextSections.find(
+                      (section) =>
+                        section.mode ===
+                        "editing"
+                    ) ||
+                    nextSections.find(
+                      (section) =>
+                        section.mode !==
+                        "completed"
+                    ) ||
+                    nextSections[0];
 
               if (
                 !targetSection
+              ) {
+                return previousSections;
+              }
+
+              /**
+               * 放在白色页面时必须找到正文 editing layout，
+               * 才能确定准确的 inline 插入位置。
+               */
+              if (
+                insidePage &&
+                !targetLayout
               ) {
                 return previousSections;
               }
@@ -392,11 +526,31 @@ export function useCanvasDrop({
                 previousSections
               );
 
-              targetSection.blocks.splice(
-                insertIndex,
-                0,
-                newBlock
-              );
+              if (
+                insidePage &&
+                targetLayout
+              ) {
+                const insertIndex =
+                  getInsertIndexFromPointer(
+                    targetLayout.blocks,
+                    targetLayout.localFragments,
+                    inlineX,
+                    localY
+                  );
+
+                targetSection.blocks.splice(
+                  insertIndex,
+                  0,
+                  newBlock
+                );
+              } else {
+                /**
+                 * floating 模块不进入正文排版流。
+                 */
+                targetSection.blocks.push(
+                  newBlock
+                );
+              }
 
               return normalizeSections(
                 nextSections,
@@ -405,9 +559,12 @@ export function useCanvasDrop({
             }
           );
 
-          setSelectedIds(
-            []
-          );
+          /**
+           * 创建后直接选中。
+           */
+          setSelectedIds([
+            newBlockId,
+          ]);
 
           setDraggingType(
             null
@@ -418,11 +575,40 @@ export function useCanvasDrop({
 
         /**
          * 情况二：
-         * 使用旧画布逻辑移动已有模块。
+         * 使用原有逻辑移动已有 inline 模块。
          *
-         * 新的 SingleSemanticEditor 内部重排
-         * 由 onReorderBlocks 负责，不会进入这里。
+         * 已有模块与灰色区域之间的转换继续交给
+         * useFloatingBlocks.handleFloatingDrop。
          */
+        if (
+          !insideContent
+        ) {
+          clearDragState();
+
+          return;
+        }
+
+        const targetLayout =
+          getTargetEditingLayout(
+            y
+          );
+
+        if (
+          !targetLayout
+        ) {
+          clearDragState();
+
+          return;
+        }
+
+        const localY =
+          clamp(
+            y -
+              targetLayout.top,
+            0,
+            targetLayout.height
+          );
+
         if (
           draggingBlockId !=
           null

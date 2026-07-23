@@ -431,6 +431,7 @@ export function useStreamingGenerate({
   const expectedGeneratedTextRef = useRef(new Map());
   const lastPostRenderDebugKeyRef = useRef("");
   const domVerificationFrameRef = useRef(null);
+  const controllerRef = useRef(null);
 
   const clearPendingFrame = useCallback(() => {
     if (rafIdRef.current != null) {
@@ -489,6 +490,8 @@ export function useStreamingGenerate({
         domVerificationFrameRef.current
       );
     }
+    controllerRef.current?.abort();
+    controllerRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -633,6 +636,8 @@ export function useStreamingGenerate({
 
   const stopGenerating = useCallback(() => {
     cancelledRef.current = true;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     stopBlinking();
     clearPendingFrame();
     pendingDeltaMapRef.current = new Map();
@@ -642,6 +647,10 @@ export function useStreamingGenerate({
   }, [clearPendingFrame, stopBlinking]);
 
   const generateFromSelectedBlocks = useCallback(async () => {
+    if (isGenerating) return;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
     /**
      * contentEditable 输入先存在于浏览器 DOM，blur 后才会提交到 sections。
      * 如果用户在光标仍位于模块中时用快捷键生成，直接读取 sections 会把
@@ -820,6 +829,7 @@ export function useStreamingGenerate({
       await generateBlocksStream({
         targetBlocks: requestTargetBlocks,
         contextBlocks: requestContextBlocks,
+        signal: controller.signal,
         onEvent: (event) => {
           if (cancelledRef.current) return;
 
@@ -1000,6 +1010,9 @@ export function useStreamingGenerate({
         completedRequestIds: Array.from(completedRequestIds),
       });
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
       console.error("[useStreamingGenerate] 整体生成失败：", error);
       aiDebug("ERROR generation stopped", {
         name: error?.name,
@@ -1030,6 +1043,7 @@ export function useStreamingGenerate({
       pendingDeltaMapRef.current = new Map();
       setIsGenerating(false);
       setGeneratingBlockIds([]);
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [
     sections,
