@@ -109,51 +109,48 @@ function InlineDragPreview({
 
   return (
     <div
-      style={{
-        position: "absolute",
-        left: preview.x,
-        top: preview.y,
+   style={{
+  position: "absolute",
+  left: preview.x,
+  top: preview.y,
 
-        display: "inline-block",
-        width: "max-content",
-        maxWidth: 280,
-        minWidth: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 
-        border:
-          `1.5px solid ${
-            block.color ||
-            "#7c83fd"
-          }`,
+  width: "fit-content",
+  minWidth: 72,
+  
 
-        borderRadius: 10,
+  border: `1.5px solid ${block.color || "#7c83fd"}`,
+  borderRadius: 14,
 
-        background:
-          block.fill ||
-          "rgba(124,131,253,0.10)",
+  background:
+    block.fill ||
+    "rgba(124,131,253,0.10)",
 
-        padding: "8px 14px",
-        boxSizing: "border-box",
+  padding: "12px 18px",
 
-        color: "#202124",
-        fontSize: 16,
-        lineHeight: "24px",
+  boxSizing: "border-box",
 
-        whiteSpace: "pre-wrap",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
+  color: "#202124",
+  fontSize: 18,
+  fontWeight: 500,
+  lineHeight: 1.2,
 
-        boxShadow:
-          "0 12px 24px rgba(0,0,0,0.14)",
+  whiteSpace: "nowrap",
 
-        opacity: 0.96,
+  boxShadow:
+    "0 10px 20px rgba(0,0,0,0.12)",
 
-        zIndex,
-        pointerEvents: "none",
+  opacity: 0.96,
 
-        userSelect: "none",
-        WebkitUserSelect:
-          "none",
-      }}
+  zIndex,
+  pointerEvents: "none",
+
+  userSelect: "none",
+  WebkitUserSelect: "none",
+}}
     >
       <div
         style={{
@@ -187,10 +184,10 @@ function InlineDragPreview({
         )}
       </div>
 
-      {block.text ||
-        block.label ||
-        block.type ||
-        ""}
+      {block.label ||
+  block.text ||
+  block.type ||
+  ""}
     </div>
   );
 }
