@@ -214,6 +214,7 @@ export default function PageCanvas(
 
     onDragEnd,
     onCanvasMouseUp,
+    onExternalDrop,
     onSelectionMove,
     onSelectionStart,
     onSelectionEnd,
@@ -557,22 +558,31 @@ export default function PageCanvas(
         nativeDraggingBlockIdRef.current ??
         draggingBlockId;
 
-      if (
-        activeBlockId == null
-      ) {
-        return;
-      }
-
+      /**
+       * Sidebar 模板拖到 Stage 时也必须 preventDefault，
+       * 否则浏览器不会触发最终 drop，表现为松手后不出现，
+       * 还要再点击一次鼠标才创建。
+       */
       event.preventDefault();
 
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect =
-          "move";
+          activeBlockId == null
+            ? "copy"
+            : "move";
       }
 
-      updateDragPointer(
-        event
-      );
+      /**
+       * 只有拖动已有模块时才更新 floating 预览。
+       * Sidebar 新模板由 useCanvasDrop 在 drop 时直接创建。
+       */
+      if (
+        activeBlockId != null
+      ) {
+        updateDragPointer(
+          event
+        );
+      }
     };
 
   const handleStageDrop =
@@ -581,15 +591,37 @@ export default function PageCanvas(
         nativeDraggingBlockIdRef.current ??
         draggingBlockId;
 
-      if (
-        activeBlockId == null
-      ) {
-        return;
-      }
-
       event.preventDefault();
       event.stopPropagation();
 
+      /**
+       * activeBlockId 为空时，说明拖入的是 Sidebar 新模板。
+       *
+       * 直接在本次 drop 中交给 useCanvasDrop 创建：
+       * - 落在白色页面：创建为 inline
+       * - 落在页面外灰色区域：创建为 floating
+       *
+       * 因此鼠标松开时会立即出现，不需要再点击一次。
+       */
+      if (
+        activeBlockId == null
+      ) {
+        onExternalDrop?.(
+          event
+        );
+
+        clearDragPointer();
+
+        nativeDraggingBlockIdRef.current =
+          null;
+
+        return;
+      }
+
+      /**
+       * 已有 inline / floating 模块继续交给
+       * useFloatingBlocks 处理移动及 placement 转换。
+       */
       const result =
         handleFloatingDrop(
           event,
@@ -609,8 +641,10 @@ export default function PageCanvas(
       }
 
       clearDragPointer();
+
       nativeDraggingBlockIdRef.current =
         null;
+
       onDragEnd?.();
     };
 

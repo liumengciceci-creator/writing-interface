@@ -49,6 +49,39 @@ function isInsideSingleSemanticEditor(
 
 
 /**
+ * 根据模板标签文字计算 floating 模块初始宽度。
+ *
+ * 目标：
+ * - 只包住标签自带文字
+ * - 不使用默认长条宽度
+ * - 与拖到白色页面时的紧凑模块尺寸接近
+ */
+function getTemplateFloatingWidth(
+  text
+) {
+  const value =
+    String(text || "");
+
+  let estimatedTextWidth = 0;
+
+  for (const character of value) {
+    estimatedTextWidth +=
+      /[\u4e00-\u9fff]/.test(
+        character
+      )
+        ? 16
+        : 8;
+  }
+
+  return clamp(
+    estimatedTextWidth + 32,
+    72,
+    280
+  );
+}
+
+
+/**
  * 获取 PageCanvas 最外层 Stage。
  *
  * handleCanvasMouseUp 通常绑定在 Stage 上，
@@ -340,6 +373,26 @@ export function useCanvasDrop({
             BLOCK_WIDTH;
 
           /**
+           * 新建模块优先使用 Sidebar 标签本身的文字。
+           */
+          const templateText =
+            String(
+              draggingType.label ||
+                draggingType.text ||
+                draggingType.type ||
+                ""
+            );
+
+          /**
+           * floating 初始宽度只包住标签文字，
+           * 避免创建后变成长条。
+           */
+          const initialFloatingWidth =
+            getTemplateFloatingWidth(
+              templateText
+            );
+
+          /**
            * 白色页面中的鼠标位置吸附到正文范围，
            * 以便计算 inline 插入位置。
            */
@@ -396,7 +449,7 @@ export function useCanvasDrop({
               ? event.clientX -
                 stageRect.left -
                 Math.min(
-                  blockWidth / 2,
+                  initialFloatingWidth / 2,
                   60
                 )
               : 0;
@@ -419,12 +472,7 @@ export function useCanvasDrop({
               BLOCK_HEIGHT,
 
             text:
-              String(
-                draggingType.text ||
-                  draggingType.label ||
-                  draggingType.type ||
-                  ""
-              ),
+              templateText,
 
             type:
               draggingType.type,
@@ -462,7 +510,7 @@ export function useCanvasDrop({
             floatingWidth:
               insidePage
                 ? null
-                : blockWidth,
+                : initialFloatingWidth,
           };
 
           setSections(
@@ -677,6 +725,25 @@ export function useCanvasDrop({
               ) {
                 return previousSections;
               }
+
+              /**
+               * floating 模块拖回白色正文后，
+               * 自动恢复为 inline，并清除 floating 坐标。
+               *
+               * 后续仍然会根据鼠标位置计算 insertIndex，
+               * 所以它会插入到正确的文字流位置。
+               */
+              movingBlock.placement =
+                "inline";
+
+              movingBlock.floatingX =
+                null;
+
+              movingBlock.floatingY =
+                null;
+
+              movingBlock.floatingWidth =
+                null;
 
               /**
                * 同一 section 内移动时，
