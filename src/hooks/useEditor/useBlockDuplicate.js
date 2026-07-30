@@ -129,39 +129,68 @@ function collectBlockFragments(
   (
     sectionLayouts || []
   ).forEach((section) => {
-    const fragmentGroups = [
-      section?.localFragments,
-      section?.fragments,
-      section?.globalFragments,
-    ];
+    /**
+     * buildSectionLayouts 保存的是段内局部坐标。
+     * 复制时需要把 section.top 加回去，得到相对于整块
+     * content 的坐标，否则第二段以后的副本会跑到错误位置。
+     */
+    const localFragments =
+      Array.isArray(
+        section?.localFragments
+      )
+        ? section.localFragments
+        : Array.isArray(
+              section?.fragments
+            )
+          ? section.fragments
+          : null;
 
-    fragmentGroups.forEach(
-      (fragments) => {
-        if (
-          !Array.isArray(
-            fragments
-          )
-        ) {
-          return;
-        }
-
-        fragments.forEach(
-          (fragment) => {
-            if (
-              normalizeId(
-                fragment?.blockId
-              ) !== targetId
-            ) {
-              return;
-            }
-
-            result.push(
-              fragment
-            );
-          }
+    if (localFragments) {
+      const sectionTop =
+        toFiniteNumber(
+          section?.top
         );
+
+      localFragments.forEach(
+        (fragment) => {
+          if (
+            normalizeId(
+              fragment?.blockId
+            ) !== targetId
+          ) {
+            return;
+          }
+
+          result.push({
+            ...fragment,
+            y:
+              sectionTop +
+              toFiniteNumber(
+                fragment?.y
+              ),
+          });
+        }
+      );
+
+      return;
+    }
+
+    /**
+     * 兼容旧布局数据：只有没有 localFragments 时才读取
+     * globalFragments，避免同一模块的局部/全局坐标被重复合并。
+     */
+    (
+      section?.globalFragments ||
+      []
+    ).forEach((fragment) => {
+      if (
+        normalizeId(
+          fragment?.blockId
+        ) === targetId
+      ) {
+        result.push(fragment);
       }
-    );
+    });
   });
 
   return result;
@@ -399,6 +428,7 @@ export function useBlockDuplicate({
   sectionLayouts = [],
 
   stageRef,
+  pageRef,
   contentRef,
 
   zoom = 1,
@@ -667,6 +697,117 @@ export function useBlockDuplicate({
     );
 
   /**
+   * floating 模块虽然不进入 inline 文档流，但刚粘贴时必须完整
+   * 出现在白色页面内。这里使用真实 DOM 矩形约束位置，因此缩放后
+   * 仍然准确，之后用户依然可以把它拖到灰色区域或拖回 inline。
+   */
+  const clampPositionInsidePage =
+    useCallback(
+      (
+        position,
+        floatingWidth
+      ) => {
+        const stageRect =
+          stageRef?.current
+            ?.getBoundingClientRect();
+
+        const pageRect =
+          pageRef?.current
+            ?.getBoundingClientRect();
+
+        if (
+          !stageRect ||
+          !pageRect
+        ) {
+          return position;
+        }
+
+        const margin = 12;
+
+        const pageLeft =
+          pageRect.left -
+          stageRect.left;
+
+        const pageTop =
+          pageRect.top -
+          stageRect.top;
+
+        const pageRight =
+          pageRect.right -
+          stageRect.left;
+
+        const pageBottom =
+          pageRect.bottom -
+          stageRect.top;
+
+        const width =
+          Math.max(
+            1,
+            toFiniteNumber(
+              floatingWidth,
+              BLOCK_WIDTH
+            )
+          );
+
+        const minX =
+          pageLeft + margin;
+
+        const maxX =
+          Math.max(
+            minX,
+            pageRight -
+              margin -
+              width
+          );
+
+        const minY =
+          pageTop + margin;
+
+        /**
+         * 40px 是 floating 模块的最小高度。这里保证粘贴时至少
+         * 整个模块头部可见，实际内容较高时仍可正常向下展开。
+         */
+        const maxY =
+          Math.max(
+            minY,
+            pageBottom -
+              margin -
+              40
+          );
+
+        return {
+          x:
+            Math.min(
+              maxX,
+              Math.max(
+                minX,
+                toFiniteNumber(
+                  position?.x,
+                  minX
+                )
+              )
+            ),
+
+          y:
+            Math.min(
+              maxY,
+              Math.max(
+                minY,
+                toFiniteNumber(
+                  position?.y,
+                  minY
+                )
+              )
+            ),
+        };
+      },
+      [
+        stageRef,
+        pageRef,
+      ]
+    );
+
+  /**
    * 找到保存 floating 副本的 section。
    *
    * 优先：
@@ -811,7 +952,15 @@ export function useBlockDuplicate({
                 sourceId
               );
 
-            const position =
+            const sourceWidth =
+              getSourceVisualWidth({
+                sourceBlock,
+                sourceBounds,
+                zoom:
+                  normalizedZoom,
+              });
+
+            const rawPosition =
               getSourceStagePosition(
                 sourceBlock,
                 sourceBounds,
@@ -826,13 +975,11 @@ export function useBlockDuplicate({
                 }
               );
 
-            const sourceWidth =
-              getSourceVisualWidth({
-                sourceBlock,
-                sourceBounds,
-                zoom:
-                  normalizedZoom,
-              });
+            const position =
+              clampPositionInsidePage(
+                rawPosition,
+                sourceWidth
+              );
 
             const newId =
               nextBlockIdRef
@@ -1041,6 +1188,7 @@ export function useBlockDuplicate({
         getTargetSectionId,
         getSourceLayoutBounds,
         getSourceStagePosition,
+        clampPositionInsidePage,
 
         normalizedZoom,
 

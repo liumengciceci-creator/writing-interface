@@ -447,6 +447,7 @@ export function useEditor() {
   sectionLayouts,
 
   stageRef,
+  pageRef,
   contentRef,
 
   zoom,
