@@ -121,6 +121,9 @@ function SemanticHighlightLayer({
             block.fill ||
             "rgba(124,131,253,0.08)";
 
+          const softStroke =
+            `color-mix(in srgb, ${color} 52%, white)`;
+
 
           const selected =
             selectedIdSet?.has(
@@ -232,7 +235,7 @@ function SemanticHighlightLayer({
 
 
                 stroke={
-                  color
+                  softStroke
                 }
 
 

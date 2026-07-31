@@ -759,7 +759,7 @@ export default function FloatingEditableBlock({
         border:
           usesLineFragments
             ? "none"
-            : `1px solid ${block.color}`,
+            : `1px solid color-mix(in srgb, ${block.color} 52%, white)`,
 
         boxShadow:
           usesLineFragments
@@ -881,7 +881,7 @@ export default function FloatingEditableBlock({
                     boxSizing:
                       "border-box",
                     border:
-                      `1px solid ${block.color}`,
+                      `1px solid color-mix(in srgb, ${block.color} 52%, white)`,
                     borderRadius: 8,
                     background:
                       block.fill,

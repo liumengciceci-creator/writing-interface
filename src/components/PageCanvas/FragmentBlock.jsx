@@ -141,7 +141,7 @@ export default function FragmentBlock({
           fragment.height,
 
         border:
-          `1px solid ${fragment.color}`,
+          `1px solid color-mix(in srgb, ${fragment.color} 52%, white)`,
 
         outline:
           "none",

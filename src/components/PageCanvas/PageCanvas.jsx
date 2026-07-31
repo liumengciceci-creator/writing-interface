@@ -153,7 +153,7 @@ function InlineDragPreview({
                 boxSizing:
                   "border-box",
                 border:
-                  `1px solid ${block.color || "#7c83fd"}`,
+                  `1px solid color-mix(in srgb, ${block.color || "#7c83fd"} 52%, white)`,
                 borderRadius: 8,
                 background:
                   block.fill ||
@@ -225,7 +225,7 @@ function InlineDragPreview({
   minWidth: 0,
   
 
-  border: `1px solid ${block.color || "#7c83fd"}`,
+  border: `1px solid color-mix(in srgb, ${block.color || "#7c83fd"} 52%, white)`,
   borderRadius: 8,
 
   background:
