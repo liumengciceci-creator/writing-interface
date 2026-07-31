@@ -96,16 +96,23 @@ export function useHistory({
             return prevHistory;
           }
 
+          /**
+           * history 保存的每一项都是“某次修改发生前”的快照。
+           * 因此撤销时应恢复当前栈顶，再把它移出历史。
+           *
+           * 旧逻辑先移除栈顶、再读取新的栈顶，会一次退回两步；
+           * 连续完成、编辑、恢复或复制模块后尤其明显。
+           */
+          const previousSections =
+            prevHistory[
+              prevHistory.length - 1
+            ];
+
           const nextHistory =
             prevHistory.slice(
               0,
               -1
             );
-
-          const previousSections =
-            nextHistory[
-              nextHistory.length - 1
-            ];
 
           setSections(
             cloneSections(

@@ -1414,8 +1414,44 @@ export function useEditor() {
               return previousSections;
             }
 
+            /**
+             * 双击发生在 contentEditable 的 blur 之前。
+             * 如果用户刚编辑完文字就直接双击，React state 里仍可能
+             * 是旧文字。撤销“恢复模块”时应回到已经编辑好的完整段落，
+             * 所以历史快照也要写入这次从 DOM 读取到的最新文字。
+             */
+            const historySections =
+              latestCompletedText == null
+                ? previousSections
+                : previousSections.map(
+                    (section) => ({
+                      ...section,
+                      blocks:
+                        Array.isArray(
+                          section.blocks
+                        )
+                          ? section.blocks.map(
+                              (block) =>
+                                block
+                                  ?.isCompletedParagraph &&
+                                String(
+                                  block.id
+                                ) === targetId
+                                  ? {
+                                      ...block,
+                                      text:
+                                        String(
+                                          latestCompletedText
+                                        ),
+                                    }
+                                  : block
+                            )
+                          : section.blocks,
+                    })
+                  );
+
             pushHistorySnapshot(
-              previousSections
+              historySections
             );
 
             return normalizeSections(
