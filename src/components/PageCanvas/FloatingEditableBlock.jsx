@@ -975,14 +975,17 @@ export default function FloatingEditableBlock({
               "left center",
             animation:
               instructionEffect.phase ===
+                "impact"
+                ? "floating-instruction-water-fill 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards"
+                : instructionEffect.phase ===
                   "waiting"
                 ? "floating-instruction-waiting-pulse 620ms ease-in-out infinite"
                 : undefined,
             opacity:
               instructionEffect.phase ===
-                "waiting"
-                ? undefined
-                : 0,
+                "hover"
+                ? 0
+                : undefined,
           }}
         />
       )}
