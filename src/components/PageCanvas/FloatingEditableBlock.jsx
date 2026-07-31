@@ -76,6 +76,11 @@ export default function FloatingEditableBlock({
   onUpdateText,
   onUpdateWidth,
 }) {
+  const matchesInlineAppearance =
+    block
+      .floatingMatchesInlineAppearance ===
+    true;
+
   const editorRef =
     useRef(null);
 
@@ -736,6 +741,7 @@ export default function FloatingEditableBlock({
           220,
 
         minHeight:
+          block.floatingHeight ??
           block.height ??
           40,
 
@@ -755,7 +761,9 @@ export default function FloatingEditableBlock({
             : "0 8px 18px rgba(0,0,0,0.12)",
 
         borderRadius:
-          10,
+          matchesInlineAppearance
+            ? 8
+            : 10,
 
         background:
           isGenerating &&
@@ -777,7 +785,9 @@ export default function FloatingEditableBlock({
           "border-box",
 
         padding:
-          "8px 14px",
+          matchesInlineAppearance
+            ? "3px 10px"
+            : "8px 14px",
 
         zIndex:
           isSelected
@@ -873,19 +883,27 @@ export default function FloatingEditableBlock({
             2,
 
           top:
-            -14,
+            matchesInlineAppearance
+              ? -12
+              : -14,
 
           left:
-            0,
+            matchesInlineAppearance
+              ? 7
+              : 0,
 
           height:
             16,
 
           padding:
-            "0 8px",
+            matchesInlineAppearance
+              ? "0 6px"
+              : "0 8px",
 
           borderRadius:
-            6,
+            matchesInlineAppearance
+              ? 5
+              : 6,
 
           background:
             block.color,
@@ -1166,13 +1184,17 @@ export default function FloatingEditableBlock({
             "border-box",
 
           fontSize:
-            14,
+            matchesInlineAppearance
+              ? 16
+              : 14,
 
           color:
             "#333",
 
           lineHeight:
-            "20px",
+            matchesInlineAppearance
+              ? "24px"
+              : "20px",
 
           textAlign:
             "left",

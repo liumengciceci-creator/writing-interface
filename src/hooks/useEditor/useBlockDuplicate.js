@@ -332,6 +332,7 @@ function buildFragmentBounds(
  */
 function getSourceVisualWidth({
   sourceBlock,
+  sourceDomBounds,
   sourceBounds,
   zoom,
 }) {
@@ -351,6 +352,23 @@ function getSourceVisualWidth({
         sourceBlock
           .floatingWidth
       )
+    );
+  }
+
+  /**
+   * inline 模块优先使用浏览器实际渲染后的边框宽度。
+   * 不能再使用旧布局的预估宽度，否则文字较短时副本会偏大。
+   */
+  if (
+    sourceDomBounds &&
+    Number.isFinite(
+      sourceDomBounds.width
+    ) &&
+    sourceDomBounds.width > 0
+  ) {
+    return Math.max(
+      1,
+      sourceDomBounds.width
     );
   }
 
@@ -1125,6 +1143,7 @@ export function useBlockDuplicate({
             const sourceWidth =
               getSourceVisualWidth({
                 sourceBlock,
+                sourceDomBounds,
                 sourceBounds,
                 zoom:
                   normalizedZoom,
@@ -1209,6 +1228,26 @@ export function useBlockDuplicate({
 
             copiedBlock.width =
               sourceWidth;
+
+            /**
+             * 从 inline 复制出来的 floating 模块继续采用 inline 的
+             * 字号、内边距和行高，并记录真实高度。这样框和文字都与
+             * 原模块保持相同视觉比例，而不是套用较大的 floating
+             * 默认样式。
+             */
+            if (sourceDomBounds) {
+              copiedBlock.floatingHeight =
+                Math.max(
+                  1,
+                  sourceDomBounds.height
+                );
+
+              copiedBlock.height =
+                copiedBlock.floatingHeight;
+
+              copiedBlock.floatingMatchesInlineAppearance =
+                true;
+            }
 
             /**
              * 不继承旧完成组关系。
