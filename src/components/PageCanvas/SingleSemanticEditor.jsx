@@ -378,6 +378,30 @@ const SingleSemanticEditor =
       const suppressNextNativeDragRef =
         useRef(false);
 
+      const duplicateDragCandidateRef =
+        useRef(null);
+
+      useEffect(() => {
+        return () => {
+          const candidate =
+            duplicateDragCandidateRef.current;
+
+          if (!candidate) {
+            return;
+          }
+
+          window.removeEventListener(
+            "mousemove",
+            candidate.handleMouseMove
+          );
+
+          window.removeEventListener(
+            "mouseup",
+            candidate.handleMouseUp
+          );
+        };
+      }, []);
+
 
       const [
         draggingInlineBlockId,
@@ -941,10 +965,85 @@ const SingleSemanticEditor =
               event.preventDefault();
               event.stopPropagation();
               suppressNextNativeDragRef.current = true;
-              onDuplicateBlockDragStart?.(
-                event,
-                block
+
+              const startX =
+                event.clientX;
+
+              const startY =
+                event.clientY;
+
+              const cancelCandidate =
+                () => {
+                  const candidate =
+                    duplicateDragCandidateRef.current;
+
+                  if (!candidate) {
+                    return;
+                  }
+
+                  window.removeEventListener(
+                    "mousemove",
+                    candidate.handleMouseMove
+                  );
+
+                  window.removeEventListener(
+                    "mouseup",
+                    candidate.handleMouseUp
+                  );
+
+                  duplicateDragCandidateRef.current =
+                    null;
+
+                  suppressNextNativeDragRef.current =
+                    false;
+                };
+
+              const handleMouseMove =
+                (moveEvent) => {
+                  const distance =
+                    Math.hypot(
+                      moveEvent.clientX -
+                        startX,
+                      moveEvent.clientY -
+                        startY
+                    );
+
+                  if (distance <= 5) {
+                    return;
+                  }
+
+                  cancelCandidate();
+
+                  window
+                    .getSelection?.()
+                    ?.removeAllRanges();
+
+                  onDuplicateBlockDragStart?.(
+                    moveEvent,
+                    block
+                  );
+                };
+
+              const handleMouseUp =
+                () => {
+                  cancelCandidate();
+                };
+
+              duplicateDragCandidateRef.current = {
+                handleMouseMove,
+                handleMouseUp,
+              };
+
+              window.addEventListener(
+                "mousemove",
+                handleMouseMove
               );
+
+              window.addEventListener(
+                "mouseup",
+                handleMouseUp
+              );
+
               return;
             }
 
@@ -962,6 +1061,7 @@ const SingleSemanticEditor =
           [
             onBlockMouseDown,
             onSelectBlockForPanel,
+            onDuplicateBlockDragStart,
           ]
         );
 

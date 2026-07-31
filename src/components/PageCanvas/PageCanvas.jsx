@@ -989,6 +989,50 @@ export default function PageCanvas(
                 );
               }}
 
+              /**
+               * Shift + Option + 左键：
+               * 立即创建 floating 副本，并把当前按住的这次鼠标操作
+               * 切换为拖动副本。原 inline 模块完全不移动。
+               */
+              onDuplicateBlockDragStart={(
+                event,
+                block
+              ) => {
+                const duplicateResult =
+                  beginDuplicateDrag?.(
+                    event,
+                    block.id
+                  );
+
+                const copiedBlock =
+                  duplicateResult?.primaryBlock;
+
+                const copiedBlockId =
+                  duplicateResult?.primaryId;
+
+                if (
+                  !copiedBlock ||
+                  copiedBlockId == null
+                ) {
+                  return null;
+                }
+
+                nativeDraggingBlockIdRef.current =
+                  copiedBlockId;
+
+                onBlockDragStart?.(
+                  copiedBlockId,
+                  event
+                );
+
+                beginDragTracking(
+                  event,
+                  copiedBlock
+                );
+
+                return duplicateResult;
+              }}
+
               onExistingBlockDragOver={(
                 event
               ) => {
