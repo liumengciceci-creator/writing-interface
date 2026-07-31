@@ -160,11 +160,10 @@ function InlineDragPreview({
                   "rgba(124,131,253,0.10)",
                 color: "#202124",
                 fontSize: 16,
-                fontWeight: 500,
+                fontWeight: 400,
                 lineHeight: "24px",
                 whiteSpace: "pre",
-                boxShadow:
-                  "0 8px 18px rgba(0,0,0,0.16)",
+                boxShadow: "none",
               }}
             >
               {fragment.text}
@@ -239,7 +238,7 @@ function InlineDragPreview({
 
   color: "#202124",
   fontSize: 16,
-  fontWeight: 500,
+  fontWeight: 400,
   lineHeight: "24px",
 
   whiteSpace: "pre-wrap",

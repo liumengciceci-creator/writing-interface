@@ -762,7 +762,9 @@ export default function FloatingEditableBlock({
             : `1px solid ${block.color}`,
 
         boxShadow:
-          instructionEffect
+          usesLineFragments
+            ? "none"
+            : instructionEffect
             ? "0 8px 18px rgba(0,0,0,0.12)"
             : isEditing
             ? "none"
@@ -771,8 +773,6 @@ export default function FloatingEditableBlock({
             ? `0 0 0 1px ${block.color}22, 0 0 4px ${block.color}33, 0 8px 18px rgba(0,0,0,0.12)`
             : isSelected
             ? `0 10px 28px rgba(15,23,42,0.24), 0 3px 10px rgba(15,23,42,0.16), 0 0 0 2px ${block.color}38`
-            : usesLineFragments
-            ? "none"
             : "0 8px 18px rgba(0,0,0,0.12)",
 
         borderRadius:
@@ -887,14 +887,11 @@ export default function FloatingEditableBlock({
                       block.fill,
                     color: "#202124",
                     fontSize: 16,
-                    fontWeight: 500,
+                    fontWeight: 400,
                     lineHeight: "24px",
                     whiteSpace: "pre",
                     overflow: "visible",
-                    boxShadow:
-                      isSelected
-                        ? `0 6px 16px rgba(15,23,42,0.18), 0 0 0 2px ${block.color}38`
-                        : "none",
+                    boxShadow: "none",
                   }}
                 >
                   {fragment.text}
