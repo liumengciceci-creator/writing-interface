@@ -324,6 +324,7 @@ const SingleSemanticEditor =
       {
         blocks = [],
         selectedIds = [],
+        externalDraggingBlockId = null,
 
         onChangeText,
         onCommitBlocks,
@@ -395,6 +396,174 @@ const SingleSemanticEditor =
         dropIndicator,
         setDropIndicator,
       ] = useState(null);
+
+      /**
+       * floating 模块使用 mousemove 拖动，不会产生原生 dragover。
+       * 因此单独根据鼠标位置计算同一套 inline 插入竖线。
+       */
+      const updateFloatingDropIndicator =
+        useCallback(
+          (event) => {
+            const root =
+              editorRef.current;
+
+            if (
+              !root ||
+              externalDraggingBlockId ==
+                null
+            ) {
+              return;
+            }
+
+            const draggingId =
+              normalizeId(
+                externalDraggingBlockId
+              );
+
+            const visualRects = [];
+
+            Array.from(
+              root.querySelectorAll(
+                "[data-semantic-block-id]"
+              )
+            )
+              .filter(
+                (element) =>
+                  normalizeId(
+                    element.getAttribute(
+                      "data-semantic-block-id"
+                    )
+                  ) !== draggingId
+              )
+              .forEach((element) => {
+                Array.from(
+                  element.getClientRects?.() ||
+                    []
+                ).forEach((rect) => {
+                  if (
+                    rect.width > 0 &&
+                    rect.height > 0
+                  ) {
+                    visualRects.push(rect);
+                  }
+                });
+              });
+
+            if (
+              visualRects.length === 0
+            ) {
+              setDropIndicator(null);
+              return;
+            }
+
+            const nearestRect =
+              visualRects.reduce(
+                (nearest, rect) => {
+                  const dx =
+                    event.clientX < rect.left
+                      ? rect.left -
+                        event.clientX
+                      : event.clientX >
+                          rect.right
+                        ? event.clientX -
+                          rect.right
+                        : 0;
+
+                  const dy =
+                    event.clientY < rect.top
+                      ? rect.top -
+                        event.clientY
+                      : event.clientY >
+                          rect.bottom
+                        ? event.clientY -
+                          rect.bottom
+                        : 0;
+
+                  const distance =
+                    Math.hypot(dx, dy);
+
+                  return !nearest ||
+                    distance <
+                      nearest.distance
+                    ? {
+                        rect,
+                        distance,
+                      }
+                    : nearest;
+                },
+                null
+              )?.rect;
+
+            if (!nearestRect) {
+              setDropIndicator(null);
+              return;
+            }
+
+            const rootRect =
+              root.getBoundingClientRect();
+
+            const scaleX =
+              root.offsetWidth > 0
+                ? rootRect.width /
+                  root.offsetWidth
+                : 1;
+
+            const scaleY =
+              root.offsetHeight > 0
+                ? rootRect.height /
+                  root.offsetHeight
+                : scaleX;
+
+            const placeAfter =
+              event.clientX >=
+              nearestRect.left +
+                nearestRect.width / 2;
+
+            setDropIndicator({
+              left:
+                (
+                  (placeAfter
+                    ? nearestRect.right
+                    : nearestRect.left) -
+                  rootRect.left
+                ) /
+                Math.max(
+                  scaleX,
+                  0.001
+                ),
+
+              top:
+                (nearestRect.top -
+                  rootRect.top) /
+                Math.max(
+                  scaleY,
+                  0.001
+                ),
+
+              height:
+                nearestRect.height /
+                Math.max(
+                  scaleY,
+                  0.001
+                ),
+            });
+          },
+          [externalDraggingBlockId]
+        );
+
+      useEffect(() => {
+        if (
+          externalDraggingBlockId ==
+            null &&
+          draggingInlineBlockId ==
+            null
+        ) {
+          setDropIndicator(null);
+        }
+      }, [
+        externalDraggingBlockId,
+        draggingInlineBlockId,
+      ]);
 
       const instructionDropTimerRef =
         useRef(null);
@@ -1346,6 +1515,26 @@ const SingleSemanticEditor =
             onMouseDown={
               handleRootMouseDown
             }
+
+            onMouseMove={(event) => {
+              if (
+                externalDraggingBlockId !=
+                null
+              ) {
+                updateFloatingDropIndicator(
+                  event
+                );
+              }
+            }}
+
+            onMouseLeave={() => {
+              if (
+                externalDraggingBlockId !=
+                null
+              ) {
+                setDropIndicator(null);
+              }
+            }}
 
             onDragOver={
               handleDragOver

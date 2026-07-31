@@ -871,6 +871,10 @@ export default function PageCanvas(
                 selectedIds
               }
 
+              externalDraggingBlockId={
+                draggingBlockId
+              }
+
               onChangeText={
                 onChangeText
               }
