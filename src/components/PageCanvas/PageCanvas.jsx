@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -322,6 +323,13 @@ export default function PageCanvas(
   const nativeDraggingBlockIdRef =
     useRef(null);
 
+  /**
+   * Shift + Option + 左键复制拖拽使用独立的全局手势，
+   * 避开 contentEditable 与原生 draggable 的事件冲突。
+   */
+  const duplicatePointerGestureRef =
+    useRef(null);
+
   const completedSections =
     useMemo(
       () =>
@@ -435,6 +443,206 @@ export default function PageCanvas(
     handleCanvasMouseUp:
       onCanvasMouseUp,
   });
+
+  /**
+   * 全局 mouseup 监听器创建于复制开始的那一帧。
+   * 副本写入 sections 后组件会重新渲染，因此松手时必须调用
+   * 最新一帧的 drop 函数，才能查找到刚创建的新模块。
+   */
+  const latestHandleFloatingDropRef =
+    useRef(handleFloatingDrop);
+
+  latestHandleFloatingDropRef.current =
+    handleFloatingDrop;
+
+  useEffect(() => {
+    return () => {
+      const gesture =
+        duplicatePointerGestureRef.current;
+
+      if (!gesture) {
+        return;
+      }
+
+      window.removeEventListener(
+        "mousemove",
+        gesture.handleMouseMove
+      );
+
+      window.removeEventListener(
+        "mouseup",
+        gesture.handleMouseUp
+      );
+    };
+  }, []);
+
+  const handleDuplicatePointerDown =
+    (event) => {
+      if (
+        event.button !== 0 ||
+        !event.shiftKey ||
+        !event.altKey ||
+        isGenerating
+      ) {
+        return;
+      }
+
+      const blockElement =
+        event.target?.closest?.(
+          "[data-semantic-block-id], [data-block-root='true']"
+        );
+
+      if (!blockElement) {
+        return;
+      }
+
+      const sourceBlockId =
+        blockElement.getAttribute(
+          "data-semantic-block-id"
+        ) ??
+        blockElement.getAttribute(
+          "data-block-id"
+        );
+
+      if (
+        sourceBlockId == null ||
+        !getBlockById?.(
+          sourceBlockId
+        )
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startX =
+        event.clientX;
+
+      const startY =
+        event.clientY;
+
+      const gesture = {
+        started: false,
+        copiedBlockId: null,
+        handleMouseMove: null,
+        handleMouseUp: null,
+      };
+
+      const cleanup = () => {
+        window.removeEventListener(
+          "mousemove",
+          gesture.handleMouseMove
+        );
+
+        window.removeEventListener(
+          "mouseup",
+          gesture.handleMouseUp
+        );
+
+        if (
+          duplicatePointerGestureRef.current ===
+          gesture
+        ) {
+          duplicatePointerGestureRef.current =
+            null;
+        }
+      };
+
+      gesture.handleMouseMove =
+        (moveEvent) => {
+          if (!gesture.started) {
+            const distance =
+              Math.hypot(
+                moveEvent.clientX -
+                  startX,
+                moveEvent.clientY -
+                  startY
+              );
+
+            if (distance <= 5) {
+              return;
+            }
+
+            const duplicateResult =
+              beginDuplicateDrag?.(
+                moveEvent,
+                sourceBlockId
+              );
+
+            const copiedBlock =
+              duplicateResult?.primaryBlock;
+
+            const copiedBlockId =
+              duplicateResult?.primaryId;
+
+            if (
+              !copiedBlock ||
+              copiedBlockId == null
+            ) {
+              cleanup();
+              return;
+            }
+
+            gesture.started = true;
+            gesture.copiedBlockId =
+              copiedBlockId;
+
+            nativeDraggingBlockIdRef.current =
+              copiedBlockId;
+
+            onBlockDragStart?.(
+              copiedBlockId,
+              moveEvent
+            );
+
+            beginDragTracking(
+              moveEvent,
+              copiedBlock
+            );
+
+            return;
+          }
+
+          updateDragPointer(
+            moveEvent
+          );
+        };
+
+      gesture.handleMouseUp =
+        (upEvent) => {
+          if (
+            gesture.started &&
+            gesture.copiedBlockId !=
+              null
+          ) {
+            latestHandleFloatingDropRef.current?.(
+              upEvent,
+              gesture.copiedBlockId
+            );
+
+            clearDragPointer();
+            nativeDraggingBlockIdRef.current =
+              null;
+            onDragEnd?.();
+          }
+
+          cleanup();
+        };
+
+      duplicatePointerGestureRef.current =
+        gesture;
+
+      window.addEventListener(
+        "mousemove",
+        gesture.handleMouseMove
+      );
+
+      window.addEventListener(
+        "mouseup",
+        gesture.handleMouseUp
+      );
+    };
 
   const draggingBlock =
     draggingBlockId != null
@@ -673,6 +881,13 @@ export default function PageCanvas(
    */
   const handleStageMouseUp =
     (event) => {
+      if (
+        duplicatePointerGestureRef.current
+          ?.started
+      ) {
+        return;
+      }
+
       const insideEditor =
         isInsideSemanticEditor(
           event
@@ -729,6 +944,9 @@ export default function PageCanvas(
   return (
     <div
       ref={stageRef}
+      onMouseDownCapture={
+        handleDuplicatePointerDown
+      }
       onMouseDown={
         handleStageMouseDown
       }
