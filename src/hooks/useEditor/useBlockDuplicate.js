@@ -472,6 +472,148 @@ export function useBlockDuplicate({
     );
 
   /**
+   * 直接读取 inline 模块在浏览器中的真实位置。
+   *
+   * 这是复制定位的第一优先级。它不依赖 sectionLayouts，因而不会
+   * 受到段落局部坐标、页面缩放或重新排版时序的影响。跨行模块会
+   * 合并全部 ClientRect，得到模块当前真实可见区域。
+   */
+  const getSourceDomBounds =
+    useCallback(
+      (blockId) => {
+        const stageElement =
+          stageRef?.current;
+
+        const pageElement =
+          pageRef?.current;
+
+        const stageRect =
+          stageElement
+            ?.getBoundingClientRect();
+
+        if (
+          !stageRect ||
+          !pageElement
+        ) {
+          return null;
+        }
+
+        const targetId =
+          normalizeId(blockId);
+
+        const elements =
+          Array.from(
+            pageElement.querySelectorAll(
+              "[data-semantic-block-id]"
+            )
+          ).filter(
+            (element) =>
+              normalizeId(
+                element.getAttribute(
+                  "data-semantic-block-id"
+                )
+              ) === targetId
+          );
+
+        const rects = [];
+
+        elements.forEach(
+          (element) => {
+            const clientRects =
+              Array.from(
+                element.getClientRects?.() ||
+                  []
+              );
+
+            if (
+              clientRects.length > 0
+            ) {
+              rects.push(
+                ...clientRects
+              );
+            } else {
+              const rect =
+                element.getBoundingClientRect?.();
+
+              if (rect) {
+                rects.push(rect);
+              }
+            }
+          }
+        );
+
+        const visibleRects =
+          rects.filter(
+            (rect) =>
+              rect.width > 0 &&
+              rect.height > 0
+          );
+
+        if (
+          visibleRects.length === 0
+        ) {
+          return null;
+        }
+
+        const left =
+          Math.min(
+            ...visibleRects.map(
+              (rect) => rect.left
+            )
+          );
+
+        const top =
+          Math.min(
+            ...visibleRects.map(
+              (rect) => rect.top
+            )
+          );
+
+        const right =
+          Math.max(
+            ...visibleRects.map(
+              (rect) => rect.right
+            )
+          );
+
+        const bottom =
+          Math.max(
+            ...visibleRects.map(
+              (rect) => rect.bottom
+            )
+          );
+
+        return {
+          x:
+            left -
+            stageRect.left,
+
+          y:
+            top -
+            stageRect.top,
+
+          right:
+            right -
+            stageRect.left,
+
+          bottom:
+            bottom -
+            stageRect.top,
+
+          width:
+            right - left,
+
+          height:
+            bottom - top,
+        };
+      },
+      [
+        stageRef,
+        pageRef,
+      ]
+    );
+
+  /**
    * 将 content 内部的布局坐标转换成
    * 相对于 Stage 的 floating 坐标。
    *
@@ -556,6 +698,7 @@ export function useBlockDuplicate({
           offsetY = 24,
 
           index = 0,
+          domBounds = null,
         } = options;
 
         const cascadeX =
@@ -624,6 +767,23 @@ export function useBlockDuplicate({
                 40
               ) +
               cascadeY,
+          };
+        }
+
+        /**
+         * inline 模块优先使用屏幕上的真实位置。副本放在原模块右侧；
+         * 如果右侧空间不足，后面的画布边界约束会把它移到页面内。
+         */
+        if (domBounds) {
+          return {
+            x:
+              domBounds.right +
+              12 +
+              index * 12,
+
+            y:
+              domBounds.y +
+              index * 12,
           };
         }
 
@@ -952,6 +1112,15 @@ export function useBlockDuplicate({
                 sourceId
               );
 
+            const sourceDomBounds =
+              sourceBlock
+                .placement ===
+              "floating"
+                ? null
+                : getSourceDomBounds(
+                    sourceId
+                  );
+
             const sourceWidth =
               getSourceVisualWidth({
                 sourceBlock,
@@ -972,6 +1141,8 @@ export function useBlockDuplicate({
                   offsetY,
 
                   index,
+                  domBounds:
+                    sourceDomBounds,
                 }
               );
 
@@ -1187,6 +1358,7 @@ export function useBlockDuplicate({
         getBlockById,
         getTargetSectionId,
         getSourceLayoutBounds,
+        getSourceDomBounds,
         getSourceStagePosition,
         clampPositionInsidePage,
 
