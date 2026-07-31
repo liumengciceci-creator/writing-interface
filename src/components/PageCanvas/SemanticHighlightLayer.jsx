@@ -259,7 +259,12 @@ function SemanticHighlightLayer({
 
                 style={{
                   filter:
-                    showingGenerationPulse
+                    instructionTarget &&
+                    instructionEffect
+                      ?.phase === "hover"
+                      ?
+                      `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
+                      : showingGenerationPulse
                       ?
                       `drop-shadow(0 0 2px ${color}33) drop-shadow(0 2px 3px rgba(31,41,55,0.12))`
                       :
@@ -345,13 +350,8 @@ function SemanticHighlightLayer({
                           undefined,
 
 
-                      opacity:
-                        instructionEffect.phase ===
-                        "hover"
-                          ?
-                          0.28
-                          :
-                          undefined,
+                    opacity:
+                        0,
                     }}
                   />
                 )

@@ -1144,6 +1144,19 @@ const SingleSemanticEditor =
           event.preventDefault();
           event.stopPropagation();
 
+          /**
+           * 指令拖入是“作用到当前模块”，不是模块位置调整。
+           * 此时不显示任何插入蓝线，目标反馈由模块投影负责。
+           */
+          if (
+            hasInstructionDragData(
+              event.dataTransfer
+            )
+          ) {
+            setDropIndicator(null);
+            return;
+          }
+
           onExistingBlockDragOver?.(
             event
           );
@@ -2290,6 +2303,8 @@ const SingleSemanticEditor =
                           "#feecec",
                         phase: "hover",
                       });
+
+                      setDropIndicator(null);
                     }}
 
                     onDragLeave={(
@@ -2352,6 +2367,8 @@ const SingleSemanticEditor =
                           event.clientY,
                       });
 
+                      setDropIndicator(null);
+
                       if (
                         instructionDropTimerRef.current
                       ) {
@@ -2365,16 +2382,15 @@ const SingleSemanticEditor =
                           instructionDropTimerRef.current =
                             null;
 
+                          /**
+                           * 正式调用生成前清除目标投影。
+                           */
                           setInstructionEffect(
                             (current) =>
                               normalizeId(
                                 current?.blockId
                               ) === blockId
-                                ? {
-                                    ...current,
-                                    phase:
-                                      "waiting",
-                                  }
+                                ? null
                                 : current
                           );
 

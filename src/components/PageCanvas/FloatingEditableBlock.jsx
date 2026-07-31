@@ -699,15 +699,11 @@ export default function FloatingEditableBlock({
             instructionDropTimerRef.current =
               null;
 
+            /**
+             * 正式调用生成前清除目标投影。
+             */
             setInstructionEffect(
-              (current) =>
-                current
-                  ? {
-                      ...current,
-                      phase:
-                        "waiting",
-                    }
-                  : current
+              null
             );
 
             Promise.resolve(
@@ -765,7 +761,8 @@ export default function FloatingEditableBlock({
           usesLineFragments
             ? "none"
             : instructionEffect
-            ? "0 8px 18px rgba(0,0,0,0.12)"
+                ?.phase === "hover"
+            ? `0 10px 28px rgba(15,23,42,0.24), 0 3px 10px rgba(15,23,42,0.16), 0 0 0 2px ${block.color}38`
             : isEditing
             ? "none"
             : isGenerating &&
@@ -980,11 +977,7 @@ export default function FloatingEditableBlock({
                   "waiting"
                 ? "floating-instruction-waiting-pulse 620ms ease-in-out infinite"
                 : undefined,
-            opacity:
-              instructionEffect.phase ===
-              "hover"
-                ? 0.28
-                : undefined,
+            opacity: 0,
           }}
         />
       )}
