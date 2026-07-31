@@ -839,15 +839,12 @@ export function useBlockDuplicate({
           };
         }
 
-        return {
-          x:
-            80 +
-            index * 12,
-
-          y:
-            80 +
-            index * 12,
-        };
+        /**
+         * 正常情况下 stageRef 和 pageRef 都已经由 App 绑定。
+         * 如果页面尚未挂载，不再退回左上角灰色区域的固定坐标，
+         * 而是返回空值，让本次粘贴安全取消。
+         */
+        return null;
       },
       [
         stageRef,
@@ -867,6 +864,10 @@ export function useBlockDuplicate({
         position,
         floatingWidth
       ) => {
+        if (!position) {
+          return null;
+        }
+
         const stageRect =
           stageRef?.current
             ?.getBoundingClientRect();
@@ -1151,6 +1152,14 @@ export function useBlockDuplicate({
                 rawPosition,
                 sourceWidth
               );
+
+            if (!position) {
+              console.warn(
+                "[useBlockDuplicate] 页面尚未完成挂载，已取消本次模块粘贴。"
+              );
+
+              return;
+            }
 
             const newId =
               nextBlockIdRef

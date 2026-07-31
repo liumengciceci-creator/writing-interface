@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
 } from "react";
 
@@ -79,9 +78,6 @@ function createTemplateId() {
 }
 
 export default function App() {
-  const stageRef =
-    useRef(null);
-
   /**
    * 用户创建的自定义标签。
    */
@@ -121,6 +117,7 @@ export default function App() {
      * 页面与布局状态。
      */
     statusText,
+    stageRef,
     pageRef,
     contentRef,
 
