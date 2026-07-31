@@ -115,6 +115,10 @@ function InlineDragPreview({
       ? block.floatingLineFragments
       : [];
 
+  const matchesInlineAppearance =
+    block.floatingMatchesInlineAppearance ===
+    true;
+
   if (
     lineFragments.length > 1
   ) {
@@ -208,9 +212,7 @@ function InlineDragPreview({
   left: preview.x,
   top: preview.y,
 
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
+  display: "block",
 
   width:
     preview.width ||
@@ -226,27 +228,39 @@ function InlineDragPreview({
   
 
   border: `1px solid color-mix(in srgb, ${block.color || "#7c83fd"} 52%, white)`,
-  borderRadius: 8,
+  borderRadius:
+    matchesInlineAppearance
+      ? 8
+      : 10,
 
   background:
     block.fill ||
     "rgba(124,131,253,0.10)",
 
-  padding: "2px 8px",
+  padding:
+    matchesInlineAppearance
+      ? "2px 8px"
+      : "8px 14px",
 
   boxSizing: "border-box",
 
-  color: "#202124",
-  fontSize: 16,
+  color: "#333",
+  fontSize:
+    matchesInlineAppearance
+      ? 16
+      : 14,
   fontWeight: 400,
-  lineHeight: "24px",
+  lineHeight:
+    matchesInlineAppearance
+      ? "24px"
+      : "20px",
 
   whiteSpace: "pre-wrap",
   overflowWrap: "anywhere",
   wordBreak: "break-word",
 
   boxShadow:
-    "0 8px 18px rgba(0,0,0,0.16)",
+    "0 8px 18px rgba(0,0,0,0.12)",
 
   opacity: 0.96,
 
@@ -260,13 +274,25 @@ function InlineDragPreview({
       <div
         style={{
           position: "absolute",
-          left: 7,
-          top: -12,
+          left:
+            matchesInlineAppearance
+              ? 7
+              : 0,
+          top:
+            matchesInlineAppearance
+              ? -12
+              : -14,
           zIndex: 1,
 
           height: 16,
-          padding: "0 6px",
-          borderRadius: 5,
+          padding:
+            matchesInlineAppearance
+              ? "0 6px"
+              : "0 8px",
+          borderRadius:
+            matchesInlineAppearance
+              ? 5
+              : 6,
 
           background:
             block.color ||
