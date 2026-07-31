@@ -1814,117 +1814,110 @@ const SingleSemanticEditor =
                   block
                     .isCompletedParagraph
                 ) {
-                  return (
-                    <div
-                      key={blockId}
-                      data-semantic-block-id={
-                        blockId
-                      }
-                      data-completed-inline="true"
-                      data-completed-text="true"
-                      contentEditable
-                      suppressContentEditableWarning
-                      spellCheck
-                      onMouseDown={(
-                        event
-                      ) => {
-                        event.stopPropagation();
-                      }}
-                      onDoubleClick={(
-                        event
-                      ) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-
-                        onRestoreCompletedParagraph?.(
-                          block.id
-                        );
-                      }}
-                      onKeyDown={(
-                        event
-                      ) => {
-                        event.stopPropagation();
-                      }}
-                      onBlur={(
-                        event
-                      ) => {
-                        const nextText =
-                          normalizeText(
-                            event.currentTarget
-                              .textContent
-                          );
-
-                        if (
-                          nextText ===
-                          normalizeText(
-                            block.text
-                          )
-                        ) {
-                          return;
-                        }
-
-                        onCommitBlocks?.([
+                  const completedSegments =
+                    Array.isArray(
+                      block.completedBlocks
+                    ) &&
+                    block.completedBlocks
+                      .length > 0
+                      ? block.completedBlocks
+                      : [
                           {
                             id:
-                              block.id,
+                              `${block.id}-text`,
                             text:
-                              nextText,
+                              block.text,
+                            forceLineBreakBefore:
+                              block.forceLineBreakBefore,
                           },
-                        ]);
-                      }}
-                      style={{
-                        display:
-                          "block",
-                        width: "100%",
-                        minHeight:
-                          block.completedPreservedHeight ??
-                          undefined,
-                        margin:
-                          block.completedPreservedHeight !=
-                          null
-                            ? 0
-                            : "14px 0 18px",
-                        padding:
-                          block.completedPreservedHeight !=
-                          null
-                            ? "3px 0 7px"
-                            : 0,
-                        boxSizing:
-                          "border-box",
-                        border: "none",
-                        outline: "none",
-                        background:
-                          "transparent",
-                        color: "#333",
-                        fontSize: 16,
-                        lineHeight:
-                          "28px",
-                        whiteSpace:
-                          "pre-wrap",
-                        overflowWrap:
-                          "anywhere",
-                        wordBreak:
-                          "break-word",
-                        userSelect:
-                          "text",
-                        WebkitUserSelect:
-                          "text",
-                        caretColor:
-                          "#111827",
-                        cursor: "text",
-                        opacity:
-                          hasFocusedEditingBlock
-                            ? 0.24
-                            : 1,
-                        transition:
-                          "opacity 180ms ease",
-                      }}
-                      title="双击恢复为模块"
+                        ];
+
+                  return (
+                    <Fragment
+                      key={blockId}
                     >
-                      {String(
-                        block.text ?? ""
+                      {completedSegments.map(
+                        (
+                          segment,
+                          segmentIndex
+                        ) => (
+                          <Fragment
+                            key={
+                              normalizeId(
+                                segment.id
+                              ) ||
+                              `${blockId}-${segmentIndex}`
+                            }
+                          >
+                            {segment.forceLineBreakBefore && (
+                              <span
+                                aria-hidden="true"
+                                data-semantic-forced-break="true"
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  height: 10,
+                                  minHeight: 10,
+                                  lineHeight: "10px",
+                                  pointerEvents: "none",
+                                  userSelect: "none",
+                                  WebkitUserSelect: "none",
+                                }}
+                              />
+                            )}
+
+                            <span
+                              data-completed-inline="true"
+                              data-completed-text="true"
+                              onMouseDown={(event) => {
+                                event.stopPropagation();
+                              }}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+
+                                onRestoreCompletedParagraph?.(
+                                  block.id
+                                );
+                              }}
+                              style={{
+                                position: "relative",
+                                zIndex: 1,
+                                display: "inline",
+                                margin: "0 6px 6px 0",
+                                padding: "2px 8px",
+                                border: "1px solid transparent",
+                                borderRadius: 8,
+                                background: "transparent",
+                                boxSizing: "border-box",
+                                color: "#202124",
+                                fontSize: 16,
+                                lineHeight: "24px",
+                                whiteSpace: "pre-wrap",
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                                boxDecorationBreak: "clone",
+                                WebkitBoxDecorationBreak: "clone",
+                                userSelect: "text",
+                                WebkitUserSelect: "text",
+                                cursor: "text",
+                                opacity:
+                                  hasFocusedEditingBlock
+                                    ? 0.24
+                                    : 1,
+                                transition: "opacity 180ms ease",
+                              }}
+                              title="双击恢复为模块"
+                            >
+                              {String(
+                                segment.text ??
+                                  ""
+                              ) || EMPTY_TEXT}
+                            </span>
+                          </Fragment>
+                        )
                       )}
-                    </div>
+                    </Fragment>
                   );
                 }
 
