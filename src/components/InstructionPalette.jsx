@@ -272,6 +272,11 @@ export default function InstructionPalette({
     setReorderingInstructionId,
   ] = useState(null);
 
+  const [
+    instructionDropIndicatorId,
+    setInstructionDropIndicatorId,
+  ] = useState(null);
+
   const reorderInstructionBefore =
     (targetId) => {
       if (
@@ -549,6 +554,9 @@ export default function InstructionPalette({
                   }
                   event.preventDefault();
                   event.stopPropagation();
+                  setInstructionDropIndicatorId(
+                    instruction.id
+                  );
                   reorderInstructionBefore(
                     instruction.id
                   );
@@ -565,6 +573,29 @@ export default function InstructionPalette({
                     "border-box",
                 }}
               >
+                {instructionDropIndicatorId ===
+                  instruction.id && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position:
+                        "absolute",
+                      left: 0,
+                      right: 0,
+                      top: -2,
+                      zIndex: 8,
+                      height: 2,
+                      borderRadius: 2,
+                      background:
+                        "#2563eb",
+                      boxShadow:
+                        "0 0 0 1px rgba(37,99,235,0.12)",
+                      pointerEvents:
+                        "none",
+                    }}
+                  />
+                )}
+
                 <button
                   type="button"
                   draggable
@@ -580,6 +611,9 @@ export default function InstructionPalette({
                   onDragEnd={() => {
                     clearActiveInstructionDragData();
                     setReorderingInstructionId(
+                      null
+                    );
+                    setInstructionDropIndicatorId(
                       null
                     );
                   }}

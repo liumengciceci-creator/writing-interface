@@ -934,6 +934,11 @@ export default function Sidebar({
     setReorderingTemplateKey,
   ] = useState(null);
 
+  const [
+    templateDropIndicatorKey,
+    setTemplateDropIndicatorKey,
+  ] = useState(null);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -1530,11 +1535,40 @@ export default function Sidebar({
                 }
                 event.preventDefault();
                 event.stopPropagation();
+                setTemplateDropIndicatorKey(
+                  getTemplateOrderKey(
+                    item
+                  )
+                );
                 reorderTemplateBefore(
                   item
                 );
               }}
             >
+              {templateDropIndicatorKey ===
+                getTemplateOrderKey(
+                  item
+                ) && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: 2,
+                    right: 2,
+                    top: -2,
+                    zIndex: 8,
+                    height: 2,
+                    borderRadius: 2,
+                    background:
+                      "#2563eb",
+                    boxShadow:
+                      "0 0 0 1px rgba(37,99,235,0.12)",
+                    pointerEvents:
+                      "none",
+                  }}
+                />
+              )}
+
               <button
                 type="button"
 
@@ -1638,6 +1672,9 @@ export default function Sidebar({
                   event
                 ) => {
                   setReorderingTemplateKey(
+                    null
+                  );
+                  setTemplateDropIndicatorKey(
                     null
                   );
                   event.currentTarget.style.cursor =
