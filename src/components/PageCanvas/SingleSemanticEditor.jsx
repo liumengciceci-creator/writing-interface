@@ -497,7 +497,15 @@ const SingleSemanticEditor =
             if (
               visualRects.length === 0
             ) {
-              setDropIndicator(null);
+              /**
+               * 空编辑器没有任何现有模块可以作为参考，但第一个模块
+               * 仍需要明确的插入提示。正文起点就是首个插入位置。
+               */
+              setDropIndicator({
+                left: 0,
+                top: 0,
+                height: 28,
+              });
               return;
             }
 
@@ -1197,7 +1205,15 @@ const SingleSemanticEditor =
           if (
             visualRects.length === 0
           ) {
-            setDropIndicator(null);
+            /**
+             * 从侧栏拖入第一个模块，或唯一模块被排除时，显示正文
+             * 起始位置的蓝线，不再因为没有候选矩形而隐藏提示。
+             */
+            setDropIndicator({
+              left: 0,
+              top: 0,
+              height: 28,
+            });
             return;
           }
 
