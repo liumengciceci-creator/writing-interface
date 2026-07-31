@@ -388,6 +388,14 @@ const SingleSemanticEditor =
         setInstructionEffect,
       ] = useState(null);
 
+      /**
+       * 模块拖拽时显示的 inline 插入竖线。
+       */
+      const [
+        dropIndicator,
+        setDropIndicator,
+      ] = useState(null);
+
       const instructionDropTimerRef =
         useRef(null);
 
@@ -829,6 +837,139 @@ const SingleSemanticEditor =
                 ? "move"
                 : "copy";
           }
+
+          const root =
+            editorRef.current;
+
+          if (!root) {
+            return;
+          }
+
+          const draggingId =
+            normalizeId(
+              draggingExistingBlockIdRef.current
+            );
+
+          const candidates =
+            Array.from(
+              root.querySelectorAll(
+                "[data-semantic-block-id]"
+              )
+            ).filter(
+              (element) =>
+                normalizeId(
+                  element.getAttribute(
+                    "data-semantic-block-id"
+                  )
+                ) !== draggingId
+            );
+
+          const visualRects = [];
+
+          candidates.forEach(
+            (element) => {
+              Array.from(
+                element.getClientRects?.() ||
+                  []
+              ).forEach((rect) => {
+                if (
+                  rect.width > 0 &&
+                  rect.height > 0
+                ) {
+                  visualRects.push(rect);
+                }
+              });
+            }
+          );
+
+          if (
+            visualRects.length === 0
+          ) {
+            setDropIndicator(null);
+            return;
+          }
+
+          const pointerX =
+            event.clientX;
+
+          const pointerY =
+            event.clientY;
+
+          const nearestRect =
+            visualRects.reduce(
+              (nearest, rect) => {
+                const dx =
+                  pointerX < rect.left
+                    ? rect.left - pointerX
+                    : pointerX > rect.right
+                      ? pointerX - rect.right
+                      : 0;
+
+                const dy =
+                  pointerY < rect.top
+                    ? rect.top - pointerY
+                    : pointerY > rect.bottom
+                      ? pointerY - rect.bottom
+                      : 0;
+
+                const distance =
+                  Math.hypot(dx, dy);
+
+                return !nearest ||
+                  distance < nearest.distance
+                  ? {
+                      rect,
+                      distance,
+                    }
+                  : nearest;
+              },
+              null
+            )?.rect;
+
+          if (!nearestRect) {
+            setDropIndicator(null);
+            return;
+          }
+
+          const rootRect =
+            root.getBoundingClientRect();
+
+          const scaleX =
+            root.offsetWidth > 0
+              ? rootRect.width /
+                root.offsetWidth
+              : 1;
+
+          const scaleY =
+            root.offsetHeight > 0
+              ? rootRect.height /
+                root.offsetHeight
+              : scaleX;
+
+          const placeAfter =
+            pointerX >=
+            nearestRect.left +
+              nearestRect.width / 2;
+
+          setDropIndicator({
+            left:
+              (
+                (placeAfter
+                  ? nearestRect.right
+                  : nearestRect.left) -
+                rootRect.left
+              ) /
+              Math.max(scaleX, 0.001),
+
+            top:
+              (nearestRect.top -
+                rootRect.top) /
+              Math.max(scaleY, 0.001),
+
+            height:
+              nearestRect.height /
+              Math.max(scaleY, 0.001),
+          });
         }, [
           onExistingBlockDragOver,
         ]);
@@ -993,6 +1134,8 @@ const SingleSemanticEditor =
           setDraggingInlineBlockId(
             null
           );
+
+          setDropIndicator(null);
         }, [
           onExistingBlockDragEnd,
         ]);
@@ -1002,6 +1145,8 @@ const SingleSemanticEditor =
           (event) => {
             event.preventDefault();
             event.stopPropagation();
+
+            setDropIndicator(null);
 
             const payload =
               readDraggedData(
@@ -1206,6 +1351,18 @@ const SingleSemanticEditor =
               handleDragOver
             }
 
+            onDragLeave={(event) => {
+              if (
+                event.currentTarget.contains(
+                  event.relatedTarget
+                )
+              ) {
+                return;
+              }
+
+              setDropIndicator(null);
+            }}
+
             onDrop={
               handleDrop
             }
@@ -1310,6 +1467,32 @@ const SingleSemanticEditor =
               hasFocusedEditingBlock={hasFocusedEditingBlock}
               effectiveEditingBlockId={effectiveEditingBlockId}
             />
+
+            {dropIndicator && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left:
+                    dropIndicator.left -
+                    1.5,
+                  top:
+                    dropIndicator.top,
+                  width: 3,
+                  height:
+                    Math.max(
+                      26,
+                      dropIndicator.height
+                    ),
+                  borderRadius: 3,
+                  background: "#2563eb",
+                  boxShadow:
+                    "0 0 0 2px rgba(37,99,235,0.14), 0 2px 8px rgba(37,99,235,0.35)",
+                  pointerEvents: "none",
+                  zIndex: 80,
+                }}
+              />
+            )}
 
 
             {blocks.map(

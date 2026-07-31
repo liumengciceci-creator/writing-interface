@@ -42,6 +42,13 @@ export function useFloatingBlocks({
     });
 
   /**
+   * 记录开始拖拽瞬间模块真实渲染尺寸，预览必须保持原尺寸，
+   * 不能套用固定宽度后看起来突然放大。
+   */
+  const dragVisualSizeRef =
+    useRef(null);
+
+  /**
    * �桁�藜����後�篋� Stage ����而�上������
    */
   const getStagePoint =
@@ -220,6 +227,27 @@ export function useFloatingBlocks({
         dragStartRef.current =
           point;
 
+        const sourceElement =
+          event.target?.closest?.(
+            "[data-semantic-block-id], [data-block-root='true']"
+          );
+
+        const sourceRect =
+          sourceElement
+            ?.getBoundingClientRect?.();
+
+        dragVisualSizeRef.current =
+          sourceRect &&
+          sourceRect.width > 0 &&
+          sourceRect.height > 0
+            ? {
+                width:
+                  sourceRect.width,
+                height:
+                  sourceRect.height,
+              }
+            : null;
+
         setDragPointer(
           point
         );
@@ -339,6 +367,9 @@ export function useFloatingBlocks({
           x: 0,
           y: 0,
         };
+
+      dragVisualSizeRef.current =
+        null;
     }, []);
 
   /**
@@ -472,9 +503,18 @@ export function useFloatingBlocks({
         block,
 
         width:
+          dragVisualSizeRef.current
+            ?.width ??
           block.floatingWidth ??
           block.width ??
           180,
+
+        height:
+          dragVisualSizeRef.current
+            ?.height ??
+          block.floatingHeight ??
+          block.height ??
+          40,
 
         x:
           dragPointerRaw.clientX -

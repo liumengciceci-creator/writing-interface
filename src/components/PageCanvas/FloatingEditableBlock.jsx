@@ -757,7 +757,7 @@ export default function FloatingEditableBlock({
           generatingBlinkOn
             ? `0 0 0 1px ${block.color}22, 0 0 4px ${block.color}33, 0 8px 18px rgba(0,0,0,0.12)`
             : isSelected
-            ? `0 6px 18px rgba(0,0,0,0.12), 0 0 0 1px ${block.color}20`
+            ? `0 10px 28px rgba(15,23,42,0.24), 0 3px 10px rgba(15,23,42,0.16), 0 0 0 2px ${block.color}38`
             : "0 8px 18px rgba(0,0,0,0.12)",
 
         borderRadius:

@@ -118,30 +118,39 @@ function InlineDragPreview({
   alignItems: "center",
   justifyContent: "center",
 
-  width: "fit-content",
-  minWidth: 72,
+  width:
+    preview.width ||
+    block.floatingWidth ||
+    block.width ||
+    "fit-content",
+  minHeight:
+    preview.height ||
+    block.floatingHeight ||
+    block.height ||
+    undefined,
+  minWidth: 0,
   
 
   border: `1.5px solid ${block.color || "#7c83fd"}`,
-  borderRadius: 14,
+  borderRadius: 8,
 
   background:
     block.fill ||
     "rgba(124,131,253,0.10)",
 
-  padding: "12px 18px",
+  padding: "3px 10px",
 
   boxSizing: "border-box",
 
   color: "#202124",
-  fontSize: 18,
+  fontSize: 16,
   fontWeight: 500,
-  lineHeight: 1.2,
+  lineHeight: "24px",
 
   whiteSpace: "nowrap",
 
   boxShadow:
-    "0 10px 20px rgba(0,0,0,0.12)",
+    "0 8px 18px rgba(0,0,0,0.16)",
 
   opacity: 0.96,
 
@@ -155,13 +164,13 @@ function InlineDragPreview({
       <div
         style={{
           position: "absolute",
-          left: 0,
-          top: -14,
+          left: 7,
+          top: -12,
           zIndex: 1,
 
           height: 16,
-          padding: "0 8px",
-          borderRadius: 6,
+          padding: "0 6px",
+          borderRadius: 5,
 
           background:
             block.color ||

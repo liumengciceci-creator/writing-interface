@@ -257,7 +257,7 @@ function SemanticHighlightLayer({
                       !adjustingLength &&
                       !instructionGenerating
                         ?
-                        "drop-shadow(0 2px 3px rgba(31,41,55,0.18))"
+                        `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
                         :
                         undefined,
 

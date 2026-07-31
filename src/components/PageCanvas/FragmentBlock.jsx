@@ -160,8 +160,9 @@ export default function FragmentBlock({
             ? "0 12px 24px rgba(0,0,0,0.18)"
             : isSelected
             ? `
-                0 6px 18px rgba(0,0,0,0.12),
-                0 0 0 1px ${fragment.color}20
+                0 10px 28px rgba(15,23,42,0.24),
+                0 3px 10px rgba(15,23,42,0.16),
+                0 0 0 2px ${fragment.color}38
               `
             : showHandle
             ? "0 0 0 2px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.08)"
