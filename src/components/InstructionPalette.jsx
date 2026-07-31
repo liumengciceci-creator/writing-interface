@@ -1003,15 +1003,14 @@ export default function InstructionPalette({
                       borderRadius:
                         "50%",
                       background:
-                        "conic-gradient(#ef4444, #f59e0b, #facc15, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+                        "#fff",
                       cursor:
                         "pointer",
-                      boxShadow:
-                        "0 0 0 1px rgba(0,0,0,0.10)",
+                      boxShadow: "none",
                       border:
                         showColorSpectrum
                           ? "2px solid #333"
-                          : "none",
+                          : "2px solid #a8a8a8",
                       padding: 0,
                       boxSizing:
                         "border-box",
@@ -1021,7 +1020,7 @@ export default function InstructionPalette({
                       style={{
                         position:
                           "absolute",
-                        inset: 3,
+                        inset: 0,
                         display:
                           "flex",
                         alignItems:
@@ -1031,7 +1030,7 @@ export default function InstructionPalette({
                         borderRadius:
                           "50%",
                         background:
-                          "#fff",
+                          "transparent",
                         color:
                           "#333",
                         fontSize: 18,
