@@ -1203,6 +1203,18 @@ export function useBlockDuplicate({
               newId;
 
             /**
+             * 复制模块当前显示的内容，而不是最初的模板标签。
+             * AI 生成后 label 仍可能保留“论点 / 证据”等旧文字，
+             * 因此副本必须明确保存源模块此刻的 text。
+             */
+            copiedBlock.text =
+              String(
+                sourceBlock.text ??
+                  sourceBlock.label ??
+                  ""
+              );
+
+            /**
              * 无论源模块是不是 inline，
              * 副本刚创建时都必须是 floating。
              */
@@ -1235,18 +1247,35 @@ export function useBlockDuplicate({
              * 原模块保持相同视觉比例，而不是套用较大的 floating
              * 默认样式。
              */
-            if (sourceDomBounds) {
+            if (
+              sourceBlock.placement !==
+              "floating"
+            ) {
+              /**
+               * DOM 尺寸在复制发生的这一帧可能暂时不可用，但 inline
+               * 副本仍必须保持原模块外观，不能退回普通文本框样式。
+               */
+              copiedBlock.floatingMatchesInlineAppearance =
+                true;
+
               copiedBlock.floatingHeight =
                 Math.max(
                   1,
-                  sourceDomBounds.height
+                  sourceDomBounds
+                    ?.height ??
+                    (
+                      sourceBounds
+                        ?.height != null
+                        ? sourceBounds.height *
+                          normalizedZoom
+                        : sourceBlock.height ??
+                          28
+                    )
                 );
 
               copiedBlock.height =
                 copiedBlock.floatingHeight;
 
-              copiedBlock.floatingMatchesInlineAppearance =
-                true;
             }
 
             /**

@@ -148,7 +148,9 @@ function InlineDragPreview({
   fontWeight: 500,
   lineHeight: "24px",
 
-  whiteSpace: "nowrap",
+  whiteSpace: "pre-wrap",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 
   boxShadow:
     "0 8px 18px rgba(0,0,0,0.16)",
@@ -194,8 +196,8 @@ function InlineDragPreview({
         )}
       </div>
 
-      {block.label ||
-  block.text ||
+      {block.text ||
+  block.label ||
   block.type ||
   ""}
     </div>
