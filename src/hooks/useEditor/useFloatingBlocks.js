@@ -11,6 +11,36 @@ import {
   CONTENT_WIDTH,
 } from "../../constants";
 
+/**
+ * 灰色区域统一使用现有 floating 卡片的紧凑宽度。
+ * 长文本不会沿用白色画布中的整行宽度。
+ */
+function getStandardFloatingWidth(
+  text
+) {
+  const value =
+    String(text ?? "");
+
+  let estimatedWidth = 0;
+
+  for (const character of value) {
+    estimatedWidth +=
+      /[\u4e00-\u9fff]/.test(
+        character
+      )
+        ? 16
+        : 8;
+  }
+
+  return Math.max(
+    220,
+    Math.min(
+      360,
+      estimatedWidth + 32
+    )
+  );
+}
+
 export function useFloatingBlocks({
   zoom,
   stageRef,
@@ -523,6 +553,25 @@ export function useFloatingBlocks({
         return null;
       }
 
+      const convertsToStandardFloating =
+        isDraggingOutsidePage &&
+        Array.isArray(
+          block.floatingLineFragments
+        ) &&
+        block.floatingLineFragments
+          .length > 0;
+
+      const previewBlock =
+        convertsToStandardFloating
+          ? {
+              ...block,
+              floatingMatchesInlineAppearance:
+                false,
+              floatingLineFragments:
+                [],
+            }
+          : block;
+
       /**
        * floating 罔≦��菴��ョ�処�� Page ���
        * 篏睡�� draggingBackToPagePreview鐚�
@@ -541,27 +590,44 @@ export function useFloatingBlocks({
           .getBoundingClientRect();
 
       return {
-        block,
+        block:
+          previewBlock,
 
         width:
-          dragVisualSizeRef.current
-            ?.width ??
-          block.floatingWidth ??
-          block.width ??
-          180,
+          convertsToStandardFloating
+            ? getStandardFloatingWidth(
+                block.text
+              )
+            : dragVisualSizeRef.current
+                ?.width ??
+              block.floatingWidth ??
+              block.width ??
+              180,
 
         height:
-          dragVisualSizeRef.current
-            ?.height ??
-          block.floatingHeight ??
-          block.height ??
-          40,
+          convertsToStandardFloating
+            ? 40
+            : dragVisualSizeRef.current
+                ?.height ??
+              block.floatingHeight ??
+              block.height ??
+              40,
 
         x:
           dragPointerRaw.clientX -
           stageRect.left -
-          pointerOffsetRef.current
-            .x,
+          (
+            convertsToStandardFloating
+              ? Math.min(
+                  pointerOffsetRef.current
+                    .x,
+                  getStandardFloatingWidth(
+                    block.text
+                  ) - 20
+                )
+              : pointerOffsetRef.current
+                  .x
+          ),
 
         y:
           dragPointerRaw.clientY -
@@ -783,9 +849,36 @@ export function useFloatingBlocks({
             pointerOffsetRef.current
               .y;
 
+          const hasCopiedLineAppearance =
+            Array.isArray(
+              block.floatingLineFragments
+            ) &&
+            block.floatingLineFragments
+              .length > 0;
+
+          const floatingWidth =
+            hasCopiedLineAppearance
+              ? getStandardFloatingWidth(
+                  block.text
+                )
+              : block.floatingWidth ??
+                block.width ??
+                180;
+
+          const finalX =
+            hasCopiedLineAppearance
+              ? event.clientX -
+                stageRect.left -
+                Math.min(
+                  pointerOffsetRef.current
+                    .x,
+                  floatingWidth - 20
+                )
+              : nextX;
+
           const moved =
             block.floatingX !==
-              nextX ||
+              finalX ||
             block.floatingY !==
               nextY;
 
@@ -796,15 +889,25 @@ export function useFloatingBlocks({
                 "floating",
 
               floatingX:
-                nextX,
+                finalX,
 
               floatingY:
                 nextY,
 
               floatingWidth:
-                block.floatingWidth ??
-                block.width ??
-                180,
+                floatingWidth,
+
+              ...(hasCopiedLineAppearance
+                ? {
+                    floatingMatchesInlineAppearance:
+                      false,
+                    floatingLineFragments:
+                      [],
+                    floatingHeight:
+                      null,
+                    height: 40,
+                  }
+                : {}),
             }
           );
 
