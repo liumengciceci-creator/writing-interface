@@ -453,7 +453,7 @@ function hsvToHex(
   )}${toHex(blue)}`;
 }
 
-function ColorSpectrumPicker({
+export function ColorSpectrumPicker({
   color,
   onChange,
 }) {

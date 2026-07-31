@@ -15,6 +15,9 @@ import {
 } from "../utils/instructionDrag";
 
 import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
+import {
+  ColorSpectrumPicker,
+} from "./Sidebar.jsx";
 
 const INSTRUCTIONS_STORAGE_KEY =
   "writing-interface-block-instructions";
@@ -268,6 +271,11 @@ export default function InstructionPalette({
     useState("");
 
   const [
+    showColorSpectrum,
+    setShowColorSpectrum,
+  ] = useState(false);
+
+  const [
     reorderingInstructionId,
     setReorderingInstructionId,
   ] = useState(null);
@@ -344,6 +352,7 @@ export default function InstructionPalette({
       INSTRUCTION_COLORS[1].color
     );
     setErrorText("");
+    setShowColorSpectrum(false);
   };
 
   const addInstruction = () => {
@@ -414,6 +423,7 @@ export default function InstructionPalette({
           INSTRUCTION_COLORS[1]
             .color
       );
+      setShowColorSpectrum(false);
       setErrorText("");
       setShowAddPanel(true);
     };
@@ -942,9 +952,14 @@ export default function InstructionPalette({
                         }
                         aria-label={`选择颜色 ${colorConfig.color}`}
                         onClick={() =>
-                          setSelectedColor(
-                            colorConfig.color
-                          )
+                          {
+                            setSelectedColor(
+                              colorConfig.color
+                            );
+                            setShowColorSpectrum(
+                              false
+                            );
+                          }
                         }
                         style={{
                           width: 28,
@@ -970,8 +985,16 @@ export default function InstructionPalette({
                     )
                   )}
 
-                  <label
+                  <button
+                    type="button"
                     title="自选颜色"
+                    aria-label="打开自选指令色谱"
+                    onClick={() => {
+                      setShowColorSpectrum(
+                        (current) =>
+                          !current
+                      );
+                    }}
                     style={{
                       position:
                         "relative",
@@ -985,6 +1008,13 @@ export default function InstructionPalette({
                         "pointer",
                       boxShadow:
                         "0 0 0 1px rgba(0,0,0,0.10)",
+                      border:
+                        showColorSpectrum
+                          ? "2px solid #333"
+                          : "none",
+                      padding: 0,
+                      boxSizing:
+                        "border-box",
                     }}
                   >
                     <span
@@ -1014,33 +1044,19 @@ export default function InstructionPalette({
                       +
                     </span>
 
-                    <input
-                      type="color"
-                      value={
-                        selectedColor
-                      }
-                      aria-label="自选指令颜色"
-                      onChange={(
-                        event
-                      ) =>
-                        setSelectedColor(
-                          event.target
-                            .value
-                        )
-                      }
-                      style={{
-                        position:
-                          "absolute",
-                        inset: 0,
-                        width: "100%",
-                        height: "100%",
-                        opacity: 0,
-                        cursor:
-                          "pointer",
-                      }}
-                    />
-                  </label>
+                  </button>
                 </div>
+
+                {showColorSpectrum && (
+                  <ColorSpectrumPicker
+                    color={
+                      selectedColor
+                    }
+                    onChange={
+                      setSelectedColor
+                    }
+                  />
+                )}
               </div>
 
               {errorText && (
