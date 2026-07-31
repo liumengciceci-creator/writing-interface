@@ -412,15 +412,20 @@ export function useStreamingGenerate({
   selectedIds,
   setSelectedIds,
 }) {
+  const webSearchStorageKey =
+    "editor-web-search-enabled-v2";
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingBlockIds, setGeneratingBlockIds] = useState([]);
   const [generatingBlinkOn, setGeneratingBlinkOn] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("");
   const [webSearchEnabled, setWebSearchEnabled] = useState(() => {
     try {
-      return window.localStorage.getItem("editor-web-search-enabled") !== "false";
+      return window.localStorage.getItem(
+        webSearchStorageKey
+      ) === "true";
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -621,13 +626,16 @@ export function useStreamingGenerate({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        "editor-web-search-enabled",
+        webSearchStorageKey,
         String(webSearchEnabled)
       );
     } catch {
       // localStorage 不可用时仍保留当前会话状态。
     }
-  }, [webSearchEnabled]);
+  }, [
+    webSearchEnabled,
+    webSearchStorageKey,
+  ]);
 
   const toggleWebSearch = useCallback(() => {
     if (isGenerating) return;
