@@ -108,6 +108,100 @@ function InlineDragPreview({
   const block =
     preview.block;
 
+  const lineFragments =
+    Array.isArray(
+      block.floatingLineFragments
+    )
+      ? block.floatingLineFragments
+      : [];
+
+  if (
+    lineFragments.length > 1
+  ) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: preview.x,
+          top: preview.y,
+          width:
+            preview.width ||
+            block.floatingWidth,
+          height:
+            preview.height ||
+            block.floatingHeight,
+          zIndex,
+          pointerEvents: "none",
+          opacity: 0.96,
+        }}
+      >
+        {lineFragments.map(
+          (fragment, index) => (
+            <div
+              key={`${block.id}-drag-line-${index}`}
+              style={{
+                position: "absolute",
+                left:
+                  fragment.x ?? 0,
+                top:
+                  fragment.y ?? 0,
+                width:
+                  fragment.width,
+                minHeight:
+                  fragment.height ?? 28,
+                padding: "2px 8px",
+                boxSizing:
+                  "border-box",
+                border:
+                  `1px solid ${block.color || "#7c83fd"}`,
+                borderRadius: 8,
+                background:
+                  block.fill ||
+                  "rgba(124,131,253,0.10)",
+                color: "#202124",
+                fontSize: 16,
+                fontWeight: 500,
+                lineHeight: "24px",
+                whiteSpace: "pre",
+                boxShadow:
+                  "0 8px 18px rgba(0,0,0,0.16)",
+              }}
+            >
+              {fragment.text}
+
+              {index === 0 && (
+                <span
+                  style={{
+                    position:
+                      "absolute",
+                    left: 7,
+                    top: -12,
+                    height: 16,
+                    padding: "0 6px",
+                    borderRadius: 5,
+                    background:
+                      block.color ||
+                      "#7c83fd",
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    lineHeight: "16px",
+                    whiteSpace:
+                      "nowrap",
+                  }}
+                >
+                  {getBlockTypeLabel(
+                    block.type
+                  )}
+                </span>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
    style={{

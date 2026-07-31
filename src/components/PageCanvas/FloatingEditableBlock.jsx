@@ -81,6 +81,17 @@ export default function FloatingEditableBlock({
       .floatingMatchesInlineAppearance ===
     true;
 
+  const lineFragments =
+    Array.isArray(
+      block.floatingLineFragments
+    )
+      ? block.floatingLineFragments
+      : [];
+
+  const usesLineFragments =
+    matchesInlineAppearance &&
+    lineFragments.length > 1;
+
   const editorRef =
     useRef(null);
 
@@ -746,7 +757,9 @@ export default function FloatingEditableBlock({
           40,
 
         border:
-          `1px solid ${block.color}`,
+          usesLineFragments
+            ? "none"
+            : `1px solid ${block.color}`,
 
         boxShadow:
           instructionEffect
@@ -758,6 +771,8 @@ export default function FloatingEditableBlock({
             ? `0 0 0 1px ${block.color}22, 0 0 4px ${block.color}33, 0 8px 18px rgba(0,0,0,0.12)`
             : isSelected
             ? `0 10px 28px rgba(15,23,42,0.24), 0 3px 10px rgba(15,23,42,0.16), 0 0 0 2px ${block.color}38`
+            : usesLineFragments
+            ? "none"
             : "0 8px 18px rgba(0,0,0,0.12)",
 
         borderRadius:
@@ -769,6 +784,8 @@ export default function FloatingEditableBlock({
           isGenerating &&
           generatingBlinkOn
             ? `${block.color}22`
+            : usesLineFragments
+            ? "transparent"
             : block.fill,
 
         transition:
@@ -785,7 +802,9 @@ export default function FloatingEditableBlock({
           "border-box",
 
         padding:
-          matchesInlineAppearance
+          usesLineFragments
+            ? 0
+            : matchesInlineAppearance
             ? "2px 8px"
             : "8px 14px",
 
@@ -812,6 +831,106 @@ export default function FloatingEditableBlock({
       <InstructionDropBurst
         effect={instructionEffect}
       />
+
+      {usesLineFragments &&
+        !isEditing && (
+          <div
+            aria-hidden="true"
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+
+              cancelDragCandidate();
+              editPointRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+              };
+              textUndoStackRef.current =
+                [];
+              setIsEditing(true);
+              onEditingChange?.(
+                block.isGenerated ===
+                    true ||
+                  block.type ===
+                    "Generated"
+                  ? block.id
+                  : null
+              );
+            }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "auto",
+            }}
+          >
+            {lineFragments.map(
+              (fragment, index) => (
+                <div
+                  key={`${block.id}-line-${index}`}
+                  style={{
+                    position: "absolute",
+                    left:
+                      fragment.x ?? 0,
+                    top:
+                      fragment.y ?? 0,
+                    width:
+                      fragment.width,
+                    minHeight:
+                      fragment.height ?? 28,
+                    padding: "2px 8px",
+                    boxSizing:
+                      "border-box",
+                    border:
+                      `1px solid ${block.color}`,
+                    borderRadius: 8,
+                    background:
+                      block.fill,
+                    color: "#202124",
+                    fontSize: 16,
+                    fontWeight: 500,
+                    lineHeight: "24px",
+                    whiteSpace: "pre",
+                    overflow: "visible",
+                    boxShadow:
+                      isSelected
+                        ? `0 6px 16px rgba(15,23,42,0.18), 0 0 0 2px ${block.color}38`
+                        : "none",
+                  }}
+                >
+                  {fragment.text}
+
+                  {index === 0 && (
+                    <span
+                      style={{
+                        position:
+                          "absolute",
+                        left: 7,
+                        top: -12,
+                        height: 16,
+                        padding:
+                          "0 6px",
+                        borderRadius: 5,
+                        background:
+                          block.color,
+                        color: "#fff",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        lineHeight:
+                          "16px",
+                        whiteSpace:
+                          "nowrap",
+                      }}
+                    >
+                      {getBlockTypeLabel(
+                        block.type
+                      )}
+                    </span>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
       <style>
         {`
@@ -876,6 +995,11 @@ export default function FloatingEditableBlock({
       {/* 模块类型标签 */}
       <div
         style={{
+          display:
+            usesLineFragments &&
+            !isEditing
+              ? "none"
+              : "block",
           position:
             "absolute",
 
@@ -1163,7 +1287,10 @@ export default function FloatingEditableBlock({
             1,
 
           display:
-            "block",
+            usesLineFragments &&
+            !isEditing
+              ? "none"
+              : "block",
 
           width:
             "100%",
@@ -1274,6 +1401,10 @@ export default function FloatingEditableBlock({
             };
         }}
         style={{
+          display:
+            usesLineFragments
+              ? "none"
+              : "block",
           position:
             "absolute",
 

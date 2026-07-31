@@ -313,6 +313,150 @@ function buildFragmentBounds(
 }
 
 /**
+ * 读取 inline 模块每一行实际显示的文字和矩形。
+ *
+ * 跨行 inline 元素使用 box-decoration-break: clone，因此不能只保存
+ * 一个总包围盒；否则 floating 副本会变成一整块大文本框。
+ */
+function collectDomLineFragments(
+  element,
+  overallLeft,
+  overallTop
+) {
+  const contentElement =
+    element?.querySelector?.(
+      "[data-semantic-block-content='true']"
+    ) || element;
+
+  if (
+    !contentElement ||
+    typeof document ===
+      "undefined"
+  ) {
+    return [];
+  }
+
+  const walker =
+    document.createTreeWalker(
+      contentElement,
+      NodeFilter.SHOW_TEXT
+    );
+
+  const lines = [];
+  let textNode =
+    walker.nextNode();
+
+  while (textNode) {
+    const value =
+      String(
+        textNode.nodeValue ??
+          ""
+      );
+
+    for (
+      let index = 0;
+      index < value.length;
+      index += 1
+    ) {
+      const range =
+        document.createRange();
+
+      range.setStart(
+        textNode,
+        index
+      );
+      range.setEnd(
+        textNode,
+        index + 1
+      );
+
+      const rect =
+        range.getClientRects?.()[0] ||
+        range.getBoundingClientRect?.();
+
+      if (
+        !rect ||
+        rect.height <= 0
+      ) {
+        continue;
+      }
+
+      let line =
+        lines.find(
+          (candidate) =>
+            Math.abs(
+              candidate.top -
+                rect.top
+            ) < 3
+        );
+
+      if (!line) {
+        line = {
+          text: "",
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+        };
+        lines.push(line);
+      }
+
+      line.text +=
+        value[index];
+      line.left =
+        Math.min(
+          line.left,
+          rect.left
+        );
+      line.right =
+        Math.max(
+          line.right,
+          rect.right
+        );
+      line.bottom =
+        Math.max(
+          line.bottom,
+          rect.bottom
+        );
+    }
+
+    textNode =
+      walker.nextNode();
+  }
+
+  return lines
+    .sort(
+      (a, b) =>
+        a.top - b.top
+    )
+    .map((line) => ({
+      text: line.text,
+      x:
+        line.left -
+        overallLeft -
+        8,
+      y:
+        line.top -
+        overallTop -
+        2,
+      width:
+        Math.max(
+          1,
+          line.right -
+            line.left +
+            16
+        ),
+      height:
+        Math.max(
+          1,
+          line.bottom -
+            line.top +
+            4
+        ),
+    }));
+}
+
+/**
  * 获取源模块应该被复制的准确宽度。
  *
  * 规则：
@@ -623,6 +767,15 @@ export function useBlockDuplicate({
 
           height:
             bottom - top,
+
+          lineFragments:
+            elements.length === 1
+              ? collectDomLineFragments(
+                  elements[0],
+                  left,
+                  top
+                )
+              : [],
         };
       },
       [
@@ -1257,6 +1410,17 @@ export function useBlockDuplicate({
                */
               copiedBlock.floatingMatchesInlineAppearance =
                 true;
+
+              copiedBlock.floatingLineFragments =
+                Array.isArray(
+                  sourceDomBounds
+                    ?.lineFragments
+                )
+                  ? cloneBlockData(
+                      sourceDomBounds
+                        .lineFragments
+                    )
+                  : [];
 
               copiedBlock.floatingHeight =
                 Math.max(
