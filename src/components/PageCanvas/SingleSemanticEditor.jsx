@@ -1550,6 +1550,10 @@ const SingleSemanticEditor =
                 box-shadow: none !important;
               }
 
+              .semantic-inline-block[data-module-hidden="true"]::before {
+                display: none !important;
+              }
+
               @keyframes semantic-instruction-water-fill {
                 0% {
                   transform: scaleX(0);
@@ -1814,110 +1818,157 @@ const SingleSemanticEditor =
                   block
                     .isCompletedParagraph
                 ) {
-                  const completedSegments =
-                    Array.isArray(
-                      block.completedBlocks
-                    ) &&
-                    block.completedBlocks
-                      .length > 0
-                      ? block.completedBlocks
-                      : [
-                          {
-                            id:
-                              `${block.id}-text`,
-                            text:
-                              block.text,
-                            forceLineBreakBefore:
-                              block.forceLineBreakBefore,
-                          },
-                        ];
-
                   return (
-                    <Fragment
+                    <div
                       key={blockId}
+                      data-semantic-block-id={
+                        blockId
+                      }
+                      data-completed-inline="true"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        margin: "14px 0 18px",
+                        padding: 0,
+                        border: "none",
+                        outline: "none",
+                        background: "transparent",
+                        color: "#333",
+                        fontSize: 16,
+                        lineHeight: "28px",
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                        userSelect: "text",
+                        WebkitUserSelect: "text",
+                        opacity:
+                          hasFocusedEditingBlock
+                            ? 0.24
+                            : 1,
+                        transition: "opacity 180ms ease",
+                      }}
                     >
-                      {completedSegments.map(
-                        (
-                          segment,
-                          segmentIndex
-                        ) => (
-                          <Fragment
-                            key={
-                              normalizeId(
-                                segment.id
-                              ) ||
-                              `${blockId}-${segmentIndex}`
-                            }
-                          >
-                            {segment.forceLineBreakBefore && (
-                              <span
-                                aria-hidden="true"
-                                data-semantic-forced-break="true"
-                                style={{
-                                  display: "block",
-                                  width: "100%",
-                                  height: 10,
-                                  minHeight: 10,
-                                  lineHeight: "10px",
-                                  pointerEvents: "none",
-                                  userSelect: "none",
-                                  WebkitUserSelect: "none",
-                                }}
-                              />
-                            )}
+                      <span
+                        data-completed-text="true"
+                        contentEditable
+                        suppressContentEditableWarning
+                        spellCheck
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onDoubleClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
 
-                            <span
-                              data-completed-inline="true"
-                              data-completed-text="true"
-                              onMouseDown={(event) => {
-                                event.stopPropagation();
-                              }}
-                              onDoubleClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
+                          onRestoreCompletedParagraph?.(
+                            block.id
+                          );
+                        }}
+                        onKeyDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onBlur={(event) => {
+                          const nextText =
+                            normalizeText(
+                              event.currentTarget
+                                .textContent
+                            );
 
-                                onRestoreCompletedParagraph?.(
-                                  block.id
-                                );
-                              }}
-                              style={{
-                                position: "relative",
-                                zIndex: 1,
-                                display: "inline",
-                                margin: "0 6px 6px 0",
-                                padding: "2px 8px",
-                                border: "1px solid transparent",
-                                borderRadius: 8,
-                                background: "transparent",
-                                boxSizing: "border-box",
-                                color: "#202124",
-                                fontSize: 16,
-                                lineHeight: "24px",
-                                whiteSpace: "pre-wrap",
-                                overflowWrap: "anywhere",
-                                wordBreak: "break-word",
-                                boxDecorationBreak: "clone",
-                                WebkitBoxDecorationBreak: "clone",
-                                userSelect: "text",
-                                WebkitUserSelect: "text",
-                                cursor: "text",
-                                opacity:
-                                  hasFocusedEditingBlock
-                                    ? 0.24
-                                    : 1,
-                                transition: "opacity 180ms ease",
-                              }}
-                              title="双击恢复为模块"
-                            >
-                              {String(
-                                segment.text ??
-                                  ""
-                              ) || EMPTY_TEXT}
-                            </span>
-                          </Fragment>
-                        )
-                      )}
-                    </Fragment>
+                          if (
+                            nextText ===
+                            normalizeText(
+                              block.text
+                            )
+                          ) {
+                            return;
+                          }
+
+                          onCommitBlocks?.([
+                            {
+                              id: block.id,
+                              text: nextText,
+                            },
+                          ]);
+                        }}
+                        style={{
+                          outline: "none",
+                          border: "none",
+                          background: "transparent",
+                          caretColor: "#111827",
+                          cursor: "text",
+                        }}
+                      >
+                        {String(
+                          block.text ?? ""
+                        )}
+                      </span>
+
+                      <button
+                        type="button"
+                        aria-label="复制段落"
+                        title="复制段落"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={async (event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+
+                          const currentText =
+                            normalizeText(
+                              event.currentTarget
+                                .previousElementSibling
+                                ?.textContent ??
+                                block.text
+                            );
+
+                          if (
+                            currentText !==
+                            normalizeText(
+                              block.text
+                            )
+                          ) {
+                            onCommitBlocks?.([
+                              {
+                                id: block.id,
+                                text: currentText,
+                              },
+                            ]);
+                          }
+
+                          try {
+                            await navigator.clipboard.writeText(
+                              currentText
+                            );
+                          } catch (error) {
+                            console.error(
+                              "复制段落失败：",
+                              error
+                            );
+                          }
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 26,
+                          height: 26,
+                          marginLeft: 8,
+                          padding: 0,
+                          border: "1px solid #d1d5db",
+                          borderRadius: 6,
+                          background: "#fff",
+                          color: "#6b7280",
+                          fontSize: 15,
+                          lineHeight: 1,
+                          cursor: "pointer",
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        ⧉
+                      </button>
+                    </div>
                   );
                 }
 
@@ -1929,6 +1980,10 @@ const SingleSemanticEditor =
                 const color =
                   block.color ||
                   "#7c83fd";
+
+                const isModuleHidden =
+                  block.isModuleHidden ===
+                  true;
 
                 const activeLengthPreview =
                   normalizeId(
@@ -2024,6 +2079,12 @@ const SingleSemanticEditor =
 
                     data-editing={
                       isEditing
+                        ? "true"
+                        : "false"
+                    }
+
+                    data-module-hidden={
+                      isModuleHidden
                         ? "true"
                         : "false"
                     }

@@ -175,6 +175,7 @@ export default function App() {
      * Section 操作。
      */
     handleComplete,
+    handleToggleModuleVisibility,
     handleRestoreCompletedParagraph,
     handleRestoreCompletedSection,
     handleUpdateCompletedSectionText,
@@ -480,6 +481,10 @@ export default function App() {
 
   onComplete={
     handleComplete
+  }
+
+  onToggleModuleVisibility={
+    handleToggleModuleVisibility
   }
 
   selectedIds={

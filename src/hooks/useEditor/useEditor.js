@@ -967,6 +967,201 @@ export function useEditor() {
     ]);
 
   /**
+   * 只隐藏/恢复当前段落的模块外观，不改变模块结构、文字和排版。
+   */
+  const handleToggleModuleVisibility =
+    useCallback(() => {
+      setSections(
+        (previousSections) => {
+          let targetSectionIndex =
+            -1;
+
+          let targetBlockIndex =
+            -1;
+
+          const preferredId =
+            selectedIds?.[0] != null
+              ? String(
+                  selectedIds[0]
+                )
+              : lastActiveBlockIdRef
+                    .current != null
+                ? String(
+                    lastActiveBlockIdRef
+                      .current
+                  )
+                : null;
+
+          if (preferredId) {
+            previousSections.some(
+              (section, sectionIndex) => {
+                if (
+                  section.mode !==
+                    "editing" ||
+                  !Array.isArray(
+                    section.blocks
+                  )
+                ) {
+                  return false;
+                }
+
+                const blockIndex =
+                  section.blocks.findIndex(
+                    (block) =>
+                      !block
+                        ?.isCompletedParagraph &&
+                      String(block.id) ===
+                        preferredId
+                  );
+
+                if (blockIndex < 0) {
+                  return false;
+                }
+
+                targetSectionIndex =
+                  sectionIndex;
+                targetBlockIndex =
+                  blockIndex;
+
+                return true;
+              }
+            );
+          }
+
+          if (
+            targetSectionIndex < 0
+          ) {
+            for (
+              let sectionIndex =
+                previousSections.length -
+                1;
+              sectionIndex >= 0;
+              sectionIndex -= 1
+            ) {
+              const section =
+                previousSections[
+                  sectionIndex
+                ];
+
+              const blockIndex =
+                section.mode ===
+                  "editing" &&
+                Array.isArray(
+                  section.blocks
+                )
+                  ? section.blocks.findLastIndex(
+                      (block) =>
+                        !block
+                          ?.isCompletedParagraph
+                    )
+                  : -1;
+
+              if (blockIndex >= 0) {
+                targetSectionIndex =
+                  sectionIndex;
+                targetBlockIndex =
+                  blockIndex;
+                break;
+              }
+            }
+          }
+
+          if (
+            targetSectionIndex < 0 ||
+            targetBlockIndex < 0
+          ) {
+            return previousSections;
+          }
+
+          const sourceBlocks =
+            previousSections[
+              targetSectionIndex
+            ].blocks;
+
+          let paragraphStart =
+            targetBlockIndex;
+
+          while (
+            paragraphStart > 0 &&
+            !sourceBlocks[
+              paragraphStart
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphStart - 1
+            ]?.isCompletedParagraph
+          ) {
+            paragraphStart -= 1;
+          }
+
+          let paragraphEnd =
+            targetBlockIndex + 1;
+
+          while (
+            paragraphEnd <
+              sourceBlocks.length &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.isCompletedParagraph
+          ) {
+            paragraphEnd += 1;
+          }
+
+          const shouldHide =
+            sourceBlocks
+              .slice(
+                paragraphStart,
+                paragraphEnd
+              )
+              .some(
+                (block) =>
+                  block
+                    ?.isModuleHidden !==
+                  true
+              );
+
+          const nextSections =
+            cloneSections(
+              previousSections
+            );
+
+          nextSections[
+            targetSectionIndex
+          ].blocks =
+            nextSections[
+              targetSectionIndex
+            ].blocks.map(
+              (block, blockIndex) =>
+                blockIndex >=
+                    paragraphStart &&
+                blockIndex < paragraphEnd
+                  ? {
+                      ...block,
+                      isModuleHidden:
+                        shouldHide,
+                    }
+                  : block
+            );
+
+          pushHistorySnapshot(
+            previousSections
+          );
+
+          return nextSections;
+        }
+      );
+
+      setStatusText("");
+    }, [
+      selectedIds,
+      setSections,
+      pushHistorySnapshot,
+      setStatusText,
+    ]);
+
+  /**
    * 双击已完成的纯文字段落时，
    * 在原位置恢复它保存的全部模块。
    */
@@ -1377,6 +1572,7 @@ export function useEditor() {
      * section 操作。
      */
     handleComplete,
+    handleToggleModuleVisibility,
     handleRestoreCompletedParagraph,
     handleRestoreCompletedSection,
     handleUpdateCompletedSectionText,

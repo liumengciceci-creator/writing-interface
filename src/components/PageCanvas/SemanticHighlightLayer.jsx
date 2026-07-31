@@ -98,6 +98,13 @@ function SemanticHighlightLayer({
             return null;
           }
 
+          if (
+            block.isModuleHidden ===
+            true
+          ) {
+            return null;
+          }
+
 
           const blockId =
             normalizeId(

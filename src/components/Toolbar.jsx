@@ -13,6 +13,7 @@ export default function Toolbar({
   onUndo,
   onGenerate,
   onComplete,
+  onToggleModuleVisibility,
 
   selectedIds = [],
 
@@ -260,6 +261,32 @@ export default function Toolbar({
 
         </button>
 
+
+
+        <button
+          type="button"
+          onClick={
+            onToggleModuleVisibility
+          }
+          disabled={
+            editableBlockCount === 0 ||
+            isGenerating ||
+            isAdjustingLength
+          }
+          style={{
+            ...toolbarWideButton,
+
+            opacity:
+              editableBlockCount === 0 ||
+                isGenerating ||
+                isAdjustingLength
+                ? 0.5
+                : 1,
+          }}
+          title="隐藏当前段落的模块外观；再次点击恢复显示"
+        >
+          隐藏模块
+        </button>
 
 
         <button
