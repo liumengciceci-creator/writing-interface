@@ -336,6 +336,7 @@ const SingleSemanticEditor =
         onClearSelection,
 
         onInsertBlock,
+        onTemplateDropComplete,
         onReorderBlocks,
         onRestoreCompletedParagraph,
         onApplyInstruction,
@@ -1506,9 +1507,19 @@ const SingleSemanticEditor =
               nextPayload,
               insertIndex
             );
+
+            /**
+             * 编辑器内部已经 stopPropagation，外层 Stage 收不到 drop。
+             * 必须显式通知外层清除 draggingType，否则下一次点击
+             * 画布空白处会把同一个模板再次创建一遍。
+             */
+            onTemplateDropComplete?.(
+              event
+            );
           },
           [
             onInsertBlock,
+            onTemplateDropComplete,
             onReorderBlocks,
           ]
         );

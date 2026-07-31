@@ -1125,6 +1125,10 @@ export default function PageCanvas(
                 onInsertInlineBlock
               }
 
+              onTemplateDropComplete={
+                onExternalDrop
+              }
+
               onReorderBlocks={
                 onReorderInlineBlocks
               }
