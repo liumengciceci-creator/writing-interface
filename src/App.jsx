@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -77,6 +78,55 @@ function createTemplateId() {
     .slice(2)}`;
 }
 
+/**
+ * 统计当前文档的总体字数。
+ * 空格和换行不计入；completed section 只统计合并后的完整文字，
+ * 避免它保存的原始模块被重复计算。
+ */
+function countDocumentCharacters(
+  sections
+) {
+  const texts = [];
+
+  (
+    Array.isArray(sections)
+      ? sections
+      : []
+  ).forEach((section) => {
+    if (
+      section?.mode ===
+      "completed"
+    ) {
+      texts.push(
+        String(
+          section.completedText ??
+            ""
+        )
+      );
+      return;
+    }
+
+    (
+      Array.isArray(
+        section?.blocks
+      )
+        ? section.blocks
+        : []
+    ).forEach((block) => {
+      texts.push(
+        String(
+          block?.text ?? ""
+        )
+      );
+    });
+  });
+
+  return texts
+    .join("")
+    .replace(/\s/g, "")
+    .length;
+}
+
 export default function App() {
   /**
    * 用户创建的自定义标签。
@@ -93,6 +143,7 @@ export default function App() {
    * 编辑器状态与操作。
    */
   const {
+    sections,
     zoom,
     selectedIds,
     selectionRect,
@@ -201,6 +252,15 @@ export default function App() {
   duplicateSelectedBlocks,
     beginDuplicateDrag,
 } = useEditor();
+
+  const totalCharacterCount =
+    useMemo(
+      () =>
+        countDocumentCharacters(
+          sections
+        ),
+      [sections]
+    );
 
   /**
    * 保存自定义标签。
@@ -398,6 +458,52 @@ export default function App() {
               handleUpdateCustomTemplate
             }
           />
+
+          <div
+            aria-live="polite"
+            title="不包含空格和换行"
+            style={{
+              position: "fixed",
+              left: 18,
+              bottom: 18,
+              zIndex: 100,
+              minWidth: 92,
+              padding: "8px 12px",
+              boxSizing:
+                "border-box",
+              border:
+                "1px solid rgba(17,24,39,0.08)",
+              borderRadius: 10,
+              background:
+                "rgba(255,255,255,0.88)",
+              boxShadow:
+                "0 4px 14px rgba(15,23,42,0.08)",
+              backdropFilter:
+                "blur(8px)",
+              WebkitBackdropFilter:
+                "blur(8px)",
+              color: "#4b5563",
+              fontSize: 12,
+              lineHeight: "18px",
+              textAlign: "center",
+              pointerEvents: "none",
+              userSelect: "none",
+              WebkitUserSelect:
+                "none",
+            }}
+          >
+            总字数　
+            <span
+              style={{
+                color: "#111827",
+                fontWeight: 600,
+                fontVariantNumeric:
+                  "tabular-nums",
+              }}
+            >
+              {totalCharacterCount}
+            </span>
+          </div>
         </div>
 
         {/* 中间编辑区 */}
