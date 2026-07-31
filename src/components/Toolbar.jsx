@@ -27,6 +27,7 @@ export default function Toolbar({
   onToggleWebSearch,
 
   editableBlockCount = 0,
+  modulesHidden = false,
 }) {
   const normalizedGenerationStatus =
     String(
@@ -283,9 +284,15 @@ export default function Toolbar({
                 ? 0.5
                 : 1,
           }}
-          title="隐藏当前段落的模块外观；再次点击恢复显示"
+          title={
+            modulesHidden
+              ? "显示当前段落的模块外观"
+              : "隐藏当前段落的模块外观"
+          }
         >
-          隐藏模块
+          {modulesHidden
+            ? "显示模块"
+            : "隐藏模块"}
         </button>
 
 

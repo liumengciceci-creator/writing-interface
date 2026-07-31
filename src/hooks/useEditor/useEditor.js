@@ -751,6 +751,109 @@ export function useEditor() {
         );
     }, [sections]);
 
+  /** 当前操作段落是否已经隐藏模块外观。 */
+  const activeParagraphModulesHidden =
+    useMemo(() => {
+      let targetSection = null;
+      let targetBlockIndex = -1;
+
+      const preferredId =
+        selectedIds?.[0] != null
+          ? String(selectedIds[0])
+          : lastActiveBlockIdRef.current != null
+            ? String(lastActiveBlockIdRef.current)
+            : null;
+
+      if (preferredId) {
+        sections.some((section) => {
+          if (
+            section?.mode !== "editing" ||
+            !Array.isArray(section.blocks)
+          ) {
+            return false;
+          }
+
+          const blockIndex =
+            section.blocks.findIndex(
+              (block) =>
+                !block?.isCompletedParagraph &&
+                String(block.id) === preferredId
+            );
+
+          if (blockIndex < 0) return false;
+
+          targetSection = section;
+          targetBlockIndex = blockIndex;
+          return true;
+        });
+      }
+
+      if (!targetSection) {
+        for (
+          let index = sections.length - 1;
+          index >= 0;
+          index -= 1
+        ) {
+          const section = sections[index];
+          const blockIndex =
+            section?.mode === "editing" &&
+            Array.isArray(section.blocks)
+              ? section.blocks.findLastIndex(
+                  (block) =>
+                    !block?.isCompletedParagraph
+                )
+              : -1;
+
+          if (blockIndex >= 0) {
+            targetSection = section;
+            targetBlockIndex = blockIndex;
+            break;
+          }
+        }
+      }
+
+      if (!targetSection || targetBlockIndex < 0) {
+        return false;
+      }
+
+      const sourceBlocks = targetSection.blocks;
+      let paragraphStart = targetBlockIndex;
+
+      while (
+        paragraphStart > 0 &&
+        !sourceBlocks[paragraphStart]?.forceLineBreakBefore &&
+        !sourceBlocks[paragraphStart - 1]?.isCompletedParagraph
+      ) {
+        paragraphStart -= 1;
+      }
+
+      let paragraphEnd = targetBlockIndex + 1;
+
+      while (
+        paragraphEnd < sourceBlocks.length &&
+        !sourceBlocks[paragraphEnd]?.forceLineBreakBefore &&
+        !sourceBlocks[paragraphEnd]?.isCompletedParagraph
+      ) {
+        paragraphEnd += 1;
+      }
+
+      const paragraphBlocks =
+        sourceBlocks
+          .slice(paragraphStart, paragraphEnd)
+          .filter(
+            (block) =>
+              !block?.isCompletedParagraph
+          );
+
+      return (
+        paragraphBlocks.length > 0 &&
+        paragraphBlocks.every(
+          (block) =>
+            block.isModuleHidden === true
+        )
+      );
+    }, [sections, selectedIds]);
+
   /**
    * 只完成当前段落。
    * 当前段落优先取 selectedIds[0] 所在段落；
@@ -1701,6 +1804,7 @@ export function useEditor() {
      * 页面布局。
      */
     editableBlockCount,
+    activeParagraphModulesHidden,
 
     sectionLayouts,
     totalContentHeight,

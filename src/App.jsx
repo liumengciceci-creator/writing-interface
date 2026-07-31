@@ -179,6 +179,7 @@ export default function App() {
     endBlockDrag,
 
     editableBlockCount,
+    activeParagraphModulesHidden,
     sectionLayouts,
     totalContentHeight,
 
@@ -642,6 +643,10 @@ export default function App() {
 
   editableBlockCount={
     editableBlockCount
+  }
+
+  modulesHidden={
+    activeParagraphModulesHidden
   }
 />
           </div>
