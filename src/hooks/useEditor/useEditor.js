@@ -77,6 +77,137 @@ const INITIAL_SECTIONS = [
 ];
 
 /**
+ * 完成段落被编辑后，恢复模块时按照原模块文字长度比例重新分配文本。
+ * 这样修改后的内容不会在双击恢复时退回旧版本。
+ */
+function distributeCompletedText(
+  text,
+  blocks
+) {
+  const sourceBlocks =
+    cloneBlocks(blocks || []);
+
+  if (
+    sourceBlocks.length === 0
+  ) {
+    return sourceBlocks;
+  }
+
+  const value =
+    String(text ?? "").trim();
+
+  if (
+    sourceBlocks.length === 1
+  ) {
+    sourceBlocks[0].text =
+      value;
+    return sourceBlocks;
+  }
+
+  const lengths =
+    sourceBlocks.map(
+      (block) =>
+        Math.max(
+          1,
+          String(
+            block.text ?? ""
+          ).length
+        )
+    );
+
+  const totalLength =
+    lengths.reduce(
+      (sum, length) =>
+        sum + length,
+      0
+    );
+
+  let sourceOffset = 0;
+  let consumedWeight = 0;
+
+  sourceBlocks.forEach(
+    (block, index) => {
+      if (
+        index ===
+        sourceBlocks.length - 1
+      ) {
+        block.text =
+          value
+            .slice(sourceOffset)
+            .trim();
+        return;
+      }
+
+      consumedWeight +=
+        lengths[index];
+
+      const idealOffset =
+        Math.round(
+          value.length *
+            (consumedWeight /
+              totalLength)
+        );
+
+      let splitOffset =
+        Math.max(
+          sourceOffset,
+          idealOffset
+        );
+
+      /**
+       * 在理想切点附近优先寻找空格或中文/英文标点，
+       * 尽量避免从一个词或句子中间切开。
+       */
+      for (
+        let distance = 0;
+        distance <= 12;
+        distance += 1
+      ) {
+        const candidates = [
+          idealOffset + distance,
+          idealOffset - distance,
+        ];
+
+        const matched =
+          candidates.find(
+            (candidate) =>
+              candidate >
+                sourceOffset &&
+              candidate <
+                value.length &&
+              /[\s，。！？；：、,.!?;:]/.test(
+                value[
+                  candidate - 1
+                ] || ""
+              )
+          );
+
+        if (
+          matched != null
+        ) {
+          splitOffset =
+            matched;
+          break;
+        }
+      }
+
+      block.text =
+        value
+          .slice(
+            sourceOffset,
+            splitOffset
+          )
+          .trim();
+
+      sourceOffset =
+        splitOffset;
+    }
+  );
+
+  return sourceBlocks;
+}
+
+/**
  * 将同一个模块的多个 fragment 合并成一个包围区域。
  *
  * 旧的框选逻辑仍然可以使用这个区域。
@@ -1211,7 +1342,7 @@ export function useEditor() {
                       blockIndex
                     ];
 
-                  const restoredBlocks =
+                  let restoredBlocks =
                     cloneBlocks(
                       completedBlock
                         .completedBlocks ||
@@ -1223,6 +1354,27 @@ export function useEditor() {
                     0
                   ) {
                     return section;
+                  }
+
+                  const originalCompletedText =
+                    makeCompletedText(
+                      restoredBlocks
+                    );
+
+                  if (
+                    String(
+                      completedBlock.text ??
+                        ""
+                    ).trim() !==
+                    String(
+                      originalCompletedText
+                    ).trim()
+                  ) {
+                    restoredBlocks =
+                      distributeCompletedText(
+                        completedBlock.text,
+                        restoredBlocks
+                      );
                   }
 
                   restored = true;

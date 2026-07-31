@@ -877,8 +877,9 @@ const SingleSemanticEditor =
 
           if (
             !blockElement ||
-            document.activeElement ===
-              blockElement
+            blockElement.contains(
+              document.activeElement
+            )
           ) {
             continue;
           }
@@ -1850,6 +1851,7 @@ const SingleSemanticEditor =
                     >
                       <span
                         data-completed-text="true"
+                        data-semantic-block-content="true"
                         contentEditable
                         suppressContentEditableWarning
                         spellCheck
