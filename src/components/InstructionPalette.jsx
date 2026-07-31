@@ -267,6 +267,53 @@ export default function InstructionPalette({
   const [errorText, setErrorText] =
     useState("");
 
+  const [
+    reorderingInstructionId,
+    setReorderingInstructionId,
+  ] = useState(null);
+
+  const reorderInstructionBefore =
+    (targetId) => {
+      if (
+        !reorderingInstructionId ||
+        reorderingInstructionId ===
+          targetId
+      ) {
+        return;
+      }
+
+      setInstructions((current) => {
+        const next = [...current];
+        const fromIndex =
+          next.findIndex(
+            (item) =>
+              item.id ===
+              reorderingInstructionId
+          );
+        const targetIndex =
+          next.findIndex(
+            (item) =>
+              item.id === targetId
+          );
+
+        if (
+          fromIndex < 0 ||
+          targetIndex < 0
+        ) {
+          return current;
+        }
+
+        const [moving] =
+          next.splice(fromIndex, 1);
+        next.splice(
+          targetIndex,
+          0,
+          moving
+        );
+        return next;
+      });
+    };
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -371,6 +418,10 @@ export default function InstructionPalette({
       if (!event.dataTransfer) {
         return;
       }
+
+      setReorderingInstructionId(
+        instruction.id
+      );
 
       const payload =
         createInstructionDragPayload(
@@ -490,6 +541,18 @@ export default function InstructionPalette({
             (instruction) => (
               <div
                 key={instruction.id}
+                onDragOver={(event) => {
+                  if (
+                    !reorderingInstructionId
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.stopPropagation();
+                  reorderInstructionBefore(
+                    instruction.id
+                  );
+                }}
                 style={{
                   position: "relative",
                   width: "100%",
@@ -516,6 +579,9 @@ export default function InstructionPalette({
                   }
                   onDragEnd={() => {
                     clearActiveInstructionDragData();
+                    setReorderingInstructionId(
+                      null
+                    );
                   }}
                   style={{
                     width: 26,

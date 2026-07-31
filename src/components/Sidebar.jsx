@@ -61,6 +61,30 @@ const LABEL_PALETTE_WIDTH_STORAGE_KEY =
 const INSTRUCTION_PALETTE_WIDTH_STORAGE_KEY =
   "writing-interface-instruction-palette-width";
 
+const TEMPLATE_ORDER_STORAGE_KEY =
+  "writing-interface-label-template-order";
+
+function loadTemplateOrder() {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(
+        TEMPLATE_ORDER_STORAGE_KEY
+      ) || "[]"
+    );
+    return Array.isArray(parsed)
+      ? parsed.map(String)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function getTemplateOrderKey(item) {
+  return item?.isCustom
+    ? `custom:${item.id}`
+    : `default:${item.type}`;
+}
+
 function loadPaletteWidth(storageKey) {
   try {
     const storedValue =
@@ -898,6 +922,31 @@ export default function Sidebar({
     )
   );
 
+  const [
+    templateOrder,
+    setTemplateOrder,
+  ] = useState(
+    loadTemplateOrder
+  );
+
+  const [
+    reorderingTemplateKey,
+    setReorderingTemplateKey,
+  ] = useState(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        TEMPLATE_ORDER_STORAGE_KEY,
+        JSON.stringify(
+          templateOrder
+        )
+      );
+    } catch {
+      // 浏览器禁止存储时继续保留当前会话顺序。
+    }
+  }, [templateOrder]);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -977,7 +1026,7 @@ export default function Sidebar({
         : item;
     });
 
-  const allTemplates = [
+  const unsortedTemplates = [
     ...defaultTemplates.map(
       (item) => ({
         ...item,
@@ -1010,6 +1059,91 @@ export default function Sidebar({
       }
     ),
   ];
+
+  const templateOrderIndex =
+    new Map(
+      templateOrder.map(
+        (key, index) => [
+          key,
+          index,
+        ]
+      )
+    );
+
+  const allTemplates = [
+    ...unsortedTemplates,
+  ].sort((a, b) => {
+    const aIndex =
+      templateOrderIndex.has(
+        getTemplateOrderKey(a)
+      )
+        ? templateOrderIndex.get(
+            getTemplateOrderKey(a)
+          )
+        : Number.MAX_SAFE_INTEGER;
+    const bIndex =
+      templateOrderIndex.has(
+        getTemplateOrderKey(b)
+      )
+        ? templateOrderIndex.get(
+            getTemplateOrderKey(b)
+          )
+        : Number.MAX_SAFE_INTEGER;
+    return aIndex - bIndex;
+  });
+
+  const reorderTemplateBefore =
+    (targetItem) => {
+      if (!reorderingTemplateKey) {
+        return;
+      }
+
+      const targetKey =
+        getTemplateOrderKey(
+          targetItem
+        );
+
+      if (
+        !targetKey ||
+        targetKey ===
+          reorderingTemplateKey
+      ) {
+        return;
+      }
+
+      const visibleKeys =
+        allTemplates.map(
+          getTemplateOrderKey
+        );
+      const fromIndex =
+        visibleKeys.indexOf(
+          reorderingTemplateKey
+        );
+      const targetIndex =
+        visibleKeys.indexOf(
+          targetKey
+        );
+
+      if (
+        fromIndex < 0 ||
+        targetIndex < 0
+      ) {
+        return;
+      }
+
+      visibleKeys.splice(
+        fromIndex,
+        1
+      );
+      visibleKeys.splice(
+        targetIndex,
+        0,
+        reorderingTemplateKey
+      );
+      setTemplateOrder(
+        visibleKeys
+      );
+    };
 
   const closeAddPanel =
     () => {
@@ -1387,6 +1521,19 @@ export default function Sidebar({
                 gap:
                   4,
               }}
+
+              onDragOver={(event) => {
+                if (
+                  !reorderingTemplateKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                reorderTemplateBefore(
+                  item
+                );
+              }}
             >
               <button
                 type="button"
@@ -1422,6 +1569,11 @@ export default function Sidebar({
                 onDragStart={(
                   event
                 ) => {
+                  setReorderingTemplateKey(
+                    getTemplateOrderKey(
+                      item
+                    )
+                  );
                   handleNativeDragStart(
                     event,
                     item
@@ -1485,6 +1637,9 @@ export default function Sidebar({
                 onDragEnd={(
                   event
                 ) => {
+                  setReorderingTemplateKey(
+                    null
+                  );
                   event.currentTarget.style.cursor =
                     "grab";
                 }}
