@@ -422,6 +422,26 @@ const SingleSemanticEditor =
         setDropIndicator,
       ] = useState(null);
 
+      const [
+        copiedParagraphId,
+        setCopiedParagraphId,
+      ] = useState(null);
+
+      const copyFeedbackTimerRef =
+        useRef(null);
+
+      useEffect(() => {
+        return () => {
+          if (
+            copyFeedbackTimerRef.current
+          ) {
+            window.clearTimeout(
+              copyFeedbackTimerRef.current
+            );
+          }
+        };
+      }, []);
+
       /**
        * floating 模块使用 mousemove 拖动，不会产生原生 dragover。
        * 因此单独根据鼠标位置计算同一套 inline 插入竖线。
@@ -1862,8 +1882,15 @@ const SingleSemanticEditor =
                           event.preventDefault();
                           event.stopPropagation();
 
+                          const latestText =
+                            normalizeText(
+                              event.currentTarget
+                                .textContent
+                            );
+
                           onRestoreCompletedParagraph?.(
-                            block.id
+                            block.id,
+                            latestText
                           );
                         }}
                         onKeyDown={(event) => {
@@ -1943,6 +1970,31 @@ const SingleSemanticEditor =
                             await navigator.clipboard.writeText(
                               currentText
                             );
+
+                            setCopiedParagraphId(
+                              blockId
+                            );
+
+                            if (
+                              copyFeedbackTimerRef.current
+                            ) {
+                              window.clearTimeout(
+                                copyFeedbackTimerRef.current
+                              );
+                            }
+
+                            copyFeedbackTimerRef.current =
+                              window.setTimeout(
+                                () => {
+                                  setCopiedParagraphId(
+                                    null
+                                  );
+
+                                  copyFeedbackTimerRef.current =
+                                    null;
+                                },
+                                1400
+                              );
                           } catch (error) {
                             console.error(
                               "复制段落失败：",
@@ -1960,15 +2012,29 @@ const SingleSemanticEditor =
                           padding: 0,
                           border: "1px solid #d1d5db",
                           borderRadius: 6,
-                          background: "#fff",
-                          color: "#6b7280",
+                          background:
+                            normalizeId(
+                              copiedParagraphId
+                            ) === blockId
+                              ? "#ecfdf3"
+                              : "#fff",
+                          color:
+                            normalizeId(
+                              copiedParagraphId
+                            ) === blockId
+                              ? "#15803d"
+                              : "#6b7280",
                           fontSize: 15,
                           lineHeight: 1,
                           cursor: "pointer",
                           verticalAlign: "middle",
                         }}
                       >
-                        ⧉
+                        {normalizeId(
+                          copiedParagraphId
+                        ) === blockId
+                          ? "✓"
+                          : "⧉"}
                       </button>
                     </div>
                   );

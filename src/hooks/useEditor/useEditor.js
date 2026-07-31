@@ -1298,7 +1298,10 @@ export function useEditor() {
    */
   const handleRestoreCompletedParagraph =
     useCallback(
-      (completedBlockId) => {
+      (
+        completedBlockId,
+        latestCompletedText = null
+      ) => {
         const targetId =
           String(
             completedBlockId
@@ -1361,18 +1364,26 @@ export function useEditor() {
                       restoredBlocks
                     );
 
+                  const textToRestore =
+                    latestCompletedText !=
+                    null
+                      ? String(
+                          latestCompletedText
+                        )
+                      : String(
+                          completedBlock.text ??
+                            ""
+                        );
+
                   if (
-                    String(
-                      completedBlock.text ??
-                        ""
-                    ).trim() !==
+                    textToRestore.trim() !==
                     String(
                       originalCompletedText
                     ).trim()
                   ) {
                     restoredBlocks =
                       distributeCompletedText(
-                        completedBlock.text,
+                        textToRestore,
                         restoredBlocks
                       );
                   }
