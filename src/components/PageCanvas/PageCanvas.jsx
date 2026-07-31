@@ -132,14 +132,14 @@ function InlineDragPreview({
   minWidth: 0,
   
 
-  border: `1.5px solid ${block.color || "#7c83fd"}`,
+  border: `1px solid ${block.color || "#7c83fd"}`,
   borderRadius: 8,
 
   background:
     block.fill ||
     "rgba(124,131,253,0.10)",
 
-  padding: "3px 10px",
+  padding: "2px 8px",
 
   boxSizing: "border-box",
 

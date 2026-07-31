@@ -1865,9 +1865,21 @@ const SingleSemanticEditor =
                         display:
                           "block",
                         width: "100%",
+                        minHeight:
+                          block.completedPreservedHeight ??
+                          undefined,
                         margin:
-                          "14px 0 18px",
-                        padding: 0,
+                          block.completedPreservedHeight !=
+                          null
+                            ? 0
+                            : "14px 0 18px",
+                        padding:
+                          block.completedPreservedHeight !=
+                          null
+                            ? "3px 0 7px"
+                            : 0,
+                        boxSizing:
+                          "border-box",
                         border: "none",
                         outline: "none",
                         background:
@@ -2270,10 +2282,10 @@ const SingleSemanticEditor =
                         "0 6px 6px 0",
 
                       padding:
-                        "3px 10px",
+                        "2px 8px",
 
                       border:
-                        "1.5px solid transparent",
+                        "1px solid transparent",
 
                       borderRadius:
                         8,

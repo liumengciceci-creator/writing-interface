@@ -16,7 +16,7 @@ const DEBUG_LAYOUT = false;
 const FRAGMENT_HEIGHT = 40;
 const FRAGMENT_GAP_X = 8;
 const FRAGMENT_MIN_WIDTH = 120;
-const FRAGMENT_PADDING_X = 14;
+const FRAGMENT_PADDING_X = 10;
 const FRAGMENT_FONT =
   '14px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const SECTION_GAP = 16;

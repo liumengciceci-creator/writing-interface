@@ -229,7 +229,7 @@ function SemanticHighlightLayer({
                 }
 
 
-                strokeWidth="1.5"
+                strokeWidth="1"
 
 
                 opacity={

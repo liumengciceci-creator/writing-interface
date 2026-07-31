@@ -141,7 +141,7 @@ export default function FragmentBlock({
           fragment.height,
 
         border:
-          `1.5px solid ${fragment.color}`,
+          `1px solid ${fragment.color}`,
 
         outline:
           "none",
@@ -169,7 +169,7 @@ export default function FragmentBlock({
             : "0 2px 8px rgba(0,0,0,0.04)",
 
         padding:
-          "8px 14px",
+          "7px 12px",
 
         display:
           "block",

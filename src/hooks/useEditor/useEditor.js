@@ -798,6 +798,94 @@ export function useEditor() {
             return previousSections;
           }
 
+          /**
+           * 记录完成前这段模块在页面中真实占用的高度。
+           * 合并为纯文字后继续保留这段空间，后面的段落不会上移。
+           */
+          const paragraphBlockIdSet =
+            new Set(
+              paragraphBlocks.map(
+                (block) =>
+                  String(block.id)
+              )
+            );
+
+          const paragraphRects =
+            Array.from(
+              contentRef.current
+                ?.querySelectorAll?.(
+                  "[data-semantic-block-id]"
+                ) || []
+            )
+              .filter(
+                (element) =>
+                  paragraphBlockIdSet.has(
+                    String(
+                      element.getAttribute(
+                        "data-semantic-block-id"
+                      )
+                    )
+                  )
+              )
+              .flatMap(
+                (element) =>
+                  Array.from(
+                    element.getClientRects?.() ||
+                      []
+                  )
+              )
+              .filter(
+                (rect) =>
+                  rect.width > 0 &&
+                  rect.height > 0
+              );
+
+          let completedPreservedHeight =
+            null;
+
+          if (
+            paragraphRects.length > 0
+          ) {
+            const contentElement =
+              contentRef.current;
+
+            const contentRect =
+              contentElement
+                ?.getBoundingClientRect();
+
+            const scaleY =
+              contentElement
+                ?.offsetHeight > 0 &&
+              contentRect?.height > 0
+                ? contentRect.height /
+                  contentElement.offsetHeight
+                : zoom || 1;
+
+            const top =
+              Math.min(
+                ...paragraphRects.map(
+                  (rect) => rect.top
+                )
+              );
+
+            const bottom =
+              Math.max(
+                ...paragraphRects.map(
+                  (rect) => rect.bottom
+                )
+              );
+
+            completedPreservedHeight =
+              Math.max(
+                38,
+                (bottom - top) /
+                  Math.max(
+                    scaleY,
+                    0.001
+                  )
+              );
+          }
+
           const completedParagraph = {
             id:
               `completed-paragraph-${nextBlockIdRef.current++}`,
@@ -818,6 +906,8 @@ export function useEditor() {
               ),
             completedBlocks:
               paragraphBlocks,
+
+            completedPreservedHeight,
           };
 
           const nextSections =
@@ -872,6 +962,8 @@ export function useEditor() {
       clearInteractionState,
 
       setStatusText,
+      contentRef,
+      zoom,
     ]);
 
   /**

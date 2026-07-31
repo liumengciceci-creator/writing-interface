@@ -746,7 +746,7 @@ export default function FloatingEditableBlock({
           40,
 
         border:
-          `1.5px solid ${block.color}`,
+          `1px solid ${block.color}`,
 
         boxShadow:
           instructionEffect
@@ -786,7 +786,7 @@ export default function FloatingEditableBlock({
 
         padding:
           matchesInlineAppearance
-            ? "3px 10px"
+            ? "2px 8px"
             : "8px 14px",
 
         zIndex:
