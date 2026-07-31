@@ -49,6 +49,16 @@ export function useFloatingBlocks({
     useRef(null);
 
   /**
+   * 锁定开始拖拽瞬间的完整模块数据。
+   *
+   * 复制后立即拖动时，React sections 可能还没完成下一帧刷新；
+   * 如果预览只按 id 重新查询，就可能拿到缺少分行片段的旧数据，
+   * 从而退回普通文本框。拖拽期间始终优先使用这份快照。
+   */
+  const dragBlockSnapshotRef =
+    useRef(null);
+
+  /**
    * �桁�藜����後�篋� Stage ����而�上������
    */
   const getStagePoint =
@@ -227,6 +237,23 @@ export function useFloatingBlocks({
         dragStartRef.current =
           point;
 
+        dragBlockSnapshotRef.current =
+          block
+            ? {
+                ...block,
+                floatingLineFragments:
+                  Array.isArray(
+                    block.floatingLineFragments
+                  )
+                    ? block.floatingLineFragments.map(
+                        (fragment) => ({
+                          ...fragment,
+                        })
+                      )
+                    : block.floatingLineFragments,
+              }
+            : null;
+
         const sourceElement =
           event.target?.closest?.(
             "[data-semantic-block-id], [data-block-root='true']"
@@ -370,6 +397,9 @@ export function useFloatingBlocks({
 
       dragVisualSizeRef.current =
         null;
+
+      dragBlockSnapshotRef.current =
+        null;
     }, []);
 
   /**
@@ -473,10 +503,21 @@ export function useFloatingBlocks({
         return null;
       }
 
+      const snapshotBlock =
+        dragBlockSnapshotRef.current;
+
       const block =
-        getBlockById?.(
-          draggingBlockId
-        );
+        snapshotBlock &&
+        String(
+          snapshotBlock.id
+        ) ===
+          String(
+            draggingBlockId
+          )
+          ? snapshotBlock
+          : getBlockById?.(
+              draggingBlockId
+            );
 
       if (!block) {
         return null;
@@ -556,10 +597,21 @@ export function useFloatingBlocks({
         return null;
       }
 
+      const snapshotBlock =
+        dragBlockSnapshotRef.current;
+
       const block =
-        getBlockById?.(
-          draggingBlockId
-        );
+        snapshotBlock &&
+        String(
+          snapshotBlock.id
+        ) ===
+          String(
+            draggingBlockId
+          )
+          ? snapshotBlock
+          : getBlockById?.(
+              draggingBlockId
+            );
 
       if (
         !block ||
