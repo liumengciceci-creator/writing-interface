@@ -164,6 +164,9 @@ export default function App() {
     isAdjustingLength,
     adjustingLengthBlockId,
 
+    isAdjustingStyle,
+    adjustingStyleBlockId,
+
     /**
      * 页面与布局状态。
      */
@@ -734,6 +737,14 @@ export default function App() {
 
               adjustingLengthBlockId={
                 adjustingLengthBlockId
+              }
+
+              isAdjustingStyle={
+                isAdjustingStyle
+              }
+
+              adjustingStyleBlockId={
+                adjustingStyleBlockId
               }
 
               onCanvasMouseUp={

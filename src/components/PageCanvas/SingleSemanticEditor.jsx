@@ -2382,15 +2382,16 @@ const SingleSemanticEditor =
                           instructionDropTimerRef.current =
                             null;
 
-                          /**
-                           * 正式调用生成前清除目标投影。
-                           */
                           setInstructionEffect(
                             (current) =>
                               normalizeId(
                                 current?.blockId
                               ) === blockId
-                                ? null
+                                ? {
+                                    ...current,
+                                    phase:
+                                      "waiting",
+                                  }
                                 : current
                           );
 
