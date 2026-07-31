@@ -564,22 +564,43 @@ const SingleSemanticEditor =
               nearestRect.left +
                 nearestRect.width / 2;
 
+            const startsNewLine =
+              shouldStartNewLine(
+                root,
+                event.clientX,
+                event.clientY,
+                draggingId || null
+              );
+
+            const newLineTop =
+              event.clientY >
+              nearestRect.bottom
+                ? nearestRect.bottom +
+                  10
+                : nearestRect.top;
+
             setDropIndicator({
               left:
-                (
-                  (placeAfter
-                    ? nearestRect.right
-                    : nearestRect.left) -
-                  rootRect.left
-                ) /
+                startsNewLine
+                  ? 0
+                  : (
+                      (placeAfter
+                        ? nearestRect.right
+                        : nearestRect.left) -
+                      rootRect.left
+                    ) /
                 Math.max(
                   scaleX,
                   0.001
                 ),
 
               top:
-                (nearestRect.top -
-                  rootRect.top) /
+                (
+                  (startsNewLine
+                    ? newLineTop
+                    : nearestRect.top) -
+                  rootRect.top
+                ) /
                 Math.max(
                   scaleY,
                   0.001
@@ -1242,19 +1263,40 @@ const SingleSemanticEditor =
             nearestRect.left +
               nearestRect.width / 2;
 
+          const startsNewLine =
+            shouldStartNewLine(
+              root,
+              pointerX,
+              pointerY,
+              draggingId || null
+            );
+
+          const newLineTop =
+            pointerY >
+            nearestRect.bottom
+              ? nearestRect.bottom +
+                10
+              : nearestRect.top;
+
           setDropIndicator({
             left:
-              (
-                (placeAfter
-                  ? nearestRect.right
-                  : nearestRect.left) -
-                rootRect.left
-              ) /
+              startsNewLine
+                ? 0
+                : (
+                    (placeAfter
+                      ? nearestRect.right
+                      : nearestRect.left) -
+                    rootRect.left
+                  ) /
               Math.max(scaleX, 0.001),
 
             top:
-              (nearestRect.top -
-                rootRect.top) /
+              (
+                (startsNewLine
+                  ? newLineTop
+                  : nearestRect.top) -
+                rootRect.top
+              ) /
               Math.max(scaleY, 0.001),
 
             height:
