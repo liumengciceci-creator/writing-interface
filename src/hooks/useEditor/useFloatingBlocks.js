@@ -161,6 +161,7 @@ export function useFloatingBlocks({
   totalContentHeight,
   sectionLayouts,
   draggingBlockId,
+  selectedIds = [],
   getBlockById,
   updateBlockPlacement,
   handleCanvasMouseUp,
@@ -200,6 +201,10 @@ export function useFloatingBlocks({
    */
   const dragBlockSnapshotRef =
     useRef(null);
+
+  /** 拖拽开始时锁定整组选中模块的 DOM 位置和数据。 */
+  const dragGroupSnapshotRef =
+    useRef([]);
 
   /**
    * �桁�藜����後�篋� Stage ����而�上������
@@ -389,6 +394,94 @@ export function useFloatingBlocks({
           sourceElement
             ?.getBoundingClientRect?.();
 
+        const activeId =
+          String(block?.id ?? "");
+
+        const selectedKeys =
+          new Set(
+            selectedIds.map(
+              (id) => String(id)
+            )
+          );
+
+        const groupKeys =
+          selectedKeys.size > 1 &&
+          selectedKeys.has(activeId)
+            ? selectedKeys
+            : new Set([activeId]);
+
+        const stageRect =
+          stageRef.current
+            .getBoundingClientRect();
+
+        const allBlockElements =
+          Array.from(
+            stageRef.current.querySelectorAll(
+              "[data-semantic-block-id], [data-block-id]"
+            )
+          );
+
+        dragGroupSnapshotRef.current =
+          Array.from(groupKeys)
+            .map((id) => {
+              const groupBlock =
+                String(block?.id) === id
+                  ? block
+                  : getBlockById?.(id);
+
+              const element =
+                String(block?.id) === id
+                  ? sourceElement
+                  : allBlockElements.find(
+                      (candidate) =>
+                        String(
+                          candidate.getAttribute(
+                            "data-semantic-block-id"
+                          ) ??
+                          candidate.getAttribute(
+                            "data-block-id"
+                          )
+                        ) === id
+                    );
+
+              const rect =
+                element?.getBoundingClientRect?.();
+
+              if (!groupBlock || !rect) {
+                return null;
+              }
+
+              const lineFragments =
+                groupBlock.placement !== "floating"
+                  ? collectInlineDragLineFragments(
+                      element,
+                      rect
+                    )
+                  : Array.isArray(
+                      groupBlock.floatingLineFragments
+                    )
+                    ? groupBlock.floatingLineFragments
+                    : [];
+
+              return {
+                id,
+                block: {
+                  ...groupBlock,
+                  floatingMatchesInlineAppearance:
+                    lineFragments.length > 0
+                      ? true
+                      : groupBlock.floatingMatchesInlineAppearance,
+                  floatingLineFragments:
+                    lineFragments,
+                },
+                x: rect.left - stageRect.left,
+                y: rect.top - stageRect.top,
+                width: rect.width,
+                height: rect.height,
+              };
+            })
+            .filter(Boolean);
+
         const inlineLineFragments =
           block?.placement !== "floating" &&
           sourceRect
@@ -445,10 +538,6 @@ export function useFloatingBlocks({
             event.clientY,
         });
 
-        const stageRect =
-          stageRef.current
-            .getBoundingClientRect();
-
         if (
           block?.placement ===
           "floating"
@@ -492,6 +581,8 @@ export function useFloatingBlocks({
       [
         getStagePoint,
         stageRef,
+        selectedIds,
+        getBlockById,
       ]
     );
 
@@ -558,6 +649,9 @@ export function useFloatingBlocks({
 
       dragBlockSnapshotRef.current =
         null;
+
+      dragGroupSnapshotRef.current =
+        [];
     }, []);
 
   /**
@@ -717,7 +811,7 @@ export function useFloatingBlocks({
         stageRef.current
           .getBoundingClientRect();
 
-      return {
+      const primaryPreview = {
         block:
           previewBlock,
 
@@ -762,6 +856,68 @@ export function useFloatingBlocks({
           stageRect.top -
           pointerOffsetRef.current
             .y,
+      };
+
+      const groupSnapshots =
+        dragGroupSnapshotRef.current;
+
+      const primarySnapshot =
+        groupSnapshots.find(
+          (item) =>
+            String(item.id) ===
+            String(draggingBlockId)
+        );
+
+      if (
+        !primarySnapshot ||
+        groupSnapshots.length <= 1
+      ) {
+        return primaryPreview;
+      }
+
+      const groupPreviews =
+        groupSnapshots
+          .filter(
+            (item) =>
+              String(item.id) !==
+              String(draggingBlockId)
+          )
+          .map((item) => {
+            const itemBlock =
+              isDraggingOutsidePage
+                ? {
+                    ...item.block,
+                    floatingMatchesInlineAppearance:
+                      false,
+                    floatingLineFragments:
+                      [],
+                  }
+                : item.block;
+
+            return {
+              block: itemBlock,
+              width: isDraggingOutsidePage
+                ? getStandardFloatingWidth(
+                    item.block.text
+                  )
+                : item.width,
+              height: isDraggingOutsidePage
+                ? 40
+                : item.height,
+              x:
+                primaryPreview.x +
+                item.x -
+                primarySnapshot.x,
+              y:
+                primaryPreview.y +
+                item.y -
+                primarySnapshot.y,
+            };
+          });
+
+      return {
+        ...primaryPreview,
+        groupPreviews,
       };
     }, [
       draggingBlockId,
@@ -1009,6 +1165,65 @@ export function useFloatingBlocks({
               finalX ||
             block.floatingY !==
               nextY;
+
+          const groupSnapshots =
+            dragGroupSnapshotRef.current;
+
+          const primarySnapshot =
+            groupSnapshots.find(
+              (item) =>
+                String(item.id) ===
+                String(blockId)
+            );
+
+          if (
+            primarySnapshot &&
+            groupSnapshots.length > 1
+          ) {
+            const groupUpdates =
+              groupSnapshots.map(
+                (item) => ({
+                  blockId: item.id,
+                  updates: {
+                    placement: "floating",
+                    floatingX:
+                      finalX +
+                      item.x -
+                      primarySnapshot.x,
+                    floatingY:
+                      nextY +
+                      item.y -
+                      primarySnapshot.y,
+                    floatingWidth:
+                      getStandardFloatingWidth(
+                        item.block.text
+                      ),
+                    floatingMatchesInlineAppearance:
+                      false,
+                    floatingLineFragments:
+                      [],
+                    floatingHeight: null,
+                    height: 40,
+                  },
+                })
+              );
+
+            /** 一次状态更新完成整组转换，因此撤销也只需要一次。 */
+            updateBlockPlacement?.(
+              groupUpdates
+            );
+
+            clearDragPointer();
+
+            return {
+              type: "group-to-floating",
+              moved: true,
+              groupIds:
+                groupSnapshots.map(
+                  (item) => item.id
+                ),
+            };
+          }
 
           updateBlockPlacement?.(
             blockId,

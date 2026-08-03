@@ -290,8 +290,39 @@ export function useBlockActions({
         blockId,
         updates = {}
       ) => {
-        const targetId =
-          String(blockId);
+        const updateEntries =
+          Array.isArray(blockId)
+            ? blockId
+                .map((entry) => ({
+                  targetId: String(
+                    entry?.blockId ??
+                    entry?.id ??
+                    ""
+                  ),
+                  updates:
+                    entry?.updates || {},
+                }))
+                .filter(
+                  (entry) =>
+                    entry.targetId
+                )
+            : [
+                {
+                  targetId:
+                    String(blockId),
+                  updates,
+                },
+              ];
+
+        const updatesById =
+          new Map(
+            updateEntries.map(
+              (entry) => [
+                entry.targetId,
+                entry.updates,
+              ]
+            )
+          );
 
         setSections(
           (previousSections) => {
@@ -314,12 +345,12 @@ export function useBlockActions({
                   const nextBlocks =
                     section.blocks.map(
                       (block) => {
-                        if (
-                          String(
-                            block.id
-                          ) !==
-                          targetId
-                        ) {
+                        const blockUpdates =
+                          updatesById.get(
+                            String(block.id)
+                          );
+
+                        if (!blockUpdates) {
                           return block;
                         }
 
@@ -328,7 +359,7 @@ export function useBlockActions({
 
                         const nextBlock = {
                           ...block,
-                          ...updates,
+                          ...blockUpdates,
                         };
 
                         /**

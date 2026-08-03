@@ -665,6 +665,15 @@ const SingleSemanticEditor =
           [selectedIds]
         );
 
+      const isDraggingSelectedGroup =
+        selectedIdSet.size > 1 &&
+        selectedIdSet.has(
+          normalizeId(
+            draggingInlineBlockId ??
+            externalDraggingBlockId
+          )
+        );
+
       const generatingIdSet =
         useMemo(
           () =>
@@ -1530,6 +1539,20 @@ const SingleSemanticEditor =
               payload?.blockId ??
               payload?.id;
 
+            const selectedExistingIds =
+              selectedIds
+                .map(normalizeId)
+                .filter(Boolean);
+
+            const draggedSelection =
+              selectedExistingIds.length > 1 &&
+              selectedExistingIds.includes(
+                normalizeId(existingId)
+              )
+                ? selectedExistingIds
+                : [normalizeId(existingId)]
+                    .filter(Boolean);
+
             const isExistingBlock =
               (
                 locallyDraggedId !=
@@ -1547,7 +1570,7 @@ const SingleSemanticEditor =
                 event.clientX,
                 event.clientY,
                 isExistingBlock
-                  ? existingId
+                  ? draggedSelection
                   : null
               );
 
@@ -1557,7 +1580,7 @@ const SingleSemanticEditor =
                 event.clientX,
                 event.clientY,
                 isExistingBlock
-                  ? existingId
+                  ? draggedSelection
                   : null
               );
 
@@ -1569,6 +1592,8 @@ const SingleSemanticEditor =
                 insertIndex,
                 {
                   forceLineBreakBefore,
+                  draggedBlockIds:
+                    draggedSelection,
                 }
               );
 
@@ -1613,6 +1638,7 @@ const SingleSemanticEditor =
             onInsertBlock,
             onTemplateDropComplete,
             onReorderBlocks,
+            selectedIds,
           ]
         );
 
@@ -2502,9 +2528,17 @@ const SingleSemanticEditor =
                         "transparent",
 
                       opacity:
-                        normalizeId(
-                          draggingInlineBlockId
-                        ) === blockId
+                        (
+                          normalizeId(
+                            draggingInlineBlockId
+                          ) === blockId ||
+                          (
+                            isDraggingSelectedGroup &&
+                            selectedIdSet.has(
+                              blockId
+                            )
+                          )
+                        )
                           ? 0
                           : hasFocusedEditingBlock &&
                             blockId !==

@@ -6,6 +6,7 @@ import {
   applyDocumentModelToSections,
   createDocumentBlockId,
   createDocumentModelFromSections,
+  DocumentModel,
   normalizeDocumentBlock,
 } from "../../models/DocumentModel";
 
@@ -234,6 +235,15 @@ export function useInlineDocumentActions({
         const targetId =
           String(blockId);
 
+        const requestedGroupIds =
+          Array.isArray(
+            options.draggedBlockIds
+          )
+            ? options.draggedBlockIds.map(
+                (id) => String(id)
+              )
+            : [];
+
         let movedBlock =
           null;
 
@@ -250,6 +260,153 @@ export function useInlineDocumentActions({
               )
             ) {
               return previousSections;
+            }
+
+            const groupIdSet =
+              new Set(
+                requestedGroupIds.length > 1 &&
+                requestedGroupIds.includes(
+                  targetId
+                )
+                  ? requestedGroupIds
+                  : [targetId]
+              );
+
+            const orderedMovingBlocks =
+              currentModel
+                .toArray()
+                .filter((block) =>
+                  groupIdSet.has(
+                    String(block.id)
+                  )
+                );
+
+            if (
+              orderedMovingBlocks.length > 1
+            ) {
+              const originalBlocks =
+                currentModel.toArray();
+
+              const lastMovingIndex =
+                originalBlocks.reduce(
+                  (lastIndex, block, index) =>
+                    groupIdSet.has(
+                      String(block.id)
+                    )
+                      ? index
+                      : lastIndex,
+                  -1
+                );
+
+              const firstMovingBlock =
+                orderedMovingBlocks[0];
+
+              const remainingBlocks =
+                originalBlocks.filter(
+                  (block) =>
+                    !groupIdSet.has(
+                      String(block.id)
+                    )
+                );
+
+              /** 被移走的组合原来从行首开始时，后面的旧模块继承行首。 */
+              if (
+                firstMovingBlock
+                  ?.forceLineBreakBefore &&
+                lastMovingIndex >= 0
+              ) {
+                const originalFollower =
+                  originalBlocks[
+                    lastMovingIndex + 1
+                  ];
+
+                const followerIndex =
+                  remainingBlocks.findIndex(
+                    (block) =>
+                      String(block.id) ===
+                      String(
+                        originalFollower?.id
+                      )
+                  );
+
+                if (followerIndex >= 0) {
+                  remainingBlocks[
+                    followerIndex
+                  ] = {
+                    ...remainingBlocks[
+                      followerIndex
+                    ],
+                    forceLineBreakBefore:
+                      true,
+                  };
+                }
+              }
+
+              const safeGroupTargetIndex =
+                Math.max(
+                  0,
+                  Math.min(
+                    Number(targetIndex) || 0,
+                    remainingBlocks.length
+                  )
+                );
+
+              const preparedMovingBlocks =
+                orderedMovingBlocks.map(
+                  (block, index) =>
+                    index === 0
+                      ? {
+                          ...block,
+                          forceLineBreakBefore:
+                            Boolean(
+                              options.forceLineBreakBefore
+                            ),
+                        }
+                      : block
+                );
+
+              remainingBlocks.splice(
+                safeGroupTargetIndex,
+                0,
+                ...preparedMovingBlocks
+              );
+
+              /** 新组合成为行首时，紧随其后的旧行首取消重复换行。 */
+              if (
+                options.forceLineBreakBefore
+              ) {
+                const nextIndex =
+                  safeGroupTargetIndex +
+                  preparedMovingBlocks.length;
+
+                if (
+                  remainingBlocks[nextIndex]
+                    ?.forceLineBreakBefore
+                ) {
+                  remainingBlocks[nextIndex] = {
+                    ...remainingBlocks[nextIndex],
+                    forceLineBreakBefore:
+                      false,
+                  };
+                }
+              }
+
+              const nextModel =
+                new DocumentModel(
+                  remainingBlocks
+                );
+
+              movedBlock =
+                firstMovingBlock;
+
+              pushHistorySnapshot?.(
+                previousSections
+              );
+
+              return writeModelToSections(
+                previousSections,
+                nextModel
+              );
             }
 
             const sourceIndex =
@@ -372,9 +529,14 @@ export function useInlineDocumentActions({
           }
         );
 
-        setSelectedIds?.([
-          targetId,
-        ]);
+        setSelectedIds?.(
+          requestedGroupIds.length > 1 &&
+            requestedGroupIds.includes(
+              targetId
+            )
+            ? requestedGroupIds
+            : [targetId]
+        );
 
         return movedBlock;
       },
@@ -383,6 +545,7 @@ export function useInlineDocumentActions({
         setSections,
         setSelectedIds,
         writeModelToSections,
+        selectedIds,
       ]
     );
 

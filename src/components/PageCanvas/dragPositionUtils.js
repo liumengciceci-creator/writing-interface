@@ -18,8 +18,18 @@ function getSemanticBlockElements(
     return [];
   }
 
-  const normalizedExcludedId =
-    normalizeId(excludedBlockId);
+  const normalizedExcludedIds =
+    new Set(
+      (
+        Array.isArray(
+          excludedBlockId
+        )
+          ? excludedBlockId
+          : [excludedBlockId]
+      )
+        .map(normalizeId)
+        .filter(Boolean)
+    );
 
   return Array.from(
     editor.querySelectorAll(
@@ -33,9 +43,9 @@ function getSemanticBlockElements(
       );
 
     if (
-      normalizedExcludedId &&
-      blockId ===
-        normalizedExcludedId
+      normalizedExcludedIds.has(
+        blockId
+      )
     ) {
       return false;
     }
@@ -525,4 +535,3 @@ export function shouldStartNewLine(
 
   return false;
 }
-

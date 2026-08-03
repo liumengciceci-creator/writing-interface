@@ -105,6 +105,37 @@ function InlineDragPreview({
     return null;
   }
 
+  if (
+    Array.isArray(
+      preview.groupPreviews
+    ) &&
+    preview.groupPreviews.length > 0
+  ) {
+    const primaryPreview = {
+      ...preview,
+      groupPreviews: undefined,
+    };
+
+    return (
+      <>
+        <InlineDragPreview
+          preview={primaryPreview}
+          zIndex={zIndex}
+        />
+
+        {preview.groupPreviews.map(
+          (item) => (
+            <InlineDragPreview
+              key={`group-drag-${item.block?.id}`}
+              preview={item}
+              zIndex={zIndex}
+            />
+          )
+        )}
+      </>
+    );
+  }
+
   const block =
     preview.block;
 
@@ -559,6 +590,7 @@ export default function PageCanvas(
     totalContentHeight,
     sectionLayouts,
     draggingBlockId,
+    selectedIds,
     getBlockById,
     updateBlockPlacement,
     handleCanvasMouseUp:
@@ -1518,14 +1550,36 @@ export default function PageCanvas(
 
       {floatingBlocks
         .filter(
-          (block) =>
-            !isDraggingFloatingBlock ||
-            normalizeId(
-              block.id
-            ) !==
+          (block) => {
+            if (!isDraggingFloatingBlock) {
+              return true;
+            }
+
+            const draggingSelectedGroup =
+              selectedIds.length > 1 &&
+              selectedIds.some(
+                (id) =>
+                  normalizeId(id) ===
+                  normalizeId(
+                    draggingBlockId
+                  )
+              );
+
+            if (draggingSelectedGroup) {
+              return !selectedIds.some(
+                (id) =>
+                  normalizeId(id) ===
+                  normalizeId(block.id)
+              );
+            }
+
+            return (
+              normalizeId(block.id) !==
               normalizeId(
                 draggingBlockId
               )
+            );
+          }
         )
         .map((block) => {
           const isSelected =
