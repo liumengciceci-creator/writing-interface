@@ -197,7 +197,7 @@ export function useSelection({
   /**
    * 根据框选区域获取命中的模块 ID。
    *
-   * 模块的可视中心进入框选区域时才命中。
+   * 单行模块以该行中心判断；多行模块任意一行中心进入即命中。
    */
   const getHitBlockIds =
     useCallback(
@@ -206,6 +206,8 @@ export function useSelection({
           contentRef.current;
 
         const domHitIds = [];
+        const domRepresentedIds =
+          new Set();
 
         if (contentElement) {
           const contentRect =
@@ -221,47 +223,96 @@ export function useSelection({
           if (
             semanticBlocks.length > 0
           ) {
-            const hitIds =
-              semanticBlocks
-                .filter((element) => {
-                  return Array.from(
-                    element.getClientRects()
-                  ).some(
-                    (clientRect) => {
-                      const localRect = {
-                        x:
-                          (clientRect.left -
-                            contentRect.left) /
-                          zoom,
+            /**
+             * 同一模块可能产生多个 DOM 行片段。
+             * 产品规则：任意一行片段的中心进入选框，就选中整个模块。
+             * 这里只使用实时 DOM 行片段；旧布局边界不会重复参与。
+             */
+            const rectsByBlockId =
+              new Map();
 
-                        y:
-                          (clientRect.top -
-                            contentRect.top) /
-                          zoom,
-
-                        width:
-                          clientRect.width /
-                          zoom,
-
-                        height:
-                          clientRect.height /
-                          zoom,
-                      };
-
-                      return isRectCoveredBySelection(
-                        rect,
-                        localRect
-                      );
-                    }
+            semanticBlocks.forEach(
+              (element) => {
+                const blockId =
+                  element.getAttribute(
+                    "data-semantic-block-id"
                   );
-                })
-                .map(
-                  (element) =>
-                    element.getAttribute(
-                      "data-semantic-block-id"
-                    )
+
+                if (!blockId) {
+                  return;
+                }
+
+                const clientRects =
+                  Array.from(
+                    element.getClientRects?.() ||
+                    []
+                  ).filter(
+                    (clientRect) =>
+                      clientRect.width > 0 &&
+                      clientRect.height > 0
+                  );
+
+                if (
+                  clientRects.length === 0
+                ) {
+                  return;
+                }
+
+                domRepresentedIds.add(
+                  String(blockId)
+                );
+
+                const existingRects =
+                  rectsByBlockId.get(
+                    String(blockId)
+                  ) || [];
+
+                const localRects =
+                  clientRects.map(
+                    (clientRect) => ({
+                      x:
+                        (clientRect.left -
+                          contentRect.left) /
+                        zoom,
+                      y:
+                        (clientRect.top -
+                          contentRect.top) /
+                        zoom,
+                      width:
+                        clientRect.width /
+                        zoom,
+                      height:
+                        clientRect.height /
+                        zoom,
+                    })
+                  );
+
+                rectsByBlockId.set(
+                  String(blockId),
+                  [
+                    ...existingRects,
+                    ...localRects,
+                  ]
+                );
+              }
+            );
+
+            const hitIds =
+              Array.from(
+                rectsByBlockId.entries()
+              )
+                .filter(([, lineRects]) =>
+                  lineRects.some(
+                    (lineRect) =>
+                      isRectCoveredBySelection(
+                        rect,
+                        lineRect
+                      )
+                  )
                 )
-                .filter(Boolean);
+                .map(([blockId]) =>
+                  blockId
+                );
 
             domHitIds.push(...hitIds);
           }
@@ -271,6 +322,11 @@ export function useSelection({
           blockBounds
             .filter(
               (blockRect) =>
+                !domRepresentedIds.has(
+                  String(
+                    blockRect.blockId
+                  )
+                ) &&
                 isRectCoveredBySelection(
                   rect,
                   blockRect
