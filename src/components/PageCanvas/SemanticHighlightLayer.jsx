@@ -427,33 +427,27 @@ function SemanticHighlightLayer({
 
 
                 stroke={
-                  lengthResizePreview.block?.color ||
-                  "#7c83fd"
+                  `color-mix(in srgb, ${
+                    lengthResizePreview.block?.color ||
+                    "#7c83fd"
+                  } 52%, white)`
                 }
 
 
-                strokeWidth="1.5"
+                strokeWidth="1"
 
 
                 pointerEvents="none"
 
 
                 style={{
-                  filter:
-                    showingLengthPreviewPulse
-                      ?
-                      `drop-shadow(0 0 2px ${
-                        lengthResizePreview.block?.color ||
-                        "#7c83fd"
-                      }33)`
-                      :
-                      undefined,
+                  filter: "none",
 
 
                   transition:
                     isLengthPreviewSubmitting
                       ?
-                      "fill 160ms ease, filter 160ms ease"
+                      "fill 160ms ease"
                       :
                       "none",
                 }}
