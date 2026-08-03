@@ -39,6 +39,86 @@ import {
 } from "./dragPositionUtils.js";
 
 
+/**
+ * 计算两个相邻模块之间真正的视觉中点。
+ * 如果当前方向没有相邻模块，则退回当前模块边缘。
+ */
+function getCenteredInsertionClientX(
+  visualRects,
+  nearestRect,
+  placeAfter
+) {
+  if (!nearestRect) {
+    return 0;
+  }
+
+  const nearestCenterY =
+    nearestRect.top +
+    nearestRect.height / 2;
+
+  const sameLineRects =
+    visualRects.filter((rect) => {
+      const centerY =
+        rect.top +
+        rect.height / 2;
+
+      return (
+        rect !== nearestRect &&
+        Math.abs(
+          centerY - nearestCenterY
+        ) <=
+          Math.max(
+            8,
+            Math.min(
+              rect.height,
+              nearestRect.height
+            ) / 2
+          )
+      );
+    });
+
+  if (placeAfter) {
+    const nextRect =
+      sameLineRects
+        .filter(
+          (rect) =>
+            rect.left >=
+            nearestRect.right
+        )
+        .sort(
+          (a, b) =>
+            a.left - b.left
+        )[0];
+
+    return nextRect
+      ? (
+          nearestRect.right +
+          nextRect.left
+        ) / 2
+      : nearestRect.right;
+  }
+
+  const previousRect =
+    sameLineRects
+      .filter(
+        (rect) =>
+          rect.right <=
+          nearestRect.left
+      )
+      .sort(
+        (a, b) =>
+          b.right - a.right
+      )[0];
+
+  return previousRect
+    ? (
+        previousRect.right +
+        nearestRect.left
+      ) / 2
+    : nearestRect.left;
+}
+
+
 
 /**
  * 将字符串拆成用户可见字符。
@@ -572,6 +652,13 @@ const SingleSemanticEditor =
               nearestRect.left +
                 nearestRect.width / 2;
 
+            const indicatorClientX =
+              getCenteredInsertionClientX(
+                visualRects,
+                nearestRect,
+                placeAfter
+              );
+
             const startsNewLine =
               shouldStartNewLine(
                 root,
@@ -592,9 +679,7 @@ const SingleSemanticEditor =
                 startsNewLine
                   ? 0
                   : (
-                      (placeAfter
-                        ? nearestRect.right
-                        : nearestRect.left) -
+                      indicatorClientX -
                       rootRect.left
                     ) /
                 Math.max(
@@ -1301,6 +1386,13 @@ const SingleSemanticEditor =
             nearestRect.left +
               nearestRect.width / 2;
 
+          const indicatorClientX =
+            getCenteredInsertionClientX(
+              visualRects,
+              nearestRect,
+              placeAfter
+            );
+
           const startsNewLine =
             shouldStartNewLine(
               root,
@@ -1321,9 +1413,7 @@ const SingleSemanticEditor =
               startsNewLine
                 ? 0
                 : (
-                    (placeAfter
-                      ? nearestRect.right
-                      : nearestRect.left) -
+                    indicatorClientX -
                     rootRect.left
                   ) /
               Math.max(scaleX, 0.001),
@@ -1900,10 +1990,10 @@ const SingleSemanticEditor =
                   position: "absolute",
                   left:
                     dropIndicator.left -
-                    1.5,
+                    1,
                   top:
                     dropIndicator.top,
-                  width: 3,
+                  width: 2,
                   height:
                     Math.max(
                       26,
@@ -1912,7 +2002,7 @@ const SingleSemanticEditor =
                   borderRadius: 3,
                   background: "#2563eb",
                   boxShadow:
-                    "0 0 0 2px rgba(37,99,235,0.14), 0 2px 8px rgba(37,99,235,0.35)",
+                    "0 1px 4px rgba(37,99,235,0.28)",
                   pointerEvents: "none",
                   zIndex: 80,
                 }}

@@ -443,11 +443,20 @@ function SemanticHighlightLayer({
                 style={{
                   filter: "none",
 
+                  /**
+                   * 保留长度生成时的闪烁，但只改变填充层透明度。
+                   * 描边始终保持 1px，不再靠阴影制造闪烁。
+                   */
+                  opacity:
+                    showingLengthPreviewPulse
+                      ? 0.52
+                      : 1,
+
 
                   transition:
                     isLengthPreviewSubmitting
                       ?
-                      "fill 160ms ease"
+                      "fill 160ms ease, opacity 160ms ease"
                       :
                       "none",
                 }}
