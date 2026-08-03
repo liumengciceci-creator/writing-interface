@@ -13,23 +13,16 @@ import {
 } from "../../utils";
 
 /**
- * 框选区域至少覆盖模块面积的 5%，
- * 才认为该模块被选中。
- */
-const SELECTION_OVERLAP_RATIO =
-  0.05;
-
-/**
- * 判断框选区域是否覆盖模块达到指定比例。
+ * 判断模块的可视中心是否进入框选区域。
  *
- * ratio 是相对于模块自身面积计算的：
- * 0.05 表示框选区域至少覆盖模块面积的 5%。
+ * 过去使用 5% 面积相交作为命中条件。多行模块的行盒、标签或旧布局
+ * 边界只要擦到选框一点，就会把上一行实际不在框内的模块误选中。
+ * 使用中心点命中既保留了从任意方向框选的体验，也不会受边框、标签和
+ * 行高溢出的影响。
  */
 function isRectCoveredBySelection(
   selectionRect,
-  blockRect,
-  minimumRatio =
-    SELECTION_OVERLAP_RATIO
+  blockRect
 ) {
   if (
     !selectionRect ||
@@ -84,70 +77,26 @@ function isRectCoveredBySelection(
       ) || 0
     );
 
-  const blockRight =
+  if (
+    blockWidth <= 0 ||
+    blockHeight <= 0
+  ) {
+    return false;
+  }
+
+  const blockCenterX =
     blockLeft +
-    blockWidth;
+    blockWidth / 2;
 
-  const blockBottom =
+  const blockCenterY =
     blockTop +
-    blockHeight;
-
-  const overlapLeft =
-    Math.max(
-      selectionLeft,
-      blockLeft
-    );
-
-  const overlapTop =
-    Math.max(
-      selectionTop,
-      blockTop
-    );
-
-  const overlapRight =
-    Math.min(
-      selectionRight,
-      blockRight
-    );
-
-  const overlapBottom =
-    Math.min(
-      selectionBottom,
-      blockBottom
-    );
-
-  const overlapWidth =
-    Math.max(
-      0,
-      overlapRight -
-        overlapLeft
-    );
-
-  const overlapHeight =
-    Math.max(
-      0,
-      overlapBottom -
-        overlapTop
-    );
-
-  const overlapArea =
-    overlapWidth *
-    overlapHeight;
-
-  const blockArea =
-    Math.max(
-      1,
-      blockWidth *
-        blockHeight
-    );
-
-  const overlapRatio =
-    overlapArea /
-    blockArea;
+    blockHeight / 2;
 
   return (
-    overlapRatio >=
-    minimumRatio
+    blockCenterX >= selectionLeft &&
+    blockCenterX <= selectionRight &&
+    blockCenterY >= selectionTop &&
+    blockCenterY <= selectionBottom
   );
 }
 
@@ -248,8 +197,7 @@ export function useSelection({
   /**
    * 根据框选区域获取命中的模块 ID。
    *
-   * 不再使用“只要碰到一点就选中”的判断，
-   * 而是要求至少覆盖模块自身面积的 5%。
+   * 模块的可视中心进入框选区域时才命中。
    */
   const getHitBlockIds =
     useCallback(
