@@ -41,6 +41,7 @@ function SemanticHighlightLayer({
   lengthResizePreview = null,
 
   draggingInlineBlockId = null,
+  draggingSelectedGroup = false,
 
   /**
    * 指令拖入动画
@@ -191,7 +192,13 @@ function SemanticHighlightLayer({
           const dragging =
             normalizeId(
               draggingInlineBlockId
-            ) === blockId;
+            ) === blockId ||
+            (
+              draggingSelectedGroup &&
+              selectedIdSet?.has(
+                blockId
+              )
+            );
 
 
 

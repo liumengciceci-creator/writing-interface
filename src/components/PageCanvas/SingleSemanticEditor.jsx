@@ -1873,6 +1873,9 @@ const SingleSemanticEditor =
               lengthResizeDraft={lengthResizeDraft}
               lengthResizePreview={lengthResizePreview}
               draggingInlineBlockId={draggingInlineBlockId}
+              draggingSelectedGroup={
+                isDraggingSelectedGroup
+              }
               instructionEffect={instructionEffect}
               hasFocusedEditingBlock={hasFocusedEditingBlock}
               effectiveEditingBlockId={effectiveEditingBlockId}
