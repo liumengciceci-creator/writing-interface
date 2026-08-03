@@ -125,6 +125,8 @@ export function useCanvasDrop({
   draggingBlockId,
   setDraggingBlockId,
 
+  selectedIds = [],
+
   isSelecting,
   selectionRect,
 
@@ -670,6 +672,30 @@ export function useCanvasDrop({
                   previousSections
                 );
 
+              const selectedKeySet =
+                new Set(
+                  selectedIds.map(
+                    (id) => String(id)
+                  )
+                );
+
+              const shouldMoveGroup =
+                selectedKeySet.size > 1 &&
+                selectedKeySet.has(
+                  String(
+                    draggingBlockId
+                  )
+                );
+
+              const movingIds =
+                shouldMoveGroup
+                  ? selectedKeySet
+                  : new Set([
+                      String(
+                        draggingBlockId
+                      ),
+                    ]);
+
               const source =
                 findBlockLocation(
                   nextSections,
@@ -710,18 +736,50 @@ export function useCanvasDrop({
               }
 
               /**
-               * 先从原位置删除模块。
+               * 按文档顺序收集并删除整组选中模块。这样跨 section
+               * 框选后拖动，也能保持组内原来的前后顺序。
                */
-              const [
-                movingBlock,
-              ] =
-                sourceSection.blocks.splice(
-                  source.blockIndex,
-                  1
-                );
+              const movingBlocks = [];
+
+              nextSections.forEach(
+                (section) => {
+                  if (
+                    !Array.isArray(
+                      section.blocks
+                    )
+                  ) {
+                    return;
+                  }
+
+                  const remaining = [];
+
+                  section.blocks.forEach(
+                    (candidate) => {
+                      if (
+                        movingIds.has(
+                          String(
+                            candidate.id
+                          )
+                        )
+                      ) {
+                        movingBlocks.push(
+                          candidate
+                        );
+                      } else {
+                        remaining.push(
+                          candidate
+                        );
+                      }
+                    }
+                  );
+
+                  section.blocks =
+                    remaining;
+                }
+              );
 
               if (
-                !movingBlock
+                movingBlocks.length === 0
               ) {
                 return previousSections;
               }
@@ -733,17 +791,20 @@ export function useCanvasDrop({
                * 后续仍然会根据鼠标位置计算 insertIndex，
                * 所以它会插入到正确的文字流位置。
                */
-              movingBlock.placement =
-                "inline";
-
-              movingBlock.floatingX =
-                null;
-
-              movingBlock.floatingY =
-                null;
-
-              movingBlock.floatingWidth =
-                null;
+              movingBlocks.forEach(
+                (movingBlock) => {
+                  movingBlock.placement =
+                    "inline";
+                  movingBlock.floatingX =
+                    null;
+                  movingBlock.floatingY =
+                    null;
+                  movingBlock.floatingWidth =
+                    null;
+                  movingBlock.floatingHeight =
+                    null;
+                }
+              );
 
               /**
                * 同一 section 内移动时，
@@ -777,11 +838,10 @@ export function useCanvasDrop({
                       (
                         fragment
                       ) =>
-                        String(
-                          fragment.blockId
-                        ) !==
-                        String(
-                          draggingBlockId
+                        !movingIds.has(
+                          String(
+                            fragment.blockId
+                          )
                         )
                     )
                   : targetLayout.localFragments ||
@@ -802,7 +862,7 @@ export function useCanvasDrop({
               targetSection.blocks.splice(
                 insertIndex,
                 0,
-                movingBlock
+                ...movingBlocks
               );
 
               return normalizeSections(
@@ -812,9 +872,18 @@ export function useCanvasDrop({
             }
           );
 
-          setSelectedIds([
-            draggingBlockId,
-          ]);
+          setSelectedIds(
+            selectedIds.length > 1 &&
+              selectedIds.some(
+                (id) =>
+                  String(id) ===
+                  String(
+                    draggingBlockId
+                  )
+              )
+              ? selectedIds
+              : [draggingBlockId]
+          );
 
           setDraggingBlockId(
             null
@@ -835,6 +904,8 @@ export function useCanvasDrop({
 
         draggingType,
         draggingBlockId,
+
+        selectedIds,
 
         nextBlockIdRef,
 

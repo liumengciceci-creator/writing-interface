@@ -41,6 +41,119 @@ function getStandardFloatingWidth(
   );
 }
 
+/**
+ * 读取 inline 模块当前真实的逐行形状。
+ * 拖拽尚未进入灰色区域时，预览使用这些行片段，而不是把整段文字
+ * 塞进一个矩形文本框。进入灰色区域后，现有逻辑才会转成 floating。
+ */
+function collectInlineDragLineFragments(
+  element,
+  overallRect
+) {
+  if (
+    !element ||
+    !overallRect ||
+    typeof document === "undefined"
+  ) {
+    return [];
+  }
+
+  const contentElement =
+    element.querySelector?.(
+      "[data-semantic-block-content='true']"
+    ) || element;
+
+  const walker =
+    document.createTreeWalker(
+      contentElement,
+      NodeFilter.SHOW_TEXT
+    );
+
+  const lines = [];
+  let textNode = walker.nextNode();
+
+  while (textNode) {
+    const value = String(
+      textNode.nodeValue ?? ""
+    );
+
+    for (
+      let index = 0;
+      index < value.length;
+      index += 1
+    ) {
+      const range =
+        document.createRange();
+
+      range.setStart(textNode, index);
+      range.setEnd(textNode, index + 1);
+
+      const rect =
+        range.getClientRects?.()[0];
+
+      if (!rect || rect.height <= 0) {
+        continue;
+      }
+
+      let line = lines.find(
+        (candidate) =>
+          Math.abs(
+            candidate.top - rect.top
+          ) < 3
+      );
+
+      if (!line) {
+        line = {
+          text: "",
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+        };
+        lines.push(line);
+      }
+
+      line.text += value[index];
+      line.left = Math.min(
+        line.left,
+        rect.left
+      );
+      line.right = Math.max(
+        line.right,
+        rect.right
+      );
+      line.bottom = Math.max(
+        line.bottom,
+        rect.bottom
+      );
+    }
+
+    textNode = walker.nextNode();
+  }
+
+  return lines
+    .sort((a, b) => a.top - b.top)
+    .map((line) => ({
+      text: line.text,
+      x:
+        line.left -
+        overallRect.left -
+        8,
+      y:
+        line.top -
+        overallRect.top -
+        2,
+      width:
+        line.right -
+        line.left +
+        16,
+      height:
+        line.bottom -
+        line.top +
+        4,
+    }));
+}
+
 export function useFloatingBlocks({
   zoom,
   stageRef,
@@ -267,23 +380,6 @@ export function useFloatingBlocks({
         dragStartRef.current =
           point;
 
-        dragBlockSnapshotRef.current =
-          block
-            ? {
-                ...block,
-                floatingLineFragments:
-                  Array.isArray(
-                    block.floatingLineFragments
-                  )
-                    ? block.floatingLineFragments.map(
-                        (fragment) => ({
-                          ...fragment,
-                        })
-                      )
-                    : block.floatingLineFragments,
-              }
-            : null;
-
         const sourceElement =
           event.target?.closest?.(
             "[data-semantic-block-id], [data-block-root='true']"
@@ -292,6 +388,38 @@ export function useFloatingBlocks({
         const sourceRect =
           sourceElement
             ?.getBoundingClientRect?.();
+
+        const inlineLineFragments =
+          block?.placement !== "floating" &&
+          sourceRect
+            ? collectInlineDragLineFragments(
+                sourceElement,
+                sourceRect
+              )
+            : [];
+
+        dragBlockSnapshotRef.current =
+          block
+            ? {
+                ...block,
+                floatingMatchesInlineAppearance:
+                  inlineLineFragments.length > 0
+                    ? true
+                    : block.floatingMatchesInlineAppearance,
+                floatingLineFragments:
+                  inlineLineFragments.length > 0
+                    ? inlineLineFragments
+                    : Array.isArray(
+                        block.floatingLineFragments
+                      )
+                      ? block.floatingLineFragments.map(
+                        (fragment) => ({
+                          ...fragment,
+                        })
+                      )
+                      : block.floatingLineFragments,
+              }
+            : null;
 
         dragVisualSizeRef.current =
           sourceRect &&

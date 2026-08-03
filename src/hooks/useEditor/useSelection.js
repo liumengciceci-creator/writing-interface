@@ -412,9 +412,33 @@ export function useSelection({
           return;
         }
 
-        setSelectedIds([
-          blockId,
-        ]);
+        setSelectedIds(
+          (previousIds) => {
+            const normalizedBlockId =
+              String(blockId);
+
+            const belongsToCurrentGroup =
+              previousIds.length > 1 &&
+              previousIds.some(
+                (id) =>
+                  String(id) ===
+                  normalizedBlockId
+              );
+
+            /**
+             * 在已经框选出的组合中按下任意模块时保留整组选择。
+             * 否则 dragstart 之前的 mousedown 会先把 selectedIds
+             * 缩成单个模块，后续拖拽永远无法知道原来的组合。
+             */
+            if (
+              belongsToCurrentGroup
+            ) {
+              return previousIds;
+            }
+
+            return [blockId];
+          }
+        );
       },
       []
     );

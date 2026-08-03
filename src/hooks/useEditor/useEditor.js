@@ -710,6 +710,8 @@ export function useEditor() {
     draggingBlockId,
     setDraggingBlockId,
 
+    selectedIds,
+
     isSelecting,
     selectionRect,
 
