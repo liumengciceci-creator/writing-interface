@@ -13,12 +13,10 @@ import {
 } from "../../utils";
 
 /**
- * 判断模块的可视中心是否进入框选区域。
+ * 判断选框与模块可视矩形是否存在实际重叠。
  *
- * 过去使用 5% 面积相交作为命中条件。多行模块的行盒、标签或旧布局
- * 边界只要擦到选框一点，就会把上一行实际不在框内的模块误选中。
- * 使用中心点命中既保留了从任意方向框选的体验，也不会受边框、标签和
- * 行高溢出的影响。
+ * 不要求中心点进入，也不设置最低覆盖比例；只要有任何正面积的视觉
+ * 重叠就命中。两条边仅仅接触、重叠面积为 0 时不算选中。
  */
 function isRectCoveredBySelection(
   selectionRect,
@@ -84,19 +82,35 @@ function isRectCoveredBySelection(
     return false;
   }
 
-  const blockCenterX =
-    blockLeft +
-    blockWidth / 2;
+  const blockRight =
+    blockLeft + blockWidth;
 
-  const blockCenterY =
-    blockTop +
-    blockHeight / 2;
+  const blockBottom =
+    blockTop + blockHeight;
+
+  const overlapWidth =
+    Math.min(
+      selectionRight,
+      blockRight
+    ) -
+    Math.max(
+      selectionLeft,
+      blockLeft
+    );
+
+  const overlapHeight =
+    Math.min(
+      selectionBottom,
+      blockBottom
+    ) -
+    Math.max(
+      selectionTop,
+      blockTop
+    );
 
   return (
-    blockCenterX >= selectionLeft &&
-    blockCenterX <= selectionRight &&
-    blockCenterY >= selectionTop &&
-    blockCenterY <= selectionBottom
+    overlapWidth > 0 &&
+    overlapHeight > 0
   );
 }
 
@@ -197,7 +211,7 @@ export function useSelection({
   /**
    * 根据框选区域获取命中的模块 ID。
    *
-   * 单行模块以该行中心判断；多行模块任意一行中心进入即命中。
+   * 单行或多行模块，只要任意可视行片段与选框有实际重叠即命中。
    */
   const getHitBlockIds =
     useCallback(
@@ -225,7 +239,8 @@ export function useSelection({
           ) {
             /**
              * 同一模块可能产生多个 DOM 行片段。
-             * 产品规则：任意一行片段的中心进入选框，就选中整个模块。
+             * 产品规则：任意一行片段的任何可见部分进入选框，
+             * 就选中整个模块。
              * 这里只使用实时 DOM 行片段；旧布局边界不会重复参与。
              */
             const rectsByBlockId =
