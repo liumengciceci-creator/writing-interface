@@ -154,6 +154,124 @@ function collectInlineDragLineFragments(
     }));
 }
 
+/** 获取跨行 inline 元素所有可视片段的联合矩形。 */
+function getElementVisualUnionRect(
+  element
+) {
+  const rects = Array.from(
+    element?.getClientRects?.() || []
+  ).filter(
+    (rect) =>
+      rect.width > 0 &&
+      rect.height > 0
+  );
+
+  if (rects.length === 0) {
+    return element
+      ?.getBoundingClientRect?.() ||
+      null;
+  }
+
+  const left = Math.min(
+    ...rects.map((rect) => rect.left)
+  );
+  const top = Math.min(
+    ...rects.map((rect) => rect.top)
+  );
+  const right = Math.max(
+    ...rects.map((rect) => rect.right)
+  );
+  const bottom = Math.max(
+    ...rects.map((rect) => rect.bottom)
+  );
+
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+/**
+ * 灰色区域中的组合采用紧凑流式布局。
+ * 每个模块仍是独立文本框，但不再沿用正文中可能横跨整页的间距。
+ */
+function buildCompactFloatingGroupLayout(
+  snapshots,
+  primaryId,
+  primaryX,
+  primaryY
+) {
+  const horizontalGap = 10;
+  const verticalGap = 10;
+  const maximumRowWidth = 520;
+
+  let cursorX = 0;
+  let cursorY = 0;
+  let rowHeight = 0;
+
+  const items = snapshots.map(
+    (snapshot) => {
+      const width =
+        getStandardFloatingWidth(
+          snapshot.block.text
+        );
+      const height = 40;
+
+      if (
+        cursorX > 0 &&
+        cursorX + width >
+          maximumRowWidth
+      ) {
+        cursorX = 0;
+        cursorY +=
+          rowHeight + verticalGap;
+        rowHeight = 0;
+      }
+
+      const item = {
+        ...snapshot,
+        layoutX: cursorX,
+        layoutY: cursorY,
+        layoutWidth: width,
+        layoutHeight: height,
+      };
+
+      cursorX +=
+        width + horizontalGap;
+      rowHeight = Math.max(
+        rowHeight,
+        height
+      );
+
+      return item;
+    }
+  );
+
+  const primaryItem =
+    items.find(
+      (item) =>
+        String(item.id) ===
+        String(primaryId)
+    ) || items[0];
+
+  const offsetX =
+    primaryX -
+    (primaryItem?.layoutX || 0);
+  const offsetY =
+    primaryY -
+    (primaryItem?.layoutY || 0);
+
+  return items.map((item) => ({
+    ...item,
+    x: offsetX + item.layoutX,
+    y: offsetY + item.layoutY,
+  }));
+}
+
 export function useFloatingBlocks({
   zoom,
   stageRef,
@@ -391,8 +509,9 @@ export function useFloatingBlocks({
           );
 
         const sourceRect =
-          sourceElement
-            ?.getBoundingClientRect?.();
+          getElementVisualUnionRect(
+            sourceElement
+          );
 
         const activeId =
           String(block?.id ?? "");
@@ -434,6 +553,17 @@ export function useFloatingBlocks({
                   ? sourceElement
                   : allBlockElements.find(
                       (candidate) =>
+                        candidate.classList?.contains(
+                          "semantic-inline-block"
+                        ) &&
+                        String(
+                          candidate.getAttribute(
+                            "data-semantic-block-id"
+                          )
+                        ) === id
+                    ) ||
+                    allBlockElements.find(
+                      (candidate) =>
                         String(
                           candidate.getAttribute(
                             "data-semantic-block-id"
@@ -445,7 +575,9 @@ export function useFloatingBlocks({
                     );
 
               const rect =
-                element?.getBoundingClientRect?.();
+                getElementVisualUnionRect(
+                  element
+                );
 
               if (!groupBlock || !rect) {
                 return null;
@@ -875,6 +1007,53 @@ export function useFloatingBlocks({
         return primaryPreview;
       }
 
+      if (isDraggingOutsidePage) {
+        const compactItems =
+          buildCompactFloatingGroupLayout(
+            groupSnapshots,
+            draggingBlockId,
+            primaryPreview.x,
+            primaryPreview.y
+          );
+
+        const compactPrimary =
+          compactItems.find(
+            (item) =>
+              String(item.id) ===
+              String(draggingBlockId)
+          );
+
+        const makeCompactPreview =
+          (item) => ({
+            block: {
+              ...item.block,
+              floatingMatchesInlineAppearance:
+                false,
+              floatingLineFragments: [],
+            },
+            width: item.layoutWidth,
+            height: item.layoutHeight,
+            x: item.x,
+            y: item.y,
+          });
+
+        return {
+          ...makeCompactPreview(
+            compactPrimary
+          ),
+          groupPreviews:
+            compactItems
+              .filter(
+                (item) =>
+                  String(item.id) !==
+                  String(draggingBlockId)
+              )
+              .map(
+                makeCompactPreview
+              ),
+        };
+      }
+
       const groupPreviews =
         groupSnapshots
           .filter(
@@ -883,27 +1062,10 @@ export function useFloatingBlocks({
               String(draggingBlockId)
           )
           .map((item) => {
-            const itemBlock =
-              isDraggingOutsidePage
-                ? {
-                    ...item.block,
-                    floatingMatchesInlineAppearance:
-                      false,
-                    floatingLineFragments:
-                      [],
-                  }
-                : item.block;
-
             return {
-              block: itemBlock,
-              width: isDraggingOutsidePage
-                ? getStandardFloatingWidth(
-                    item.block.text
-                  )
-                : item.width,
-              height: isDraggingOutsidePage
-                ? 40
-                : item.height,
+              block: item.block,
+              width: item.width,
+              height: item.height,
               x:
                 primaryPreview.x +
                 item.x -
@@ -1180,24 +1342,24 @@ export function useFloatingBlocks({
             primarySnapshot &&
             groupSnapshots.length > 1
           ) {
+            const compactItems =
+              buildCompactFloatingGroupLayout(
+                groupSnapshots,
+                blockId,
+                finalX,
+                nextY
+              );
+
             const groupUpdates =
-              groupSnapshots.map(
+              compactItems.map(
                 (item) => ({
                   blockId: item.id,
                   updates: {
                     placement: "floating",
-                    floatingX:
-                      finalX +
-                      item.x -
-                      primarySnapshot.x,
-                    floatingY:
-                      nextY +
-                      item.y -
-                      primarySnapshot.y,
+                    floatingX: item.x,
+                    floatingY: item.y,
                     floatingWidth:
-                      getStandardFloatingWidth(
-                        item.block.text
-                      ),
+                      item.layoutWidth,
                     floatingMatchesInlineAppearance:
                       false,
                     floatingLineFragments:
