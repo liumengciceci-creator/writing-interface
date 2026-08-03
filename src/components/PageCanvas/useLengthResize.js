@@ -6,6 +6,9 @@ import {
   useState,
 } from "react";
 
+/** 拉伸预览末端与下一个模块之间的固定视觉距离。 */
+const LENGTH_PREVIEW_END_GAP = 8;
+
 import {
   getWritingLengthInfo,
   normalizeId,
@@ -846,7 +849,8 @@ export default function useLengthResize({
         Math.max(
           0,
           flowDelta
-        );
+        ) +
+        LENGTH_PREVIEW_END_GAP;
 
       const shrinkWidth =
         Math.max(
@@ -869,6 +873,13 @@ export default function useLengthResize({
          * 保留旧字段，兼容现有的 LengthFlowSpacer。
          */
         spacerWidth,
+
+        /**
+         * 固定写入文档流的模块间距。不要再依赖原 inline 模块的
+         * margin-right，否则换行临界点会出现贴合或重叠。
+         */
+        endGap:
+          LENGTH_PREVIEW_END_GAP,
 
         /**
          * 新增字段：

@@ -2606,7 +2606,9 @@ const SingleSemanticEditor =
                         "inline",
 
                       margin:
-                        "0 6px 6px 0",
+                        activeLengthPreview
+                          ? "0 0 6px 0"
+                          : "0 6px 6px 0",
 
                       padding:
                         "2px 8px",
