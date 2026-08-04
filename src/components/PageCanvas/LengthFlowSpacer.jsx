@@ -9,8 +9,15 @@ import {
  * 块太大会导致每一行末尾出现较大的换行误差；
  * 块太小则会产生过多 DOM 节点。
  */
-const MIN_CHUNK_WIDTH = 1;
-const MAX_CHUNK_WIDTH = 3;
+/**
+ * 使用亚像素粒度避免跨行累计误差。
+ *
+ * 旧值为 1–3px：每次换行最多会遗留接近一个 chunk 的空白，
+ * 多行累积后会把固定 8px 间距放大成几十像素。
+ * 0.5px 粒度使每行误差控制在半像素以内。
+ */
+const MIN_CHUNK_WIDTH = 0.5;
+const MAX_CHUNK_WIDTH = 0.5;
 
 /**
  * 长度拉伸时的流式占位器。
@@ -49,8 +56,8 @@ function LengthFlowSpacer({
   /**
    * 根据编辑器宽度选择较细的占位粒度。
    *
-   * 常规编辑器中通常约为 1–3px，
-   * 可以显著减少跨行以后累计的排版误差。
+   * 固定为 0.5px，保证不同画布宽度和缩放比例下都使用
+   * 相同的高精度流式占位。
    */
   const chunkWidth = useMemo(
     () =>
