@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -939,6 +940,19 @@ export default function Sidebar({
     setTemplateDropIndicatorKey,
   ] = useState(null);
 
+  const [
+    templateDropIndicatorPlacement,
+    setTemplateDropIndicatorPlacement,
+  ] = useState("before");
+
+  /**
+   * pending：刚开始拖拽，尚未判断意图；
+   * reorder：在 Sidebar 内纵向调整；
+   * canvas：向右拖往画布，一旦进入就不会再误触排序。
+   */
+  const templateDragGestureRef =
+    useRef(null);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -1097,8 +1111,11 @@ export default function Sidebar({
     return aIndex - bIndex;
   });
 
-  const reorderTemplateBefore =
-    (targetItem) => {
+  const reorderTemplateAt =
+    (
+      targetItem,
+      placeAfter = false
+    ) => {
       if (!reorderingTemplateKey) {
         return;
       }
@@ -1140,8 +1157,18 @@ export default function Sidebar({
         fromIndex,
         1
       );
+
+      const remainingTargetIndex =
+        visibleKeys.indexOf(
+          targetKey
+        );
+
       visibleKeys.splice(
-        targetIndex,
+        Math.max(
+          0,
+          remainingTargetIndex +
+            (placeAfter ? 1 : 0)
+        ),
         0,
         reorderingTemplateKey
       );
@@ -1341,6 +1368,12 @@ export default function Sidebar({
       event.dataTransfer.effectAllowed =
         "copy";
 
+      templateDragGestureRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        intent: "pending",
+      };
+
       event.dataTransfer.setData(
         "application/x-writing-block",
         serializedData
@@ -1361,6 +1394,71 @@ export default function Sidebar({
         moduleData.label ||
           moduleData.type
       );
+
+      /**
+       * 使用原按钮的视觉副本作为拖拽分身。
+       * 原模块不会移动，只有松手后才提交 Sidebar 排序。
+       */
+      const sourceElement =
+        event.currentTarget;
+
+      if (
+        sourceElement instanceof
+          HTMLElement
+      ) {
+        const sourceRect =
+          sourceElement.getBoundingClientRect();
+
+        const dragClone =
+          sourceElement.cloneNode(true);
+
+        dragClone.removeAttribute(
+          "id"
+        );
+        dragClone.style.position =
+          "fixed";
+        dragClone.style.left =
+          "-10000px";
+        dragClone.style.top =
+          "-10000px";
+        dragClone.style.width =
+          `${sourceRect.width}px`;
+        dragClone.style.height =
+          `${sourceRect.height}px`;
+        dragClone.style.margin = "0";
+        dragClone.style.opacity =
+          "0.92";
+        dragClone.style.boxShadow =
+          "0 8px 18px rgba(15,23,42,0.18)";
+        dragClone.style.pointerEvents =
+          "none";
+        dragClone.style.zIndex =
+          "99999";
+
+        document.body.appendChild(
+          dragClone
+        );
+
+        event.dataTransfer.setDragImage(
+          dragClone,
+          Math.max(
+            0,
+            event.clientX -
+              sourceRect.left
+          ),
+          Math.max(
+            0,
+            event.clientY -
+              sourceRect.top
+          )
+        );
+
+        window.requestAnimationFrame(
+          () => {
+            dragClone.remove();
+          }
+        );
+      }
     };
 
   return (
@@ -1533,15 +1631,104 @@ export default function Sidebar({
                 ) {
                   return;
                 }
+
+                const gesture =
+                  templateDragGestureRef.current;
+
+                if (!gesture) {
+                  return;
+                }
+
+                const horizontalDistance =
+                  event.clientX -
+                  gesture.startX;
+
+                const verticalDistance =
+                  Math.abs(
+                    event.clientY -
+                    gesture.startY
+                  );
+
+                /**
+                 * 明显向右移动说明目标是画布。一旦锁定为 canvas，
+                 * 即使指针短暂经过其他 Sidebar 项也不再触发排序。
+                 */
+                if (
+                  gesture.intent ===
+                    "canvas" ||
+                  horizontalDistance > 24
+                ) {
+                  gesture.intent =
+                    "canvas";
+                  setTemplateDropIndicatorKey(
+                    null
+                  );
+                  return;
+                }
+
+                if (
+                  gesture.intent ===
+                    "pending" &&
+                  verticalDistance < 8
+                ) {
+                  return;
+                }
+
+                gesture.intent =
+                  "reorder";
+
                 event.preventDefault();
                 event.stopPropagation();
+
+                const targetRect =
+                  event.currentTarget
+                    .getBoundingClientRect();
+
+                const placeAfter =
+                  event.clientY >=
+                  targetRect.top +
+                    targetRect.height / 2;
+
                 setTemplateDropIndicatorKey(
                   getTemplateOrderKey(
                     item
                   )
                 );
-                reorderTemplateBefore(
-                  item
+                setTemplateDropIndicatorPlacement(
+                  placeAfter
+                    ? "after"
+                    : "before"
+                );
+              }}
+
+              onDrop={(event) => {
+                const gesture =
+                  templateDragGestureRef.current;
+
+                if (
+                  !gesture ||
+                  gesture.intent !==
+                    "reorder"
+                ) {
+                  return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                const targetRect =
+                  event.currentTarget
+                    .getBoundingClientRect();
+
+                reorderTemplateAt(
+                  item,
+                  event.clientY >=
+                    targetRect.top +
+                      targetRect.height / 2
+                );
+
+                setTemplateDropIndicatorKey(
+                  null
                 );
               }}
             >
@@ -1555,14 +1742,23 @@ export default function Sidebar({
                     position: "absolute",
                     left: 2,
                     right: 2,
-                    top: -2,
+                    top:
+                      templateDropIndicatorPlacement ===
+                        "after"
+                        ? "auto"
+                        : -2,
+                    bottom:
+                      templateDropIndicatorPlacement ===
+                        "after"
+                        ? -2
+                        : "auto",
                     zIndex: 8,
                     height: 2,
                     borderRadius: 2,
                     background:
-                      "#2563eb",
+                      "#9ca3af",
                     boxShadow:
-                      "0 0 0 1px rgba(37,99,235,0.12)",
+                      "none",
                     pointerEvents:
                       "none",
                   }}
@@ -1612,6 +1808,32 @@ export default function Sidebar({
                     event,
                     item
                   );
+                }}
+
+                onDrag={(event) => {
+                  const gesture =
+                    templateDragGestureRef.current;
+
+                  if (
+                    !gesture ||
+                    gesture.intent ===
+                      "canvas" ||
+                    event.clientX <= 0
+                  ) {
+                    return;
+                  }
+
+                  if (
+                    event.clientX -
+                      gesture.startX >
+                    24
+                  ) {
+                    gesture.intent =
+                      "canvas";
+                    setTemplateDropIndicatorKey(
+                      null
+                    );
+                  }
                 }}
 
                 title="拖动到画布"
@@ -1677,6 +1899,8 @@ export default function Sidebar({
                   setTemplateDropIndicatorKey(
                     null
                   );
+                  templateDragGestureRef.current =
+                    null;
                   event.currentTarget.style.cursor =
                     "grab";
                 }}

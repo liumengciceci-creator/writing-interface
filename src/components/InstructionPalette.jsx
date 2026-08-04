@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -285,8 +286,19 @@ export default function InstructionPalette({
     setInstructionDropIndicatorId,
   ] = useState(null);
 
-  const reorderInstructionBefore =
-    (targetId) => {
+  const [
+    instructionDropIndicatorPlacement,
+    setInstructionDropIndicatorPlacement,
+  ] = useState("before");
+
+  const instructionDragGestureRef =
+    useRef(null);
+
+  const reorderInstructionAt =
+    (
+      targetId,
+      placeAfter = false
+    ) => {
       if (
         !reorderingInstructionId ||
         reorderingInstructionId ===
@@ -318,8 +330,19 @@ export default function InstructionPalette({
 
         const [moving] =
           next.splice(fromIndex, 1);
+
+        const remainingTargetIndex =
+          next.findIndex(
+            (item) =>
+              item.id === targetId
+          );
+
         next.splice(
-          targetIndex,
+          Math.max(
+            0,
+            remainingTargetIndex +
+              (placeAfter ? 1 : 0)
+          ),
           0,
           moving
         );
@@ -438,6 +461,12 @@ export default function InstructionPalette({
         instruction.id
       );
 
+      instructionDragGestureRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        intent: "pending",
+      };
+
       const payload =
         createInstructionDragPayload(
           instruction
@@ -455,12 +484,38 @@ export default function InstructionPalette({
         JSON.stringify(payload)
       );
 
+      const dragClone =
+        event.currentTarget.cloneNode(
+          true
+        );
+
+      dragClone.style.position =
+        "fixed";
+      dragClone.style.left =
+        "-10000px";
+      dragClone.style.top =
+        "-10000px";
+      dragClone.style.opacity =
+        "0.92";
+      dragClone.style.boxShadow =
+        "0 6px 14px rgba(15,23,42,0.18)";
+      dragClone.style.pointerEvents =
+        "none";
+
+      document.body.appendChild(
+        dragClone
+      );
+
       event.dataTransfer.setDragImage(
-        event.currentTarget,
+        dragClone,
         event.currentTarget.offsetWidth /
           2,
         event.currentTarget.offsetHeight /
           2
+      );
+
+      window.requestAnimationFrame(
+        () => dragClone.remove()
       );
     };
 
@@ -562,13 +617,93 @@ export default function InstructionPalette({
                   ) {
                     return;
                   }
+
+                  const gesture =
+                    instructionDragGestureRef.current;
+
+                  if (!gesture) {
+                    return;
+                  }
+
+                  const horizontalDistance =
+                    event.clientX -
+                    gesture.startX;
+                  const verticalDistance =
+                    Math.abs(
+                      event.clientY -
+                      gesture.startY
+                    );
+
+                  if (
+                    gesture.intent ===
+                      "canvas" ||
+                    horizontalDistance > 24
+                  ) {
+                    gesture.intent =
+                      "canvas";
+                    setInstructionDropIndicatorId(
+                      null
+                    );
+                    return;
+                  }
+
+                  if (
+                    gesture.intent ===
+                      "pending" &&
+                    verticalDistance < 8
+                  ) {
+                    return;
+                  }
+
+                  gesture.intent =
+                    "reorder";
                   event.preventDefault();
                   event.stopPropagation();
+
+                  const targetRect =
+                    event.currentTarget
+                      .getBoundingClientRect();
+                  const placeAfter =
+                    event.clientY >=
+                    targetRect.top +
+                      targetRect.height / 2;
+
                   setInstructionDropIndicatorId(
                     instruction.id
                   );
-                  reorderInstructionBefore(
-                    instruction.id
+                  setInstructionDropIndicatorPlacement(
+                    placeAfter
+                      ? "after"
+                      : "before"
+                  );
+                }}
+                onDrop={(event) => {
+                  const gesture =
+                    instructionDragGestureRef.current;
+
+                  if (
+                    !gesture ||
+                    gesture.intent !==
+                      "reorder"
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+
+                  const targetRect =
+                    event.currentTarget
+                      .getBoundingClientRect();
+
+                  reorderInstructionAt(
+                    instruction.id,
+                    event.clientY >=
+                      targetRect.top +
+                        targetRect.height / 2
+                  );
+                  setInstructionDropIndicatorId(
+                    null
                   );
                 }}
                 style={{
@@ -592,14 +727,23 @@ export default function InstructionPalette({
                         "absolute",
                       left: 0,
                       right: 0,
-                      top: -2,
+                      top:
+                        instructionDropIndicatorPlacement ===
+                          "after"
+                          ? "auto"
+                          : -2,
+                      bottom:
+                        instructionDropIndicatorPlacement ===
+                          "after"
+                          ? -2
+                          : "auto",
                       zIndex: 8,
                       height: 2,
                       borderRadius: 2,
                       background:
-                        "#2563eb",
+                        "#9ca3af",
                       boxShadow:
-                        "0 0 0 1px rgba(37,99,235,0.12)",
+                        "none",
                       pointerEvents:
                         "none",
                     }}
@@ -618,6 +762,31 @@ export default function InstructionPalette({
                       instruction
                     )
                   }
+                  onDrag={(event) => {
+                    const gesture =
+                      instructionDragGestureRef.current;
+
+                    if (
+                      !gesture ||
+                      gesture.intent ===
+                        "canvas" ||
+                      event.clientX <= 0
+                    ) {
+                      return;
+                    }
+
+                    if (
+                      event.clientX -
+                        gesture.startX >
+                      24
+                    ) {
+                      gesture.intent =
+                        "canvas";
+                      setInstructionDropIndicatorId(
+                        null
+                      );
+                    }
+                  }}
                   onDragEnd={() => {
                     clearActiveInstructionDragData();
                     setReorderingInstructionId(
@@ -626,6 +795,8 @@ export default function InstructionPalette({
                     setInstructionDropIndicatorId(
                       null
                     );
+                    instructionDragGestureRef.current =
+                      null;
                   }}
                   style={{
                     width: 26,
