@@ -14,6 +14,7 @@ import InstructionDropBurst from "./InstructionDropBurst.jsx";
 import BlockSources from "./BlockSources.jsx";
 
 const BLOCK_TYPE_LABELS = {
+  Title: "标题",
   Claim: "论点",
   Evidence: "证据",
   Reason: "推理",

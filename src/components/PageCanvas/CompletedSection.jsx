@@ -7,6 +7,13 @@ export default function CompletedSection({
   isDimmed = false,
 }) {
   const editorRef = useRef(null);
+  const isTitleSection =
+    Array.isArray(section?.blocks) &&
+    section.blocks.some(
+      (block) =>
+        block?.type === "Title" &&
+        block?.placement !== "floating"
+    );
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -63,9 +70,19 @@ export default function CompletedSection({
         style={{
           width: "100%",
           minHeight: section.height,
-          fontSize: 14,
+          fontSize:
+            isTitleSection
+              ? 22
+              : 14,
+          fontWeight:
+            isTitleSection
+              ? 700
+              : 400,
           color: "#222",
-          lineHeight: "28px",
+          lineHeight:
+            isTitleSection
+              ? "34px"
+              : "28px",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           textAlign: "left",

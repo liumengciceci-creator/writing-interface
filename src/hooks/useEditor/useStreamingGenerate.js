@@ -141,6 +141,13 @@ function getLiveEditingText(block) {
 }
 
 const TARGET_FORM_GUIDES = {
+  Title: [
+    "当前模块是标题或章节标题。",
+    "将用户输入润色为简洁、明确、能够概括相邻内容的标题；用户只给出主题时，直接生成一个合适的标题。",
+    "只输出标题文字，不写解释、正文、冒号后的长段落或多个备选项。",
+    "通常控制在一个短语或一个短句内；中文标题一般不超过20个汉字，英文标题一般不超过12个单词。",
+    "除非标题本身是疑问句，否则结尾不添加句号。",
+  ],
   Claim: [
     "当前模块是论点。",
     "只表达一个明确、可论证的核心主张，不要写成证据综述或大段背景介绍。",
@@ -180,6 +187,7 @@ const TARGET_FORM_GUIDES = {
 };
 
 const TYPE_PLACEHOLDER_TEXT = {
+  Title: "标题",
   Claim: "论点",
   Evidence: "证据",
   Reason: "推理",
@@ -271,7 +279,9 @@ function createGenerationInstruction(
     "2. 输入是命令或占位语时直接执行；输入是半截句子时保留原意并自然续完；输入是完整草稿时以它为核心进行实质性改写和提升，不另起主题，但不得原样返回用户输入。",
     "3. 根据文章当前缺少的信息决定长度。表达完整后立即停止，不能为了显得充分而扩写。",
     "4. 保持与前后模块连贯，避免重复相邻内容。结论必须吸收所有在它之前、本轮新生成的有效内容。",
-    "5. 不得编造精确来源、引文、年份或统计值。只输出可直接放进文本框的最终正文，不输出标题、分析、建议或 Markdown。",
+    block?.type === "Title"
+      ? "5. 不得编造精确来源、引文、年份或统计值。只输出可直接放进标题模块的最终标题，不输出分析、建议、正文或 Markdown。"
+      : "5. 不得编造精确来源、引文、年份或统计值。只输出可直接放进文本框的最终正文，不输出标题、分析、建议或 Markdown。",
   ].join("\n");
 }
 
@@ -279,7 +289,11 @@ function getSearchPolicy(block, userInput) {
   const type = String(block?.type || "");
   const input = String(userInput || "");
 
-  if (type === "Transition" || type === "Conclusion") {
+  if (
+    type === "Title" ||
+    type === "Transition" ||
+    type === "Conclusion"
+  ) {
     return "disabled";
   }
 

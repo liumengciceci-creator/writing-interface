@@ -19,6 +19,17 @@ function getSectionText(section) {
     .trim();
 }
 
+function isTitleSection(section) {
+  return (
+    Array.isArray(section?.blocks) &&
+    section.blocks.some(
+      (block) =>
+        block?.type === "Title" &&
+        block?.placement !== "floating"
+    )
+  );
+}
+
 function makeFileName() {
   const date = new Date();
   const stamp = [
@@ -131,11 +142,11 @@ function createZip(files) {
   return concatBytes([...localParts, centralDirectory, endRecord]);
 }
 
-function paragraphXml(text) {
+function paragraphXml({ text, isTitle = false }) {
   return `<w:p>
-    <w:pPr><w:spacing w:after="200" w:line="420" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr>
+    <w:pPr><w:spacing w:before="${isTitle ? 200 : 0}" w:after="${isTitle ? 240 : 200}" w:line="${isTitle ? 520 : 420}" w:lineRule="auto"/><w:jc w:val="${isTitle ? "left" : "both"}"/></w:pPr>
     <w:r>
-      <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
+      <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/>${isTitle ? "<w:b/><w:bCs/>" : ""}<w:sz w:val="${isTitle ? 36 : 24}"/><w:szCs w:val="${isTitle ? 36 : 24}"/></w:rPr>
       <w:t xml:space="preserve">${escapeXml(text)}</w:t>
     </w:r>
   </w:p>`;
@@ -147,13 +158,20 @@ function paragraphXml(text) {
  */
 export function exportDocumentToWord(sections) {
   const paragraphs = (Array.isArray(sections) ? sections : [])
-    .map(getSectionText)
-    .filter(Boolean)
+    .map((section) => ({
+      text: getSectionText(section),
+      isTitle: isTitleSection(section),
+    }))
+    .filter((paragraph) => Boolean(paragraph.text))
     .flatMap((paragraph) =>
-      paragraph
+      paragraph.text
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
+        .map((text) => ({
+          text,
+          isTitle: paragraph.isTitle,
+        }))
     );
 
   if (paragraphs.length === 0) {

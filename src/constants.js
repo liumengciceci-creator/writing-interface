@@ -18,6 +18,13 @@ export const ZOOM_STEP = 0.1;
 
 export const BLOCK_TYPES = [
   {
+    type: "Title",
+    label: "标题",
+    color: "#374151",
+    fill: "#f3f4f6",
+  },
+
+  {
     type: "Claim",
     label: "论点",
     color: "#ef7f7f",

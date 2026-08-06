@@ -24,6 +24,7 @@ const LABEL_COLORS = [
  * 直接显示原始名称。
  */
 const BLOCK_TYPE_LABELS = {
+  Title: "标题",
   Claim: "论点",
   Evidence: "证据",
   Reason: "推理",

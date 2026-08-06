@@ -16,6 +16,7 @@ import InstructionPalette from "./InstructionPalette.jsx";
 import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
 
 const BLOCK_TYPE_LABELS = {
+  Title: "标题",
   Claim: "论点",
   Evidence: "证据",
   Reason: "推理",
@@ -153,6 +154,18 @@ const DEFAULT_SIDEBAR_EXCLUDED_TYPES =
     "Merged",
   ]);
 
+/**
+ * 标题是系统内置的固定默认模块。
+ * 在这里直接声明，避免旧版 localStorage 的隐藏列表或模板覆盖
+ * 导致升级后看不到新加入的标题模块。
+ */
+const DEFAULT_TITLE_TEMPLATE = {
+  type: "Title",
+  label: "标题",
+  color: "#374151",
+  fill: "#f3f4f6",
+};
+
 function loadHiddenDefaultTypes() {
   try {
     const savedValue =
@@ -174,7 +187,8 @@ function loadHiddenDefaultTypes() {
     return parsedValue.filter(
       (type) =>
         typeof type ===
-        "string"
+          "string" &&
+        type !== "Title"
     );
   } catch (error) {
     console.error(
@@ -1022,16 +1036,19 @@ export default function Sidebar({
       hiddenDefaultTypes
     );
 
-  const defaultTemplates =
-    BLOCK_TYPES.filter(
+  const defaultTemplates = [
+    DEFAULT_TITLE_TEMPLATE,
+    ...BLOCK_TYPES.filter(
       (item) =>
+        item.type !== "Title" &&
         !DEFAULT_SIDEBAR_EXCLUDED_TYPES.has(
           item.type
         ) &&
         !hiddenDefaultTypeSet.has(
           item.type
         )
-    ).map((item) => {
+    ),
+  ].map((item) => {
       const override =
         defaultTemplateOverrides[
           item.type
@@ -1099,7 +1116,9 @@ export default function Sidebar({
         ? templateOrderIndex.get(
             getTemplateOrderKey(a)
           )
-        : Number.MAX_SAFE_INTEGER;
+        : a.type === "Title"
+          ? -1
+          : Number.MAX_SAFE_INTEGER;
     const bIndex =
       templateOrderIndex.has(
         getTemplateOrderKey(b)
@@ -1107,7 +1126,9 @@ export default function Sidebar({
         ? templateOrderIndex.get(
             getTemplateOrderKey(b)
           )
-        : Number.MAX_SAFE_INTEGER;
+        : b.type === "Title"
+          ? -1
+          : Number.MAX_SAFE_INTEGER;
     return aIndex - bIndex;
   });
 
@@ -1202,6 +1223,10 @@ export default function Sidebar({
 
   const handleDeleteTemplate =
     (item) => {
+      if (item?.type === "Title") {
+        return;
+      }
+
       if (item.isCustom) {
         onDeleteCustomTemplate?.(
           item.id
@@ -1928,6 +1953,10 @@ export default function Sidebar({
                   openEditTemplate(item);
                 }}
                 style={{
+                  display:
+                    item.type === "Title"
+                      ? "none"
+                      : "block",
                   position: "absolute",
                   right: 27,
                   top: "50%",
@@ -1950,7 +1979,7 @@ export default function Sidebar({
               </button>
 
               {/* 默认标签和自定义标签都允许删除 */}
-              {(
+              {item.type !== "Title" && (
                 <button
                   type="button"
 
