@@ -665,12 +665,28 @@ const SingleSemanticEditor =
                   root.offsetHeight
                 : scaleX;
 
+            const startsNewLine =
+              shouldStartNewLine(
+                root,
+                event.clientX,
+                event.clientY,
+                draggingId || null
+              );
+
+            const newLineTop =
+              event.clientY >
+              nearestRect.bottom
+                ? nearestRect.bottom + 10
+                : nearestRect.top;
+
             setDropIndicator({
               left:
-                (
-                  afterAnchor.clientX -
-                  rootRect.left
-                ) /
+                startsNewLine
+                  ? 0
+                  : (
+                      afterAnchor.clientX -
+                      rootRect.left
+                    ) /
                 Math.max(
                   scaleX,
                   0.001
@@ -678,7 +694,9 @@ const SingleSemanticEditor =
 
               top:
                 (
-                  nearestRect.top -
+                  (startsNewLine
+                    ? newLineTop
+                    : nearestRect.top) -
                   rootRect.top
                 ) /
                 Math.max(
@@ -1386,17 +1404,35 @@ const SingleSemanticEditor =
                 root.offsetHeight
               : scaleX;
 
+          const startsNewLine =
+            shouldStartNewLine(
+              root,
+              pointerX,
+              pointerY,
+              draggingId || null
+            );
+
+          const newLineTop =
+            pointerY >
+            nearestRect.bottom
+              ? nearestRect.bottom + 10
+              : nearestRect.top;
+
           setDropIndicator({
             left:
-              (
-                afterAnchor.clientX -
-                rootRect.left
-              ) /
+              startsNewLine
+                ? 0
+                : (
+                    afterAnchor.clientX -
+                    rootRect.left
+                  ) /
               Math.max(scaleX, 0.001),
 
             top:
               (
-                nearestRect.top -
+                (startsNewLine
+                  ? newLineTop
+                  : nearestRect.top) -
                 rootRect.top
               ) /
               Math.max(scaleY, 0.001),
@@ -1628,16 +1664,6 @@ const SingleSemanticEditor =
               ) &&
               existingId != null;
 
-            const insertIndex =
-              getDropIndex(
-                editorRef.current,
-                event.clientX,
-                event.clientY,
-                isExistingBlock
-                  ? draggedSelection
-                  : null
-              );
-
             const forceLineBreakBefore =
               shouldStartNewLine(
                 editorRef.current,
@@ -1646,6 +1672,17 @@ const SingleSemanticEditor =
                 isExistingBlock
                   ? draggedSelection
                   : null
+              );
+
+            const insertIndex =
+              getDropIndex(
+                editorRef.current,
+                event.clientX,
+                event.clientY,
+                isExistingBlock
+                  ? draggedSelection
+                  : null,
+                forceLineBreakBefore
               );
 
             if (

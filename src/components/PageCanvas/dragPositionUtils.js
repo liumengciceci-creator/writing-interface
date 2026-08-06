@@ -289,7 +289,8 @@ export function getDropIndex(
   editor,
   clientX,
   clientY,
-  excludedBlockId = null
+  excludedBlockId = null,
+  startsNewLine = false
 ) {
   if (!editor) {
     return 0;
@@ -328,19 +329,18 @@ export function getDropIndex(
       lines.length - 1
     ];
 
-  /**
-   * 即使鼠标位于首行上方，也把目标解释为首个模块之后。
-   * 这样实际插入位置与“蓝线只出现在模块后方”的反馈一致。
-   */
+  /** 鼠标在首行上方时，可以表示从文档第一行开始。 */
   if (
     clientY <
     firstLine.top
   ) {
-    return Math.min(
-      elements.length,
-      firstLine.fragments[0]
-        .blockIndex + 1
-    );
+    return startsNewLine
+      ? 0
+      : Math.min(
+          elements.length,
+          firstLine.fragments[0]
+            .blockIndex + 1
+        );
   }
 
   /**
@@ -369,6 +369,31 @@ export function getDropIndex(
 
   const lineFragments =
     closestLine.fragments;
+
+  /**
+   * 换行提示只有两种含义：位于当前行上半部时插到该行之前；
+   * 位于当前行下方时插到该行之后。蓝线可以显示在新行开头，
+   * 但不会进入任何模块内部。
+   */
+  if (startsNewLine) {
+    if (
+      clientY <=
+      closestLine.centerY
+    ) {
+      return lineFragments[0]
+        .blockIndex;
+    }
+
+    const finalFragment =
+      lineFragments[
+        lineFragments.length - 1
+      ];
+
+    return Math.min(
+      elements.length,
+      finalFragment.blockIndex + 1
+    );
+  }
 
   /**
    * 选择鼠标横向位置命中的模块，但插入位置始终是该模块之后。
