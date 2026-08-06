@@ -40,85 +40,85 @@ import {
 
 
 /**
- * 计算两个相邻模块之间真正的视觉中点。
- * 如果当前方向没有相邻模块，则退回当前模块边缘。
+ * 将拖拽提示固定到目标模块的视觉末尾。
+ *
+ * 一个 inline 模块换行后会产生多个 DOMRect。如果直接使用鼠标
+ * 命中的片段，提示线可能落在同一模块的中间。因此先找到该模块
+ * 最后一个视觉片段，再把蓝线放到它的右侧或与下一模块的间隙中。
  */
-function getCenteredInsertionClientX(
-  visualRects,
-  nearestRect,
-  placeAfter
+function getAfterBlockDropAnchor(
+  visualEntries,
+  nearestEntry
 ) {
-  if (!nearestRect) {
-    return 0;
+  if (!nearestEntry) {
+    return null;
   }
 
-  const nearestCenterY =
-    nearestRect.top +
-    nearestRect.height / 2;
-
-  const sameLineRects =
-    visualRects.filter((rect) => {
-      const centerY =
-        rect.top +
-        rect.height / 2;
-
-      return (
-        rect !== nearestRect &&
-        Math.abs(
-          centerY - nearestCenterY
-        ) <=
-          Math.max(
-            8,
-            Math.min(
-              rect.height,
-              nearestRect.height
-            ) / 2
-          )
-      );
-    });
-
-  if (placeAfter) {
-    const nextRect =
-      sameLineRects
-        .filter(
-          (rect) =>
-            rect.left >=
-            nearestRect.right
-        )
-        .sort(
-          (a, b) =>
-            a.left - b.left
-        )[0];
-
-    return nextRect
-      ? (
-          nearestRect.right +
-          nextRect.left
-        ) / 2
-      : nearestRect.right;
-  }
-
-  const previousRect =
-    sameLineRects
+  const blockRects =
+    visualEntries
       .filter(
-        (rect) =>
-          rect.right <=
-          nearestRect.left
+        (entry) =>
+          entry.element ===
+          nearestEntry.element
       )
-      .sort(
-        (a, b) =>
-          b.right - a.right
-      )[0];
+      .map((entry) => entry.rect)
+      .sort((a, b) => {
+        if (Math.abs(a.top - b.top) > 4) {
+          return a.top - b.top;
+        }
 
-  return previousRect
-    ? (
-        previousRect.right +
-        nearestRect.left
-      ) / 2
-    : nearestRect.left;
+        return a.left - b.left;
+      });
+
+  const anchorRect =
+    blockRects[blockRects.length - 1];
+
+  if (!anchorRect) {
+    return null;
+  }
+
+  const anchorCenterY =
+    anchorRect.top +
+    anchorRect.height / 2;
+
+  const nextRect =
+    visualEntries
+      .filter((entry) => {
+        if (
+          entry.element ===
+          nearestEntry.element
+        ) {
+          return false;
+        }
+
+        const rect = entry.rect;
+        const centerY =
+          rect.top + rect.height / 2;
+
+        return (
+          rect.left >= anchorRect.right &&
+          Math.abs(centerY - anchorCenterY) <=
+            Math.max(
+              8,
+              Math.min(
+                rect.height,
+                anchorRect.height
+              ) / 2
+            )
+        );
+      })
+      .map((entry) => entry.rect)
+      .sort((a, b) => a.left - b.left)[0];
+
+  const clientX = nextRect
+    ? (anchorRect.right + nextRect.left) / 2
+    : anchorRect.right + 4;
+
+  return {
+    clientX,
+    rect: anchorRect,
+  };
 }
-
-
 
 /**
  * 将字符串拆成用户可见字符。
@@ -545,7 +545,7 @@ const SingleSemanticEditor =
                 externalDraggingBlockId
               );
 
-            const visualRects = [];
+            const visualEntries = [];
 
             Array.from(
               root.querySelectorAll(
@@ -569,13 +569,16 @@ const SingleSemanticEditor =
                     rect.width > 0 &&
                     rect.height > 0
                   ) {
-                    visualRects.push(rect);
+                    visualEntries.push({
+                      element,
+                      rect,
+                    });
                   }
                 });
               });
 
             if (
-              visualRects.length === 0
+              visualEntries.length === 0
             ) {
               /**
                * 空编辑器没有任何现有模块可以作为参考，但第一个模块
@@ -589,9 +592,10 @@ const SingleSemanticEditor =
               return;
             }
 
-            const nearestRect =
-              visualRects.reduce(
-                (nearest, rect) => {
+            const nearestEntry =
+              visualEntries.reduce(
+                (nearest, entry) => {
+                  const rect = entry.rect;
                   const dx =
                     event.clientX < rect.left
                       ? rect.left -
@@ -619,18 +623,32 @@ const SingleSemanticEditor =
                     distance <
                       nearest.distance
                     ? {
-                        rect,
+                        entry,
                         distance,
                       }
                     : nearest;
                 },
                 null
-              )?.rect;
+              )?.entry;
 
-            if (!nearestRect) {
+            if (!nearestEntry) {
               setDropIndicator(null);
               return;
             }
+
+            const afterAnchor =
+              getAfterBlockDropAnchor(
+                visualEntries,
+                nearestEntry
+              );
+
+            if (!afterAnchor) {
+              setDropIndicator(null);
+              return;
+            }
+
+            const nearestRect =
+              afterAnchor.rect;
 
             const rootRect =
               root.getBoundingClientRect();
@@ -647,41 +665,12 @@ const SingleSemanticEditor =
                   root.offsetHeight
                 : scaleX;
 
-            const placeAfter =
-              event.clientX >=
-              nearestRect.left +
-                nearestRect.width / 2;
-
-            const indicatorClientX =
-              getCenteredInsertionClientX(
-                visualRects,
-                nearestRect,
-                placeAfter
-              );
-
-            const startsNewLine =
-              shouldStartNewLine(
-                root,
-                event.clientX,
-                event.clientY,
-                draggingId || null
-              );
-
-            const newLineTop =
-              event.clientY >
-              nearestRect.bottom
-                ? nearestRect.bottom +
-                  10
-                : nearestRect.top;
-
             setDropIndicator({
               left:
-                startsNewLine
-                  ? 0
-                  : (
-                      indicatorClientX -
-                      rootRect.left
-                    ) /
+                (
+                  afterAnchor.clientX -
+                  rootRect.left
+                ) /
                 Math.max(
                   scaleX,
                   0.001
@@ -689,9 +678,7 @@ const SingleSemanticEditor =
 
               top:
                 (
-                  (startsNewLine
-                    ? newLineTop
-                    : nearestRect.top) -
+                  nearestRect.top -
                   rootRect.top
                 ) /
                 Math.max(
@@ -1291,7 +1278,7 @@ const SingleSemanticEditor =
                 ) !== draggingId
             );
 
-          const visualRects = [];
+          const visualEntries = [];
 
           candidates.forEach(
             (element) => {
@@ -1303,14 +1290,17 @@ const SingleSemanticEditor =
                   rect.width > 0 &&
                   rect.height > 0
                 ) {
-                  visualRects.push(rect);
+                  visualEntries.push({
+                    element,
+                    rect,
+                  });
                 }
               });
             }
           );
 
           if (
-            visualRects.length === 0
+            visualEntries.length === 0
           ) {
             /**
              * 从侧栏拖入第一个模块，或唯一模块被排除时，显示正文
@@ -1330,9 +1320,10 @@ const SingleSemanticEditor =
           const pointerY =
             event.clientY;
 
-          const nearestRect =
-            visualRects.reduce(
-              (nearest, rect) => {
+          const nearestEntry =
+            visualEntries.reduce(
+              (nearest, entry) => {
+                const rect = entry.rect;
                 const dx =
                   pointerX < rect.left
                     ? rect.left - pointerX
@@ -1353,18 +1344,32 @@ const SingleSemanticEditor =
                 return !nearest ||
                   distance < nearest.distance
                   ? {
-                      rect,
+                      entry,
                       distance,
                     }
                   : nearest;
               },
               null
-            )?.rect;
+            )?.entry;
 
-          if (!nearestRect) {
+          if (!nearestEntry) {
             setDropIndicator(null);
             return;
           }
+
+          const afterAnchor =
+            getAfterBlockDropAnchor(
+              visualEntries,
+              nearestEntry
+            );
+
+          if (!afterAnchor) {
+            setDropIndicator(null);
+            return;
+          }
+
+          const nearestRect =
+            afterAnchor.rect;
 
           const rootRect =
             root.getBoundingClientRect();
@@ -1381,48 +1386,17 @@ const SingleSemanticEditor =
                 root.offsetHeight
               : scaleX;
 
-          const placeAfter =
-            pointerX >=
-            nearestRect.left +
-              nearestRect.width / 2;
-
-          const indicatorClientX =
-            getCenteredInsertionClientX(
-              visualRects,
-              nearestRect,
-              placeAfter
-            );
-
-          const startsNewLine =
-            shouldStartNewLine(
-              root,
-              pointerX,
-              pointerY,
-              draggingId || null
-            );
-
-          const newLineTop =
-            pointerY >
-            nearestRect.bottom
-              ? nearestRect.bottom +
-                10
-              : nearestRect.top;
-
           setDropIndicator({
             left:
-              startsNewLine
-                ? 0
-                : (
-                    indicatorClientX -
-                    rootRect.left
-                  ) /
+              (
+                afterAnchor.clientX -
+                rootRect.left
+              ) /
               Math.max(scaleX, 0.001),
 
             top:
               (
-                (startsNewLine
-                  ? newLineTop
-                  : nearestRect.top) -
+                nearestRect.top -
                 rootRect.top
               ) /
               Math.max(scaleY, 0.001),

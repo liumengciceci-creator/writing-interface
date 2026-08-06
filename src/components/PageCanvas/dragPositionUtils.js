@@ -329,13 +329,18 @@ export function getDropIndex(
     ];
 
   /**
-   * 鼠标在所有内容上方。
+   * 即使鼠标位于首行上方，也把目标解释为首个模块之后。
+   * 这样实际插入位置与“蓝线只出现在模块后方”的反馈一致。
    */
   if (
     clientY <
     firstLine.top
   ) {
-    return 0;
+    return Math.min(
+      elements.length,
+      firstLine.fragments[0]
+        .blockIndex + 1
+    );
   }
 
   /**
@@ -366,8 +371,9 @@ export function getDropIndex(
     closestLine.fragments;
 
   /**
-   * 根据鼠标横向位置，
-   * 判断是插入在某个模块前还是后。
+   * 选择鼠标横向位置命中的模块，但插入位置始终是该模块之后。
+   * 不再使用“左半边插入到模块前”的规则，否则视觉提示在模块
+   * 前方时容易与 inline 模块本身重叠。
    */
   for (
     let index = 0;
@@ -385,7 +391,10 @@ export function getDropIndex(
     if (
       clientX < midpoint
     ) {
-      return fragment.blockIndex;
+      return Math.min(
+        elements.length,
+        fragment.blockIndex + 1
+      );
     }
   }
 
