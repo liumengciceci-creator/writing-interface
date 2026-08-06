@@ -502,6 +502,14 @@ const SingleSemanticEditor =
         setDropIndicator,
       ] = useState(null);
 
+      /**
+       * 蓝线对应的真实插入位置。
+       * dragover 与 drop 必须复用同一个结果，不能在松手时再用另一套
+       * 几何规则重新计算，否则会出现蓝线移动但模块仍留在原位。
+       */
+      const dropPlacementRef =
+        useRef(null);
+
       const [
         copiedParagraphId,
         setCopiedParagraphId,
@@ -545,6 +553,20 @@ const SingleSemanticEditor =
                 externalDraggingBlockId
               );
 
+            const selectedDraggingIds =
+              selectedIds
+                .map(normalizeId)
+                .filter(Boolean);
+
+            const excludedIds =
+              new Set(
+                selectedDraggingIds.includes(
+                  draggingId
+                )
+                  ? selectedDraggingIds
+                  : [draggingId].filter(Boolean)
+              );
+
             const visualEntries = [];
 
             Array.from(
@@ -554,11 +576,13 @@ const SingleSemanticEditor =
             )
               .filter(
                 (element) =>
-                  normalizeId(
-                    element.getAttribute(
-                      "data-semantic-block-id"
+                  !excludedIds.has(
+                    normalizeId(
+                      element.getAttribute(
+                        "data-semantic-block-id"
+                      )
                     )
-                  ) !== draggingId
+                  )
               )
               .forEach((element) => {
                 Array.from(
@@ -589,6 +613,11 @@ const SingleSemanticEditor =
                 top: 0,
                 height: 28,
               });
+              dropPlacementRef.current = {
+                insertIndex: 0,
+                forceLineBreakBefore:
+                  false,
+              };
               return;
             }
 
@@ -679,6 +708,44 @@ const SingleSemanticEditor =
                 ? nearestRect.bottom + 10
                 : nearestRect.top;
 
+            const excludedBlockIds =
+              Array.from(excludedIds);
+
+            dropPlacementRef.current = {
+              insertIndex:
+                startsNewLine
+                  ? getDropIndex(
+                      root,
+                      event.clientX,
+                      event.clientY,
+                      excludedBlockIds,
+                      true
+                    )
+                  : Math.max(
+                      0,
+                      Array.from(
+                        root.querySelectorAll(
+                          "[data-semantic-block-id]"
+                        )
+                      )
+                        .filter(
+                          (element) =>
+                            !excludedIds.has(
+                              normalizeId(
+                                element.getAttribute(
+                                  "data-semantic-block-id"
+                                )
+                              )
+                            )
+                        )
+                        .indexOf(
+                          nearestEntry.element
+                        ) + 1
+                    ),
+              forceLineBreakBefore:
+                startsNewLine,
+            };
+
             setDropIndicator({
               left:
                 startsNewLine
@@ -712,7 +779,10 @@ const SingleSemanticEditor =
                 ),
             });
           },
-          [externalDraggingBlockId]
+          [
+            externalDraggingBlockId,
+            selectedIds,
+          ]
         );
 
       useEffect(() => {
@@ -723,6 +793,8 @@ const SingleSemanticEditor =
             null
         ) {
           setDropIndicator(null);
+          dropPlacementRef.current =
+            null;
         }
       }, [
         externalDraggingBlockId,
@@ -1253,6 +1325,8 @@ const SingleSemanticEditor =
             )
           ) {
             setDropIndicator(null);
+            dropPlacementRef.current =
+              null;
             return;
           }
 
@@ -1282,6 +1356,20 @@ const SingleSemanticEditor =
               draggingExistingBlockIdRef.current
             );
 
+          const selectedDraggingIds =
+            selectedIds
+              .map(normalizeId)
+              .filter(Boolean);
+
+          const excludedIds =
+            new Set(
+              selectedDraggingIds.includes(
+                draggingId
+              )
+                ? selectedDraggingIds
+                : [draggingId].filter(Boolean)
+            );
+
           const candidates =
             Array.from(
               root.querySelectorAll(
@@ -1289,11 +1377,13 @@ const SingleSemanticEditor =
               )
             ).filter(
               (element) =>
-                normalizeId(
-                  element.getAttribute(
-                    "data-semantic-block-id"
+                !excludedIds.has(
+                  normalizeId(
+                    element.getAttribute(
+                      "data-semantic-block-id"
+                    )
                   )
-                ) !== draggingId
+                )
             );
 
           const visualEntries = [];
@@ -1329,6 +1419,11 @@ const SingleSemanticEditor =
               top: 0,
               height: 28,
             });
+            dropPlacementRef.current = {
+              insertIndex: 0,
+              forceLineBreakBefore:
+                false,
+            };
             return;
           }
 
@@ -1418,6 +1513,26 @@ const SingleSemanticEditor =
               ? nearestRect.bottom + 10
               : nearestRect.top;
 
+          dropPlacementRef.current = {
+            insertIndex:
+              startsNewLine
+                ? getDropIndex(
+                    root,
+                    pointerX,
+                    pointerY,
+                    Array.from(excludedIds),
+                    true
+                  )
+                : Math.max(
+                    0,
+                    candidates.indexOf(
+                      nearestEntry.element
+                    ) + 1
+                  ),
+            forceLineBreakBefore:
+              startsNewLine,
+          };
+
           setDropIndicator({
             left:
               startsNewLine
@@ -1443,6 +1558,7 @@ const SingleSemanticEditor =
           });
         }, [
           onExistingBlockDragOver,
+          selectedIds,
         ]);
 
       /**
@@ -1607,6 +1723,8 @@ const SingleSemanticEditor =
           );
 
           setDropIndicator(null);
+          dropPlacementRef.current =
+            null;
         }, [
           onExistingBlockDragEnd,
         ]);
@@ -1617,7 +1735,12 @@ const SingleSemanticEditor =
             event.preventDefault();
             event.stopPropagation();
 
+            const indicatedPlacement =
+              dropPlacementRef.current;
+
             setDropIndicator(null);
+            dropPlacementRef.current =
+              null;
 
             const payload =
               readDraggedData(
@@ -1665,6 +1788,8 @@ const SingleSemanticEditor =
               existingId != null;
 
             const forceLineBreakBefore =
+              indicatedPlacement
+                ?.forceLineBreakBefore ??
               shouldStartNewLine(
                 editorRef.current,
                 event.clientX,
@@ -1675,6 +1800,8 @@ const SingleSemanticEditor =
               );
 
             const insertIndex =
+              indicatedPlacement
+                ?.insertIndex ??
               getDropIndex(
                 editorRef.current,
                 event.clientX,
