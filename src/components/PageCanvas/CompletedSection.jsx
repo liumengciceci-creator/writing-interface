@@ -11,7 +11,19 @@ export default function CompletedSection({
     Array.isArray(section?.blocks) &&
     section.blocks.some(
       (block) =>
-        block?.type === "Title" &&
+        (
+          block?.type === "Title" ||
+          block?.isCompletedTitle === true ||
+          (
+            block?.isCompletedParagraph === true &&
+            Array.isArray(block?.completedBlocks) &&
+            block.completedBlocks.length > 0 &&
+            block.completedBlocks.every(
+              (sourceBlock) =>
+                sourceBlock?.type === "Title"
+            )
+          )
+        ) &&
         block?.placement !== "floating"
     );
 

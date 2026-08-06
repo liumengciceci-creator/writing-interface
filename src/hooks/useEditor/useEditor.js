@@ -1131,6 +1131,16 @@ export function useEditor() {
               "inline",
             isCompletedParagraph:
               true,
+            /**
+             * 完成后 block.type 会变成 CompletedParagraph。
+             * 单独保存标题身份，避免渲染时丢失 Title 类型。
+             */
+            isCompletedTitle:
+              paragraphBlocks.length > 0 &&
+              paragraphBlocks.every(
+                (block) =>
+                  block?.type === "Title"
+              ),
             forceLineBreakBefore:
               Boolean(
                 paragraphBlocks[0]

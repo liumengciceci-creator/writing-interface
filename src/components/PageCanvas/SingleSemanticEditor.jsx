@@ -2034,8 +2034,24 @@ const SingleSemanticEditor =
                     block.id
                   );
 
+                const completedSourceBlocks =
+                  Array.isArray(
+                    block.completedBlocks
+                  )
+                    ? block.completedBlocks
+                    : [];
+
                 const isTitleBlock =
-                  block.type === "Title";
+                  block.type === "Title" ||
+                  block.isCompletedTitle === true ||
+                  (
+                    block.isCompletedParagraph === true &&
+                    completedSourceBlocks.length > 0 &&
+                    completedSourceBlocks.every(
+                      (sourceBlock) =>
+                        sourceBlock?.type === "Title"
+                    )
+                  );
 
                 if (
                   block
