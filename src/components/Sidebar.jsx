@@ -164,6 +164,7 @@ const DEFAULT_TITLE_TEMPLATE = {
   label: "标题",
   color: "#374151",
   fill: "#f3f4f6",
+  width: 220,
 };
 
 function loadHiddenDefaultTypes() {
@@ -1870,10 +1871,14 @@ export default function Sidebar({
                     0,
 
                   height:
-                    32,
+                    item.type === "Title"
+                      ? 40
+                      : 32,
 
                   padding:
-                    "0 50px 0 7px",
+                    item.type === "Title"
+                      ? "0 10px"
+                      : "0 50px 0 7px",
 
                   borderRadius:
                     8,
@@ -1891,7 +1896,14 @@ export default function Sidebar({
                     "#333",
 
                   fontSize:
-                    13,
+                    item.type === "Title"
+                      ? 16
+                      : 13,
+
+                  fontWeight:
+                    item.type === "Title"
+                      ? 700
+                      : 400,
 
                   cursor:
                     "grab",

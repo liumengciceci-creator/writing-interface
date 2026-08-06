@@ -22,6 +22,7 @@ export const BLOCK_TYPES = [
     label: "标题",
     color: "#374151",
     fill: "#f3f4f6",
+    width: 220,
   },
 
   {

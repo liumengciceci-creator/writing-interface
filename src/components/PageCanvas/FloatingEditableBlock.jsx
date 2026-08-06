@@ -77,6 +77,9 @@ export default function FloatingEditableBlock({
   onUpdateText,
   onUpdateWidth,
 }) {
+  const isTitleBlock =
+    block.type === "Title";
+
   const matchesInlineAppearance =
     block
       .floatingMatchesInlineAppearance ===
@@ -879,7 +882,10 @@ export default function FloatingEditableBlock({
                       fragment.width,
                     minHeight:
                       fragment.height ?? 28,
-                    padding: "2px 8px",
+                    padding:
+                      isTitleBlock
+                        ? "6px 12px"
+                        : "2px 8px",
                     boxSizing:
                       "border-box",
                     border:
@@ -888,9 +894,18 @@ export default function FloatingEditableBlock({
                     background:
                       block.fill,
                     color: "#202124",
-                    fontSize: 16,
-                    fontWeight: 400,
-                    lineHeight: "24px",
+                    fontSize:
+                      isTitleBlock
+                        ? 20
+                        : 16,
+                    fontWeight:
+                      isTitleBlock
+                        ? 700
+                        : 400,
+                    lineHeight:
+                      isTitleBlock
+                        ? "30px"
+                        : "24px",
                     whiteSpace: "pre",
                     overflow: "visible",
                     boxShadow: "none",
@@ -912,7 +927,10 @@ export default function FloatingEditableBlock({
                         background:
                           block.color,
                         color: "#fff",
-                        fontSize: 9,
+                        fontSize:
+                          isTitleBlock
+                            ? 10
+                            : 9,
                         fontWeight: 600,
                         lineHeight:
                           "16px",
@@ -1310,17 +1328,26 @@ export default function FloatingEditableBlock({
             "border-box",
 
           fontSize:
-            matchesInlineAppearance
-              ? 16
-              : 14,
+            isTitleBlock
+              ? 20
+              : matchesInlineAppearance
+                ? 16
+                : 14,
+
+          fontWeight:
+            isTitleBlock
+              ? 700
+              : 400,
 
           color:
             "#333",
 
           lineHeight:
-            matchesInlineAppearance
-              ? "24px"
-              : "20px",
+            isTitleBlock
+              ? "30px"
+              : matchesInlineAppearance
+                ? "24px"
+                : "20px",
 
           textAlign:
             "left",

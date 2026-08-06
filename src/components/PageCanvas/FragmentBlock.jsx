@@ -71,6 +71,9 @@ export default function FragmentBlock({
   const isEnglish =
     isEnglishText(text);
 
+  const isTitleBlock =
+    fragment.type === "Title";
+
   const blockId =
     fragment.blockId ??
     fragment.id;
@@ -170,7 +173,9 @@ export default function FragmentBlock({
             : "0 2px 8px rgba(0,0,0,0.04)",
 
         padding:
-          "7px 12px",
+          isTitleBlock
+            ? "10px 16px"
+            : "7px 12px",
 
         display:
           "block",
@@ -214,13 +219,17 @@ export default function FragmentBlock({
               "absolute",
 
             top:
-              -14,
+              isTitleBlock
+                ? -16
+                : -14,
 
             left:
               0,
 
             height:
-              16,
+              isTitleBlock
+                ? 18
+                : 16,
 
             padding:
               "0 8px",
@@ -235,10 +244,19 @@ export default function FragmentBlock({
               "#fff",
 
             fontSize:
-              9,
+              isTitleBlock
+                ? 10
+                : 9,
+
+            fontWeight:
+              isTitleBlock
+                ? 700
+                : 400,
 
             lineHeight:
-              "16px",
+              isTitleBlock
+                ? "18px"
+                : "16px",
 
             pointerEvents:
               "none",
@@ -270,13 +288,22 @@ export default function FragmentBlock({
             "100%",
 
           fontSize:
-            14,
+            isTitleBlock
+              ? 20
+              : 14,
+
+          fontWeight:
+            isTitleBlock
+              ? 700
+              : 400,
 
           color:
             "#333",
 
           lineHeight:
-            "20px",
+            isTitleBlock
+              ? "30px"
+              : "20px",
 
           textAlign:
             "left",

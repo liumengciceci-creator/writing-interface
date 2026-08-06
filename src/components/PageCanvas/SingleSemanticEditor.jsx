@@ -1823,6 +1823,15 @@ const SingleSemanticEditor =
                 user-select: none;
                 -webkit-user-select: none;
               }
+
+              .semantic-inline-block[data-semantic-type="Title"]::before {
+                top: -14px;
+                height: 18px;
+                padding: 0 8px;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 18px;
+              }
             `}
           </style>
 
@@ -2024,6 +2033,9 @@ const SingleSemanticEditor =
                   normalizeId(
                     block.id
                   );
+
+                const isTitleBlock =
+                  block.type === "Title";
 
                 if (
                   block
@@ -2329,6 +2341,10 @@ const SingleSemanticEditor =
                       )
                     }
 
+                    data-semantic-type={
+                      block.type
+                    }
+
                     data-force-line-break-before={
                       block.forceLineBreakBefore
                         ? "true"
@@ -2603,7 +2619,9 @@ const SingleSemanticEditor =
                       zIndex: 1,
 
                       display:
-                        "inline",
+                        isTitleBlock
+                          ? "inline-block"
+                          : "inline",
 
                       margin:
                         activeLengthPreview
@@ -2611,7 +2629,9 @@ const SingleSemanticEditor =
                           : "0 6px 6px 0",
 
                       padding:
-                        "2px 8px",
+                        isTitleBlock
+                          ? "6px 12px"
+                          : "2px 8px",
 
                       border:
                         "1px solid transparent",
@@ -2650,8 +2670,20 @@ const SingleSemanticEditor =
                       color:
                         "#202124",
 
+                      fontSize:
+                        isTitleBlock
+                          ? 20
+                          : 16,
+
+                      fontWeight:
+                        isTitleBlock
+                          ? 700
+                          : 400,
+
                       lineHeight:
-                        "24px",
+                        isTitleBlock
+                          ? "30px"
+                          : "24px",
 
                       caretColor:
                         "#111827",
