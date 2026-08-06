@@ -53,7 +53,7 @@ const HIDDEN_DEFAULT_TEMPLATES_STORAGE_KEY =
   "writing-interface-hidden-default-block-templates";
 
 const DEFAULT_TEMPLATE_OVERRIDES_STORAGE_KEY =
-  "writing-interface-default-block-template-overrides";
+  "writing-interface-default-block-template-overrides-v2";
 
 const LEGACY_PALETTE_WIDTH_STORAGE_KEY =
   "writing-interface-palette-width";
