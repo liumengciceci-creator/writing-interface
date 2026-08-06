@@ -2057,8 +2057,18 @@ const SingleSemanticEditor =
                         outline: "none",
                         background: "transparent",
                         color: "#333",
-                        fontSize: 16,
-                        lineHeight: "28px",
+                        fontSize:
+                          isTitleBlock
+                            ? 20
+                            : 16,
+                        fontWeight:
+                          isTitleBlock
+                            ? 700
+                            : 400,
+                        lineHeight:
+                          isTitleBlock
+                            ? "26px"
+                            : "28px",
                         whiteSpace: "pre-wrap",
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
