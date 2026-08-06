@@ -14,7 +14,6 @@ export default function Toolbar({
   onGenerate,
   onComplete,
   onToggleModuleVisibility,
-  onExportWord,
 
   selectedIds = [],
 
@@ -316,28 +315,6 @@ export default function Toolbar({
           }}
         >
           完成
-        </button>
-
-
-        <button
-          type="button"
-          onClick={onExportWord}
-          disabled={
-            isGenerating ||
-            isAdjustingLength
-          }
-          style={{
-            ...toolbarWideButton,
-
-            opacity:
-              isGenerating ||
-              isAdjustingLength
-                ? 0.5
-                : 1,
-          }}
-          title="将当前线性正文导出为 Word 文档"
-        >
-          导出Word
         </button>
 
 

@@ -480,8 +480,12 @@ export default function App() {
               left: 18,
               bottom: 18,
               zIndex: 100,
-              minWidth: 92,
-              padding: "8px 12px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              gap: 8,
+              minWidth: 118,
+              padding: 10,
               boxSizing:
                 "border-box",
               border:
@@ -499,23 +503,70 @@ export default function App() {
               fontSize: 12,
               lineHeight: "18px",
               textAlign: "center",
-              pointerEvents: "none",
               userSelect: "none",
               WebkitUserSelect:
                 "none",
             }}
           >
-            总字数　
-            <span
+            <div
               style={{
-                color: "#111827",
-                fontWeight: 600,
-                fontVariantNumeric:
-                  "tabular-nums",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
               }}
             >
-              {totalCharacterCount}
-            </span>
+              总字数　
+              <span
+                style={{
+                  color: "#111827",
+                  fontWeight: 600,
+                  fontVariantNumeric:
+                    "tabular-nums",
+                }}
+              >
+                {totalCharacterCount}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportWord}
+              disabled={
+                totalCharacterCount === 0 ||
+                isGenerating ||
+                isAdjustingLength
+              }
+              title="将当前线性正文导出为 Word 文档"
+              style={{
+                width: "100%",
+                height: 30,
+                padding: "0 10px",
+                border:
+                  "1px solid rgba(17,24,39,0.12)",
+                borderRadius: 7,
+                background:
+                  totalCharacterCount === 0 ||
+                  isGenerating ||
+                  isAdjustingLength
+                    ? "#f3f4f6"
+                    : "#ffffff",
+                color:
+                  totalCharacterCount === 0 ||
+                  isGenerating ||
+                  isAdjustingLength
+                    ? "#9ca3af"
+                    : "#374151",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor:
+                  totalCharacterCount === 0 ||
+                  isGenerating ||
+                  isAdjustingLength
+                    ? "default"
+                    : "pointer",
+              }}
+            >
+              导出Word
+            </button>
           </div>
         </div>
 
@@ -604,10 +655,6 @@ export default function App() {
 
   onToggleModuleVisibility={
     handleToggleModuleVisibility
-  }
-
-  onExportWord={
-    handleExportWord
   }
 
   selectedIds={
