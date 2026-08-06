@@ -11,6 +11,9 @@ import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import {
   useEditor,
 } from "./hooks/useEditor";
+import {
+  exportDocumentToWord,
+} from "./utils/exportDocumentToWord.js";
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
@@ -265,6 +268,12 @@ export default function App() {
         ),
       [sections]
     );
+
+  const handleExportWord = () => {
+    exportDocumentToWord(
+      sections
+    );
+  };
 
   /**
    * 保存自定义标签。
@@ -595,6 +604,10 @@ export default function App() {
 
   onToggleModuleVisibility={
     handleToggleModuleVisibility
+  }
+
+  onExportWord={
+    handleExportWord
   }
 
   selectedIds={
