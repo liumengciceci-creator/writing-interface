@@ -5,8 +5,8 @@ export const CONTENT_WIDTH = 800;
 export const CONTENT_LEFT =
   (PAGE_WIDTH - CONTENT_WIDTH) / 2;
 
-export const CONTENT_TOP = 90;
-export const CONTENT_HEIGHT = 1070;
+export const CONTENT_TOP = 70;
+export const CONTENT_HEIGHT = 1090;
 
 export const ROW_HEIGHT = 58;
 export const BLOCK_HEIGHT = 40;
