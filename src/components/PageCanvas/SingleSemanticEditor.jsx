@@ -2630,7 +2630,7 @@ const SingleSemanticEditor =
 
                       padding:
                         isTitleBlock
-                          ? "6px 12px"
+                          ? "1px 12px 3px"
                           : "2px 8px",
 
                       border:
@@ -2682,7 +2682,7 @@ const SingleSemanticEditor =
 
                       lineHeight:
                         isTitleBlock
-                          ? "30px"
+                          ? "26px"
                           : "24px",
 
                       caretColor:

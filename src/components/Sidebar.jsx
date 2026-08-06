@@ -188,8 +188,7 @@ function loadHiddenDefaultTypes() {
     return parsedValue.filter(
       (type) =>
         typeof type ===
-          "string" &&
-        type !== "Title"
+          "string"
     );
   } catch (error) {
     console.error(
@@ -1038,7 +1037,11 @@ export default function Sidebar({
     );
 
   const defaultTemplates = [
-    DEFAULT_TITLE_TEMPLATE,
+    ...(
+      hiddenDefaultTypeSet.has("Title")
+        ? []
+        : [DEFAULT_TITLE_TEMPLATE]
+    ),
     ...BLOCK_TYPES.filter(
       (item) =>
         item.type !== "Title" &&
@@ -1224,10 +1227,6 @@ export default function Sidebar({
 
   const handleDeleteTemplate =
     (item) => {
-      if (item?.type === "Title") {
-        return;
-      }
-
       if (item.isCustom) {
         onDeleteCustomTemplate?.(
           item.id
@@ -1871,14 +1870,10 @@ export default function Sidebar({
                     0,
 
                   height:
-                    item.type === "Title"
-                      ? 40
-                      : 32,
+                    32,
 
                   padding:
-                    item.type === "Title"
-                      ? "0 10px"
-                      : "0 50px 0 7px",
+                    "0 50px 0 7px",
 
                   borderRadius:
                     8,
@@ -1896,14 +1891,10 @@ export default function Sidebar({
                     "#333",
 
                   fontSize:
-                    item.type === "Title"
-                      ? 16
-                      : 13,
+                    13,
 
                   fontWeight:
-                    item.type === "Title"
-                      ? 700
-                      : 400,
+                    400,
 
                   cursor:
                     "grab",
@@ -1965,10 +1956,6 @@ export default function Sidebar({
                   openEditTemplate(item);
                 }}
                 style={{
-                  display:
-                    item.type === "Title"
-                      ? "none"
-                      : "block",
                   position: "absolute",
                   right: 27,
                   top: "50%",
@@ -1991,7 +1978,7 @@ export default function Sidebar({
               </button>
 
               {/* 默认标签和自定义标签都允许删除 */}
-              {item.type !== "Title" && (
+              {(
                 <button
                   type="button"
 

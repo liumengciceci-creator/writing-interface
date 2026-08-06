@@ -884,7 +884,7 @@ export default function FloatingEditableBlock({
                       fragment.height ?? 28,
                     padding:
                       isTitleBlock
-                        ? "6px 12px"
+                        ? "1px 12px 3px"
                         : "2px 8px",
                     boxSizing:
                       "border-box",
@@ -904,7 +904,7 @@ export default function FloatingEditableBlock({
                         : 400,
                     lineHeight:
                       isTitleBlock
-                        ? "30px"
+                        ? "26px"
                         : "24px",
                     whiteSpace: "pre",
                     overflow: "visible",
@@ -1344,7 +1344,7 @@ export default function FloatingEditableBlock({
 
           lineHeight:
             isTitleBlock
-              ? "30px"
+              ? "26px"
               : matchesInlineAppearance
                 ? "24px"
                 : "20px",

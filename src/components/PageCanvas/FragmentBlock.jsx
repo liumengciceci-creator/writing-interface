@@ -174,7 +174,7 @@ export default function FragmentBlock({
 
         padding:
           isTitleBlock
-            ? "10px 16px"
+            ? "2px 14px 4px"
             : "7px 12px",
 
         display:
@@ -302,7 +302,7 @@ export default function FragmentBlock({
 
           lineHeight:
             isTitleBlock
-              ? "30px"
+              ? "26px"
               : "20px",
 
           textAlign:
