@@ -522,10 +522,10 @@ export default function InstructionPalette({
   return (
     <>
       <FloatingPaletteWindow
-        storageKey="writing-interface-instruction-palette-position-v3"
+        storageKey="writing-interface-instruction-palette-position-v4"
         defaultPosition={{
           x: 18,
-          y: 575,
+          y: 200,
         }}
         width={width}
         onWidthChange={
