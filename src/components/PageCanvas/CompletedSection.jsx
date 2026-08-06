@@ -72,7 +72,7 @@ export default function CompletedSection({
           minHeight: section.height,
           fontSize:
             isTitleSection
-              ? 22
+              ? 20
               : 14,
           fontWeight:
             isTitleSection
@@ -81,7 +81,7 @@ export default function CompletedSection({
           color: "#222",
           lineHeight:
             isTitleSection
-              ? "34px"
+              ? "26px"
               : "28px",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
