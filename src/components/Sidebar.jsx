@@ -19,8 +19,9 @@ const BLOCK_TYPE_LABELS = {
   Title: "标题",
   Claim: "论点",
   Evidence: "证据",
-  Reason: "推理",
+  Reason: "原因",
   Counter: "反论",
+  Compare: "对比",
   Conclusion: "结论",
   Question: "问题",
   Generated: "生成",
@@ -66,8 +67,33 @@ const INSTRUCTION_PALETTE_WIDTH_STORAGE_KEY =
 const TEMPLATE_ORDER_STORAGE_KEY =
   "writing-interface-label-template-order";
 
+const TEMPLATE_ORDER_VERSION_STORAGE_KEY =
+  "writing-interface-label-template-order-version";
+
+const CURRENT_TEMPLATE_ORDER_VERSION =
+  "eight-default-modules-v1";
+
 function loadTemplateOrder() {
   try {
+    const savedVersion =
+      window.localStorage.getItem(
+        TEMPLATE_ORDER_VERSION_STORAGE_KEY
+      );
+
+    if (
+      savedVersion !==
+      CURRENT_TEMPLATE_ORDER_VERSION
+    ) {
+      window.localStorage.setItem(
+        TEMPLATE_ORDER_VERSION_STORAGE_KEY,
+        CURRENT_TEMPLATE_ORDER_VERSION
+      );
+      window.localStorage.removeItem(
+        TEMPLATE_ORDER_STORAGE_KEY
+      );
+      return [];
+    }
+
     const parsed = JSON.parse(
       window.localStorage.getItem(
         TEMPLATE_ORDER_STORAGE_KEY
@@ -149,7 +175,6 @@ function loadDefaultTemplateOverrides() {
 const DEFAULT_SIDEBAR_EXCLUDED_TYPES =
   new Set([
     "Generated",
-    "Reason",
     "Question",
     "Merged",
   ]);
@@ -1074,7 +1099,24 @@ export default function Sidebar({
       })
     ),
 
-    ...customTemplates.map(
+    ...customTemplates.filter(
+      (item) => {
+        const normalizedLabel = String(
+          item?.label || item?.type || ""
+        ).trim();
+
+        return ![
+          "标题",
+          "论点",
+          "原因",
+          "证据",
+          "反论",
+          "对比",
+          "过渡",
+          "结论",
+        ].includes(normalizedLabel);
+      }
+    ).map(
       (item) => {
         const savedFill =
           typeof item.fill ===

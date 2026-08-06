@@ -33,17 +33,17 @@ export const BLOCK_TYPES = [
   },
 
   {
+    type: "Reason",
+    label: "原因",
+    color: "#5b7cfa",
+    fill: "#e9eeff",
+  },
+
+  {
     type: "Evidence",
     label: "证据",
     color: "#f2a55f",
     fill: "#fef1e3",
-  },
-
-  {
-    type: "Reason",
-    label: "推理",
-    color: "#56c7ad",
-    fill: "#e7f8f3",
   },
 
   {
@@ -54,10 +54,10 @@ export const BLOCK_TYPES = [
   },
 
   {
-    type: "Conclusion",
-    label: "结论",
-    color: "#6b86f0",
-    fill: "#e9eeff",
+    type: "Compare",
+    label: "对比",
+    color: "#63d8cf",
+    fill: "#ebfbfa",
   },
 
   {
@@ -79,6 +79,13 @@ export const BLOCK_TYPES = [
     label: "过渡",
     color: "#2aa198",
     fill: "#e6f7f5",
+  },
+
+  {
+    type: "Conclusion",
+    label: "结论",
+    color: "#6b86f0",
+    fill: "#e9eeff",
   },
 
   {
