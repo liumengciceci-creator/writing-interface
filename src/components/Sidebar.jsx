@@ -985,6 +985,20 @@ export default function Sidebar({
   ] = useState("before");
 
   /**
+   * 标签面板与指令面板共用同一个宽度。
+   * 调整任意一个面板时，另一块面板同步变化。
+   */
+  const handleSharedPaletteWidthChange =
+    (nextWidth) => {
+      setLabelPaletteWidth(
+        nextWidth
+      );
+      setInstructionPaletteWidth(
+        nextWidth
+      );
+    };
+
+  /**
    * pending：刚开始拖拽，尚未判断意图；
    * reorder：在 Sidebar 内纵向调整；
    * canvas：向右拖往画布，一旦进入就不会再误触排序。
@@ -1546,7 +1560,7 @@ export default function Sidebar({
         }}
         width={labelPaletteWidth}
         onWidthChange={
-          setLabelPaletteWidth
+          handleSharedPaletteWidthChange
         }
       >
       <div
@@ -2110,9 +2124,9 @@ export default function Sidebar({
       </FloatingPaletteWindow>
 
       <InstructionPalette
-        width={instructionPaletteWidth}
+        width={labelPaletteWidth}
         onWidthChange={
-          setInstructionPaletteWidth
+          handleSharedPaletteWidthChange
         }
       />
 
