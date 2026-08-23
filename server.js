@@ -2082,8 +2082,9 @@ app.post(
 ${JSON.stringify(blocks, null, 2)}
 
 输出阶段与格式：
-第一阶段，为每个模块依次输出一行：
-{"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄"}
+第一阶段，按照写作顺序判断每个模块在整体论证中做了什么。每完成一个模块立即输出一行：
+{"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄","narrative":"面向作者说明这个模块如何推进整体论证的一至两句具体文字"}
+narrative 必须结合全部模块的上下文形成连续语言：第一个相关模块用“这里你提出了……”；后续模块根据真实关系灵活使用“基于这一点，你……”“根据这个……，你又……”“随后你……”“最后你……”。必须写出具体内容，不能只说“提出论点、补充原因、提供证据”。
 
 第二阶段，自主判断真实内容关系。每确认一条直接关系立即输出一行：
 {"type":"relation","sourceId":"主动补充、推进或处理另一个模块的id","targetId":"被推进或处理的模块id","relation":"由内容决定的2至6字关系词"}
@@ -2105,6 +2106,7 @@ ${JSON.stringify(blocks, null, 2)}
             type: "module",
             id: String(item.id),
             summary: String(item.summary || "").replace(/\s+/g, " ").trim().slice(0, 32),
+            narrative: String(item.narrative || item.summary || "").replace(/\s+/g, " ").trim(),
           });
         } else if (
           item.type === "relation" &&

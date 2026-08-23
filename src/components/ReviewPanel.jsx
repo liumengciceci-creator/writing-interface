@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const actionButton = {
   height: 32,
@@ -90,11 +91,72 @@ function LogicTree({ edges, activeEdgeId, blinkOn }) {
   );
 }
 
+function ModuleNoteConnectors({ notes }) {
+  const [paths, setPaths] = useState([]);
+
+  useEffect(() => {
+    const updatePaths = () => {
+      const blockElements = Array.from(document.querySelectorAll("[data-semantic-block-id], [data-block-id]"));
+      const noteElements = Array.from(document.querySelectorAll("[data-review-note-id]"));
+      const nextPaths = notes.map((note) => {
+        const source = blockElements.find((element) =>
+          String(element.getAttribute("data-semantic-block-id") || element.getAttribute("data-block-id")) === String(note.blockId)
+        );
+        const target = noteElements.find((element) => element.getAttribute("data-review-note-id") === String(note.id));
+        if (!source || !target) return null;
+        const sourceRect = source.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        if (!sourceRect.width || !sourceRect.height || !targetRect.width || !targetRect.height) return null;
+        const startX = sourceRect.right + 5;
+        const startY = sourceRect.top + sourceRect.height / 2;
+        const endX = targetRect.left - 9;
+        const endY = targetRect.top + targetRect.height / 2;
+        const bend = Math.max(42, Math.abs(endX - startX) * 0.42);
+        return {
+          id: note.id,
+          color: note.color,
+          d: `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`,
+        };
+      }).filter(Boolean);
+      setPaths(nextPaths);
+    };
+
+    const frame = window.requestAnimationFrame(updatePaths);
+    const delayed = window.setTimeout(updatePaths, 180);
+    window.addEventListener("resize", updatePaths);
+    window.addEventListener("scroll", updatePaths, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(delayed);
+      window.removeEventListener("resize", updatePaths);
+      window.removeEventListener("scroll", updatePaths, true);
+    };
+  }, [notes]);
+
+  if (paths.length === 0) return null;
+  return createPortal(
+    <svg aria-hidden="true" width="100%" height="100%" viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`} style={{ position: "fixed", inset: 0, zIndex: 135, pointerEvents: "none", overflow: "visible" }}>
+      <defs>
+        {paths.map((path) => (
+          <marker key={`marker-${path.id}`} id={`review-arrow-${path.id}`} markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 0 L 8 4 L 0 8 Z" fill={path.color} />
+          </marker>
+        ))}
+      </defs>
+      {paths.map((path) => (
+        <path key={path.id} d={path.d} fill="none" stroke={path.color} strokeWidth="1.6" strokeLinecap="round" markerEnd={`url(#review-arrow-${path.id})`} opacity="0.88" />
+      ))}
+    </svg>,
+    document.body
+  );
+}
+
 export default function ReviewPanel({
   open,
   isReviewing,
   progress,
   graph = [],
+  notes = [],
   frameworkSummary = "",
   activeGraphId = null,
   graphBlinkOn = false,
@@ -114,7 +176,7 @@ export default function ReviewPanel({
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 40,
+        zIndex: 140,
         width: "100%",
         height: "100vh",
         minWidth: 0,
@@ -138,9 +200,9 @@ export default function ReviewPanel({
             <div style={{ marginTop: 4, color: "#6b7280", fontSize: 12 }}>
               {isReviewing
                 ? progress.total > 0
-                  ? `正在实时判断模块关系 · 已识别 ${progress.current} 条`
-                  : "正在通读并概括所选模块"
-                : `共识别 ${progress.total} 组关系`}
+                  ? `正在实时分析模块 · 已完成 ${progress.current} 个`
+                  : "正在通读所选模块"
+                : `共分析 ${progress.total} 个模块`}
             </div>
           </div>
           <button
@@ -165,25 +227,49 @@ export default function ReviewPanel({
         </div>
       </header>
 
-      {graph.length > 0 && (
+      <ModuleNoteConnectors notes={notes} />
+
+      {notes.length > 0 && (
         <section style={{ padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
-          {frameworkSummary && (
-            <>
-              <div style={{ marginBottom: 8, color: "#374151", fontSize: 12, fontWeight: 700 }}>整体关系判断</div>
-              <div style={{ marginBottom: 16, padding: "11px 12px", borderRadius: 9, background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.75 }}>
-                {frameworkSummary}
-              </div>
-            </>
-          )}
           <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>
-            {isReviewing ? "正在形成模块关系图" : "模块关系图"}
+            {isReviewing ? "正在实时梳理论证过程" : "论证过程"}
           </div>
-          <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {notes.map((note, index) => (
+              <article
+                key={note.id}
+                data-review-note-id={note.id}
+                style={{
+                  position: "relative",
+                  zIndex: 3,
+                  padding: "12px 13px 12px 15px",
+                  border: `1.5px solid ${note.color}`,
+                  borderRadius: 12,
+                  background: note.fill,
+                  boxShadow: "0 5px 16px rgba(15,23,42,0.07)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: note.color, color: "#fff", fontSize: 10, fontWeight: 800 }}>
+                    {index + 1}
+                  </span>
+                  <span style={{ color: note.color, fontSize: 11, fontWeight: 800 }}>{note.type}</span>
+                </div>
+                <div style={{ color: "#374151", fontSize: 12, lineHeight: 1.72 }}>{note.text}</div>
+              </article>
+            ))}
+          </div>
+          {frameworkSummary && (
+            <div style={{ marginTop: 16, padding: "11px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.75 }}>
+              <div style={{ marginBottom: 5, color: "#374151", fontSize: 11, fontWeight: 800 }}>整体判断</div>
+              {frameworkSummary}
+            </div>
+          )}
         </section>
       )}
 
       <div style={{ flex: "0 0 auto", overflow: "visible", padding: 14 }}>
-        {isReviewing && results.length === 0 && (
+        {isReviewing && notes.length === 0 && results.length === 0 && (
           <div style={{ padding: "32px 18px", color: "#6b7280", fontSize: 13, lineHeight: 1.7, textAlign: "center" }}>
             正在读取所选模块并分析它们之间的论证关系…
           </div>
@@ -195,7 +281,7 @@ export default function ReviewPanel({
           </div>
         )}
 
-        {graph.length > 0 && (
+        {notes.length > 0 && (
           <button
             type="button"
             onClick={() => setDetailsOpen((value) => !value)}

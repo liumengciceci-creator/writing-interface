@@ -142,6 +142,7 @@ export default function App() {
     blinkOn: false,
     status: "",
     graph: [],
+    notes: [],
     frameworkSummary: "",
     activeGraphId: null,
     results: [],
@@ -342,7 +343,7 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    setReviewState({ open: true, running: true, current: 0, total: 0, activeIds: [], blinkOn: false, status: "正在整体审阅所选模块…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
+    setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在整体审阅所选模块…", graph: [], notes: [], frameworkSummary: "", activeGraphId: null, results: [] });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
@@ -368,9 +369,27 @@ export default function App() {
         onEvent: (event) => {
           if (event.type === "module") {
             summaries.set(String(event.id), String(event.summary || ""));
+            const block = blockById.get(String(event.id));
+            if (!block) return;
+            const note = {
+              id: String(event.id),
+              blockId: String(event.id),
+              type: typeLabels[block.type] || block.type || "模块",
+              text: String(event.narrative || event.summary || ""),
+              color: block.color || "#64748b",
+              fill: block.fill || "#f8fafc",
+            };
             setReviewState((state) => ({
               ...state,
-              status: `正在概括${typeLabels[blockById.get(String(event.id))?.type] || "模块"}内容…`,
+              current: state.notes.some((item) => item.id === note.id) ? state.current : state.current + 1,
+              total: blocks.length,
+              notes: state.notes.some((item) => item.id === note.id)
+                ? state.notes.map((item) => item.id === note.id ? note : item)
+                : [...state.notes, note],
+              activeIds: [block.id],
+              activeGraphId: `note-${block.id}`,
+              blinkOn: true,
+              status: `正在判断${note.type}在整体论证中的作用…`,
             }));
             return;
           }
@@ -393,28 +412,11 @@ export default function App() {
               targetBlock,
             };
             relationByPair.set(pairKey, relationInfo);
-            const graphEdge = {
-              id,
-              sourceType,
-              targetType,
-              sourceText: summaries.get(String(sourceBlock.id)) || "正在概括此模块",
-              targetText: summaries.get(String(targetBlock.id)) || "正在概括此模块",
-              sourceColor: sourceBlock.color || "#64748b",
-              sourceFill: sourceBlock.fill || "#f1f5f9",
-              targetColor: targetBlock.color || "#374151",
-              targetFill: targetBlock.fill || "#f3f4f6",
-              targetId: String(targetBlock.id),
-              relation,
-              criterion: relationInfo.criterion,
-            };
             setReviewState((state) => ({
               ...state,
-              current: state.graph.length + 1,
-              total: state.graph.length + 1,
-              activeIds: [sourceBlock.id, targetBlock.id],
-              activeGraphId: id,
-              blinkOn: true,
-              graph: [...state.graph, graphEdge],
+              activeIds: [],
+              activeGraphId: null,
+              blinkOn: false,
               status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
             }));
             return;
@@ -457,7 +459,7 @@ export default function App() {
         activeIds: [],
         activeGraphId: null,
         blinkOn: false,
-        status: `整体审阅完成：识别 ${state.graph.length} 组关系`,
+        status: `整体审阅完成：分析 ${state.notes.length} 个模块`,
       }));
     } catch (error) {
       console.error("整体审阅失败：", error);
@@ -1157,6 +1159,7 @@ beginDuplicateDrag={
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
           graph={reviewState.graph}
+          notes={reviewState.notes}
           frameworkSummary={reviewState.frameworkSummary}
           activeGraphId={reviewState.activeGraphId}
           graphBlinkOn={reviewState.blinkOn}
