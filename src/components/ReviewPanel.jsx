@@ -54,7 +54,7 @@ function LogicNode({ type, text, color, fill, active = false, blinkOn = false })
       }}
     >
       <div style={{ color, fontSize: 11, fontWeight: 800 }}>{type}</div>
-      <div style={{ marginTop: 3, overflow: "hidden", color: "#4b5563", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ marginTop: 3, color: "#4b5563", fontSize: 10, lineHeight: 1.45, whiteSpace: "normal", overflowWrap: "anywhere" }}>
         {text || "空模块"}
       </div>
     </div>
@@ -229,7 +229,7 @@ export default function ReviewPanel({
               cursor: "pointer",
             }}
           >
-            <span>发现 {actionableResults.length} 个潜在可以增强的点</span>
+            <span>发现 {actionableResults.length} 个可加强点</span>
             <span aria-hidden="true" style={{ color: "#718096", transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 180ms ease" }}>⌄</span>
           </button>
         )}
@@ -248,9 +248,17 @@ export default function ReviewPanel({
             </div>
             <div style={{ marginTop: 7, color: "#4b5563", fontSize: 12, lineHeight: 1.6 }}>{item.summary || item.comment}</div>
 
+            {!item.decision && (
+              <div style={{ marginTop: 8, color: "#92400e", fontSize: 12, lineHeight: 1.6 }}>
+                {item.suggestion || "这部分内容可以进一步加强。"}
+              </div>
+            )}
+
             {item.suggestedText !== item.originalText && (
               <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#f5f7fb", color: "#374151", fontSize: 12, lineHeight: 1.65 }}>
-                <div style={{ marginBottom: 4, color: "#64748b", fontSize: 11, fontWeight: 700 }}>可加强部分</div>
+                <div style={{ marginBottom: 4, color: "#64748b", fontSize: 11, fontWeight: 700 }}>
+                  {item.decision === "accepted" ? "加强后的结果" : "建议加强为"}
+                </div>
                 {item.suggestedText}
               </div>
             )}

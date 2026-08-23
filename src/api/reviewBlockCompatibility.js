@@ -17,6 +17,45 @@ function getTextUnits(text) {
   return units;
 }
 
+function compactTarget(text) {
+  const firstClause = String(text || "").split(/[，,。；;：:！？!?]/).find(Boolean) || "该论点";
+  return firstClause.trim();
+}
+
+function createContentSuggestion(relationType, sourceText, targetText) {
+  const target = compactTarget(targetText);
+  const cleanSource = sourceText.replace(/[。！？!?]+$/, "");
+
+  if (relationType === "reasonExplainsClaim") {
+    return {
+      suggestion: "这个原因偏概括，可以补充它如何具体导致论点成立。",
+      text: `${cleanSource}。这一机制会直接影响${target}，从而解释该论点为何成立。`,
+    };
+  }
+  if (relationType === "evidenceSupportsClaim") {
+    return {
+      suggestion: "这项证据还可以更具体，建议补充对象、数据来源或实际结果。",
+      text: `${cleanSource}。这一具体事实为“${target}”提供了直接支持。`,
+    };
+  }
+  if (relationType === "counterChallengesClaim") {
+    return {
+      suggestion: "这个反论可以进一步说明原论点在哪些条件下不成立。",
+      text: `${cleanSource}。这一反面情况表明，原论点需要限定适用条件。`,
+    };
+  }
+  if (relationType === "compareClarifiesClaim") {
+    return {
+      suggestion: "这组对比可以补充明确的比较维度，使差异更有解释力。",
+      text: `${cleanSource}。从作用方式和结果来看，这一差异进一步阐明了“${target}”。`,
+    };
+  }
+  return {
+    suggestion: "这个结论可以更明确地回扣核心论点，并概括原因与证据。",
+    text: `${cleanSource}。总体而言，上述原因与证据共同说明了全文的核心判断。`,
+  };
+}
+
 function createLocalReview({ relationType, sourceBlock, targetBlock }) {
   const rule = RELATION_RULES[relationType] || RELATION_RULES.reasonExplainsClaim;
   const sourceText = String(sourceBlock?.text || "").trim();
@@ -33,13 +72,15 @@ function createLocalReview({ relationType, sourceBlock, targetBlock }) {
 
   const explicitRelation = /因为|由于|表明|说明|证明|例如|数据显示|相比|然而|综上|因此|由此/.test(sourceText);
   const connected = explicitRelation || overlap >= 2;
+  const contentSuggestion = createContentSuggestion(relationType, sourceText, targetText);
 
   return {
     score: connected ? 86 : 64,
     title: connected ? rule.goodTitle : rule.weakTitle,
     summary: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
     comment: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
-    suggestedText: sourceText.startsWith(rule.connector) ? sourceText : `${rule.connector}${sourceText}`,
+    suggestion: contentSuggestion.suggestion,
+    suggestedText: contentSuggestion.text,
   };
 }
 
@@ -62,6 +103,7 @@ export async function reviewBlockCompatibility({ relationType, sourceBlock, targ
       title: String(data.title || RELATION_RULES[relationType]?.title || "论证关系建议"),
       comment: String(data.comment),
       summary: String(data.summary || data.comment).split(/[。！？!?]/)[0].slice(0, 48) + "。",
+      suggestion: String(data.suggestion || data.recommendation || "可以进一步补充具体内容，使这条论证关系更充分。"),
       suggestedText,
     };
   } catch (error) {

@@ -346,7 +346,7 @@ export default function App() {
     if (!normalized) return "尚未填写内容";
     if (type === "全文") return "所选模块构成的完整论证";
 
-    const clauses = normalized.split(/[。；;！？!?]/).filter(Boolean);
+    const clauses = normalized.split(/[，,。；;：:！？!?]/).filter(Boolean);
     const keywords = {
       Claim: /关键|核心|影响|取决于|能够|不能|并非|是否/,
       Reason: /因为|由于|导致|依赖|源于|能够|使得/,
@@ -356,8 +356,7 @@ export default function App() {
       Conclusion: /因此|综上|总体|关键|取决于|表明/,
     };
     const selected = clauses.find((clause) => keywords[type]?.test(clause)) || clauses[0] || normalized;
-    const compact = selected.replace(/^[，,：:\s]+/, "").trim();
-    return compact.length > 22 ? `${compact.slice(0, 22)}…` : compact;
+    return selected.replace(/^[，,：:\s]+/, "").trim();
   };
 
   const handleReview = async () => {
