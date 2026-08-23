@@ -405,6 +405,10 @@ export default function App() {
             const id = `inferred-${sourceBlock.id}-${targetBlock.id}-${relationByPair.size}`;
             const relationInfo = {
               id,
+              sourceId: String(sourceBlock.id),
+              targetId: String(targetBlock.id),
+              relation,
+              color: sourceBlock.color || targetBlock.color || "#9aa3af",
               relationLabel: `${sourceType} → ${targetType}`,
               criterion: `这两个模块形成“${relation}”的内容关系`,
               sourceBlock,
@@ -413,6 +417,9 @@ export default function App() {
             relationByPair.set(pairKey, relationInfo);
             setReviewState((state) => ({
               ...state,
+              graph: state.graph.some((item) => item.id === relationInfo.id)
+                ? state.graph
+                : [...state.graph, relationInfo],
               activeIds: [],
               activeGraphId: null,
               blinkOn: false,
@@ -433,6 +440,8 @@ export default function App() {
                 id: relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}-${index}`,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
                 criterion: relation?.criterion || "模型识别出的内容关系",
+                relationSourceId: String(sourceBlock.id),
+                relationTargetId: String(targetBlock.id),
                 targetBlockId: sourceBlock.id,
                 originalText: String(sourceBlock.text || ""),
                 suggestedText: String(item.suggestedText || sourceBlock.text || ""),
@@ -1155,6 +1164,7 @@ beginDuplicateDrag={
           open={reviewState.open}
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
+          graph={reviewState.graph}
           notes={reviewState.notes}
           activeGraphId={reviewState.activeGraphId}
           graphBlinkOn={reviewState.blinkOn}
