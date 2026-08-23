@@ -71,24 +71,35 @@ export default function ReviewPanel({
       </header>
 
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
-        {results.length === 0 && (
+        {isReviewing && results.length === 0 && (
           <div style={{ padding: "32px 18px", color: "#6b7280", fontSize: 13, lineHeight: 1.7, textAlign: "center" }}>
             正在读取所选模块并分析它们之间的论证关系…
           </div>
         )}
 
-        {results.map((item, index) => (
+        {!isReviewing && progress.total === 0 && results.length === 0 && (
+          <div style={{ padding: "32px 18px", color: "#6b7280", fontSize: 13, lineHeight: 1.7, textAlign: "center" }}>
+            所选模块中没有可审阅的明确论证关系。请同时选择论点，以及对应的原因、证据、反论、对比或结论模块。
+          </div>
+        )}
+
+        {results.map((item) => (
           <article
             key={item.id}
             style={{ marginBottom: 12, padding: 14, border: "1px solid #e6eaf0", borderRadius: 12, background: "#fff" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <span style={{ color: "#64748b", fontSize: 11, fontWeight: 700 }}>关系 {index + 1}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#315ea8", fontSize: 12, fontWeight: 700 }}>
+                {item.relationLabel.split(" → ")[0]}
+                <span aria-hidden="true" style={{ color: "#7c9bd3", fontSize: 16 }}>→</span>
+                {item.relationLabel.split(" → ")[1]}
+              </span>
               <span style={{ color: item.score >= 80 ? "#287a55" : "#a16207", fontSize: 11, fontWeight: 700 }}>
                 匹配度 {item.score}%
               </span>
             </div>
-            <div style={{ marginTop: 8, color: "#1f2937", fontSize: 14, fontWeight: 700 }}>{item.title}</div>
+            <div style={{ marginTop: 9, color: "#64748b", fontSize: 11, fontWeight: 600 }}>{item.criterion}</div>
+            <div style={{ marginTop: 5, color: "#1f2937", fontSize: 14, fontWeight: 700 }}>{item.title}</div>
             <div style={{ marginTop: 7, color: "#4b5563", fontSize: 12, lineHeight: 1.65 }}>{item.comment}</div>
 
             {item.suggestedText !== item.originalText && (

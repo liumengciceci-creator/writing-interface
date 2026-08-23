@@ -298,12 +298,55 @@ export default function App() {
     return ordered;
   };
 
+  const buildReviewRelations = (blocks) => {
+    const relations = [];
+    const claims = blocks.filter((block) => block.type === "Claim");
+    const findClaimFor = (sourceIndex) =>
+      blocks.slice(0, sourceIndex).filter((block) => block.type === "Claim").at(-1) || claims[0] || null;
+
+    blocks.forEach((block, index) => {
+      const claim = findClaimFor(index);
+      const addClaimRelation = (relationType, relationLabel, criterion) => {
+        if (!claim) return;
+        relations.push({ relationType, relationLabel, criterion, sourceBlock: block, targetBlock: claim, contextBlocks: [claim, block] });
+      };
+
+      if (block.type === "Reason") addClaimRelation("reasonExplainsClaim", "原因 → 论点", "原因是否解释论点");
+      if (block.type === "Evidence") addClaimRelation("evidenceSupportsClaim", "证据 → 论点", "证据是否支持论点");
+      if (block.type === "Counter") addClaimRelation("counterChallengesClaim", "反论 → 论点", "反论是否回应论点");
+      if (block.type === "Compare") addClaimRelation("compareClarifiesClaim", "对比 → 论点", "对比是否阐明论点");
+
+      if (block.type === "Conclusion") {
+        const documentBlocks = blocks.slice(0, index).filter((item) => item.type !== "Title");
+        if (documentBlocks.length > 0) {
+          relations.push({
+            relationType: "conclusionSummarizesDocument",
+            relationLabel: "结论 → 全文",
+            criterion: "结论是否总结全文",
+            sourceBlock: block,
+            targetBlock: { id: "selected-document", type: "全文", text: documentBlocks.map((item) => item.text || "").join("\n") },
+            contextBlocks: documentBlocks,
+            activeIds: [block.id, ...documentBlocks.map((item) => item.id)],
+          });
+        }
+      }
+    });
+
+    return relations;
+  };
+
   const handleReview = async () => {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    const total = blocks.length - 1;
+    const relations = buildReviewRelations(blocks);
+    const total = relations.length;
     setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", results: [] });
+
+    if (total === 0) {
+      setReviewState((state) => ({ ...state, running: false, status: "所选模块中没有可审阅的明确论证关系" }));
+      return;
+    }
 
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) => state.running ? { ...state, blinkOn: !state.blinkOn } : state);
@@ -311,23 +354,24 @@ export default function App() {
 
     try {
       for (let index = 0; index < total; index += 1) {
-        const firstBlock = blocks[index];
-        const secondBlock = blocks[index + 1];
-        const status = `正在检查“${firstBlock.type || "模块"}”与“${secondBlock.type || "模块"}”的匹配度（${index + 1}/${total}）`;
-        setReviewState((state) => ({ ...state, current: index + 1, activeIds: [firstBlock.id, secondBlock.id], status }));
+        const relation = relations[index];
+        const { sourceBlock, targetBlock } = relation;
+        const status = `正在检查：${relation.criterion}（${index + 1}/${total}）`;
+        setReviewState((state) => ({ ...state, current: index + 1, activeIds: relation.activeIds || [sourceBlock.id, targetBlock.id], status }));
 
         const [review] = await Promise.all([
-          reviewBlockCompatibility({ firstBlock, secondBlock }),
+          reviewBlockCompatibility(relation),
           new Promise((resolve) => window.setTimeout(resolve, 900)),
         ]);
         setReviewState((state) => ({
           ...state,
           results: [...state.results, {
             ...review,
-            id: `${firstBlock.id}-${secondBlock.id}`,
-            firstBlockId: firstBlock.id,
-            targetBlockId: secondBlock.id,
-            originalText: String(secondBlock.text || ""),
+            id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
+            relationLabel: relation.relationLabel,
+            criterion: relation.criterion,
+            targetBlockId: sourceBlock.id,
+            originalText: String(sourceBlock.text || ""),
             decision: null,
           }],
         }));

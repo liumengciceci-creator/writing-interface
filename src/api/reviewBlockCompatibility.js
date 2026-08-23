@@ -2,63 +2,70 @@ import { API_BASE_URL } from "../apiConfig";
 
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 
-function createLocalReview(firstBlock, secondBlock) {
-  const firstText = String(firstBlock?.text || "").trim();
-  const secondText = String(secondBlock?.text || "").trim();
-  const firstLabel = String(firstBlock?.type || "前一模块");
-  const secondLabel = String(secondBlock?.type || "后一模块");
+const RELATION_RULES = {
+  reasonExplainsClaim: { title: "原因是否解释论点", goodTitle: "原因能够解释论点", weakTitle: "原因与论点的解释关系不够明确", connector: "之所以如此，是因为" },
+  evidenceSupportsClaim: { title: "证据是否支持论点", goodTitle: "证据能够支持论点", weakTitle: "证据与论点的支持关系不够明确", connector: "这一论点可以从以下事实得到支持：" },
+  counterChallengesClaim: { title: "反论是否回应论点", goodTitle: "反论能够回应论点", weakTitle: "反论尚未直接回应论点", connector: "针对这一论点，也需要考虑：" },
+  compareClarifiesClaim: { title: "对比是否阐明论点", goodTitle: "对比能够阐明论点", weakTitle: "对比与论点的关联不够明确", connector: "与之相比，" },
+  conclusionSummarizesDocument: { title: "结论是否总结全文", goodTitle: "结论能够总结全文", weakTitle: "结论尚未充分回扣全文", connector: "综上，" },
+};
 
-  if (!firstText || !secondText) {
-    return {
-      score: 35,
-      title: "内容衔接不完整",
-      comment: `“${firstLabel}”与“${secondLabel}”中存在空白内容，暂时无法形成完整的逻辑关系。`,
-      suggestedText: secondText,
-    };
+function getTextUnits(text) {
+  const normalized = String(text || "").replace(/[，。；：、！？,.!?;:\s]/g, "");
+  const units = new Set();
+  for (let index = 0; index < normalized.length - 1; index += 1) units.add(normalized.slice(index, index + 2));
+  return units;
+}
+
+function createLocalReview({ relationType, sourceBlock, targetBlock }) {
+  const rule = RELATION_RULES[relationType] || RELATION_RULES.reasonExplainsClaim;
+  const sourceText = String(sourceBlock?.text || "").trim();
+  const targetText = String(targetBlock?.text || "").trim();
+
+  if (!sourceText || !targetText) {
+    return { score: 35, title: `${rule.title}：内容不完整`, comment: "相关模块中存在空白内容，暂时无法判断这条论证关系。", suggestedText: sourceText };
   }
 
-  const hasTransition = /^(因此|所以|同时|此外|然而|但是|由此|具体而言|例如|这表明|相较之下)/.test(secondText);
-  const score = hasTransition ? 88 : 68;
-  const connector = firstBlock?.type === secondBlock?.type ? "进一步来说，" : "在此基础上，";
+  const sourceUnits = getTextUnits(sourceText);
+  const targetUnits = getTextUnits(targetText);
+  let overlap = 0;
+  sourceUnits.forEach((unit) => { if (targetUnits.has(unit)) overlap += 1; });
+
+  const explicitRelation = /因为|由于|表明|说明|证明|例如|数据显示|相比|然而|综上|因此|由此/.test(sourceText);
+  const connected = explicitRelation || overlap >= 2;
 
   return {
-    score,
-    title: hasTransition ? "模块衔接清楚" : "可补充显性衔接",
-    comment: hasTransition
-      ? `“${firstLabel}”与“${secondLabel}”之间已有明确的承接关系，可直接保留。`
-      : `“${secondLabel}”的内容本身有效，但与前面的“${firstLabel}”之间缺少过渡提示，读者可能需要自行推断二者关系。`,
-    suggestedText: hasTransition ? secondText : `${connector}${secondText}`,
+    score: connected ? 86 : 64,
+    title: connected ? rule.goodTitle : rule.weakTitle,
+    comment: connected
+      ? `当前内容与审阅目标之间存在可识别的“${rule.title.replace("是否", "")}”关系。`
+      : `当前内容本身有效，但没有清楚回答“${rule.title}”，建议更直接地回扣审阅目标。`,
+    suggestedText: connected || sourceText.startsWith(rule.connector) ? sourceText : `${rule.connector}${sourceText}`,
   };
 }
 
-export async function reviewBlockCompatibility({
-  firstBlock,
-  secondBlock,
-  signal,
-}) {
+export async function reviewBlockCompatibility({ relationType, sourceBlock, targetBlock, contextBlocks = [], signal }) {
   try {
     const response = await fetch(REVIEW_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstBlock, secondBlock }),
+      body: JSON.stringify({ relationType, sourceBlock, targetBlock, contextBlocks }),
       signal,
     });
-
     if (!response.ok) throw new Error(`审阅请求失败：${response.status}`);
 
     const data = await response.json();
     const suggestedText = String(data?.suggestedText ?? data?.revision ?? "").trim();
-
     if (!data?.comment || !suggestedText) throw new Error("审阅结果不完整");
 
     return {
       score: Number(data.score) || 70,
-      title: String(data.title || "模块匹配度建议"),
+      title: String(data.title || RELATION_RULES[relationType]?.title || "论证关系建议"),
       comment: String(data.comment),
       suggestedText,
     };
   } catch (error) {
     if (error?.name === "AbortError") throw error;
-    return createLocalReview(firstBlock, secondBlock);
+    return createLocalReview({ relationType, sourceBlock, targetBlock });
   }
 }
