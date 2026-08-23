@@ -39,7 +39,7 @@ function createLocalReview({ relationType, sourceBlock, targetBlock }) {
     title: connected ? rule.goodTitle : rule.weakTitle,
     summary: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
     comment: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
-    suggestedText: connected || sourceText.startsWith(rule.connector) ? sourceText : `${rule.connector}${sourceText}`,
+    suggestedText: sourceText.startsWith(rule.connector) ? sourceText : `${rule.connector}${sourceText}`,
   };
 }
 

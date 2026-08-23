@@ -99,6 +99,23 @@ function LogicTree({ edges, activeEdgeId, blinkOn }) {
   );
 }
 
+function argumentSummary(edges, enhancementCount, isReviewing) {
+  const sourceTypes = new Set(edges.map((edge) => edge.sourceType));
+  const targetTypes = new Set(edges.map((edge) => edge.targetType));
+  const steps = [];
+
+  if (targetTypes.has("论点")) steps.push("你先写了论点");
+  if (sourceTypes.has("原因")) steps.push("再用原因解释论点");
+  if (sourceTypes.has("证据")) steps.push("并用证据支持论点");
+  if (sourceTypes.has("反论")) steps.push("随后用反论回应论点");
+  if (sourceTypes.has("对比")) steps.push("再通过对比阐明论点");
+  if (sourceTypes.has("结论")) steps.push("最后用结论总结全文");
+
+  const processText = steps.length > 0 ? `${steps.join("，")}。` : "正在识别文章的论证结构。";
+  if (isReviewing) return `${processText}系统正在继续检查可以加强的关系。`;
+  return `${processText}总体结构已经形成，发现 ${enhancementCount} 处关系可以进一步加强。`;
+}
+
 export default function ReviewPanel({
   open,
   isReviewing,
@@ -129,7 +146,8 @@ export default function ReviewPanel({
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: "auto",
         border: 0,
         borderLeft: "1px solid rgba(17,24,39,0.10)",
         borderRadius: 0,
@@ -138,7 +156,7 @@ export default function ReviewPanel({
         backdropFilter: "blur(12px)",
       }}
     >
-      <header style={{ padding: "18px 18px 14px", borderBottom: "1px solid #edf0f4" }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 5, padding: "18px 18px 14px", borderBottom: "1px solid #edf0f4", background: "rgba(255,255,255,0.97)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ color: "#111827", fontSize: 16, fontWeight: 700 }}>模块匹配度审阅</div>
@@ -169,13 +187,16 @@ export default function ReviewPanel({
       </header>
 
       {graph.length > 0 && (
-        <section style={{ maxHeight: 250, overflowY: "auto", padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
+        <section style={{ padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
           <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
           <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
+          <div style={{ marginTop: 14, padding: "10px 11px", borderRadius: 9, background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.65 }}>
+            {argumentSummary(graph, actionableResults.length, isReviewing)}
+          </div>
         </section>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+      <div style={{ flex: "0 0 auto", overflow: "visible", padding: 14 }}>
         {isReviewing && results.length === 0 && (
           <div style={{ padding: "32px 18px", color: "#6b7280", fontSize: 13, lineHeight: 1.7, textAlign: "center" }}>
             正在读取所选模块并分析它们之间的论证关系…

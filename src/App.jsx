@@ -337,6 +337,29 @@ export default function App() {
     return relations;
   };
 
+  const summarizeModuleText = (text, type) => {
+    const normalized = String(text || "")
+      .replace(/^(例如|比如|因此|所以|综上|此外|同时|然而|但是)[，,:：\s]*/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!normalized) return "尚未填写内容";
+    if (type === "全文") return "所选模块构成的完整论证";
+
+    const clauses = normalized.split(/[。；;！？!?]/).filter(Boolean);
+    const keywords = {
+      Claim: /关键|核心|影响|取决于|能够|不能|并非|是否/,
+      Reason: /因为|由于|导致|依赖|源于|能够|使得/,
+      Evidence: /例如|研究|数据|案例|调查|实验|任务|结果/,
+      Counter: /然而|但是|相反|局限|质疑|不能|不足/,
+      Compare: /相比|对比|而|差异|不同/,
+      Conclusion: /因此|综上|总体|关键|取决于|表明/,
+    };
+    const selected = clauses.find((clause) => keywords[type]?.test(clause)) || clauses[0] || normalized;
+    const compact = selected.replace(/^[，,：:\s]+/, "").trim();
+    return compact.length > 22 ? `${compact.slice(0, 22)}…` : compact;
+  };
+
   const handleReview = async () => {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
@@ -362,8 +385,8 @@ export default function App() {
           id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
           sourceType: relation.relationLabel.split(" → ")[0],
           targetType: relation.relationLabel.split(" → ")[1],
-          sourceText: String(sourceBlock.text || ""),
-          targetText: String(targetBlock.text || ""),
+          sourceText: summarizeModuleText(sourceBlock.text, sourceBlock.type),
+          targetText: summarizeModuleText(targetBlock.text, targetBlock.type),
           sourceColor: sourceBlock.color || "#64748b",
           sourceFill: sourceBlock.fill || "#f1f5f9",
           targetColor: targetBlock.color || "#374151",
