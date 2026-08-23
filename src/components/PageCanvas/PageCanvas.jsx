@@ -16,7 +16,6 @@ import {
 import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
 
 import CompletedSection from "./CompletedSection";
-import CanvasReviewOverlay from "./CanvasReviewOverlay";
 import FloatingEditableBlock from "./FloatingEditableBlock";
 import SingleSemanticEditor from "./SingleSemanticEditor";
 
@@ -401,9 +400,6 @@ export default function PageCanvas(
     isGenerating = false,
     generatingBlockIds = [],
     generatingBlinkOn = false,
-    reviewEnhancements = [],
-    onAcceptReviewEnhancement,
-    onRejectReviewEnhancement,
     isAdjustingLength = false,
     adjustingLengthBlockId = null,
 
@@ -1733,13 +1729,6 @@ export default function PageCanvas(
             />
           );
         })}
-
-      <CanvasReviewOverlay
-        stageRef={stageRef}
-        enhancements={reviewEnhancements}
-        onAccept={onAcceptReviewEnhancement}
-        onReject={onRejectReviewEnhancement}
-      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
 import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
+import ReviewPanel from "./components/ReviewPanel.jsx";
 import { reviewArgumentFrameworkStream } from "./api/reviewBlockCompatibility.js";
 
 import {
@@ -18,9 +19,6 @@ import {
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
-
-const waitForReviewBeat = (duration) =>
-  new Promise((resolve) => window.setTimeout(resolve, duration));
 
 /**
  * 从 localStorage 读取用户创建的自定义模块模板。
@@ -135,7 +133,9 @@ function countDocumentCharacters(
 }
 
 export default function App() {
+  const [reviewInspectorOpen, setReviewInspectorOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
+    open: false,
     running: false,
     current: 0,
     total: 0,
@@ -343,7 +343,8 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    setReviewState({ running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在识别所选模块之间的关系…", graph: [], notes: [], activeGraphId: null, results: [] });
+    setReviewInspectorOpen(false);
+    setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在识别所选模块之间的关系…", graph: [], notes: [], activeGraphId: null, results: [] });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
@@ -368,16 +369,16 @@ export default function App() {
     try {
       await reviewArgumentFrameworkStream({
         blocks,
-        onEvent: async (event) => {
+        onEvent: (event) => {
           if (event.type === "module") {
-            summaries.set(String(event.id), String(event.focus || ""));
+            summaries.set(String(event.id), String(event.summary || ""));
             const block = blockById.get(String(event.id));
             if (!block) return;
             const note = {
               id: String(event.id),
               blockId: String(event.id),
               type: typeLabels[block.type] || block.type || "模块",
-              text: String(event.focus || ""),
+              text: String(event.narrative || event.summary || ""),
               color: block.color || "#64748b",
               fill: block.fill || "#f8fafc",
             };
@@ -391,11 +392,8 @@ export default function App() {
               activeIds: [block.id],
               activeGraphId: `note-${block.id}`,
               blinkOn: true,
-              status: note.text
-                ? `正在检查${note.type}：${note.text}`
-                : `正在检查${note.type}在整体论证中的作用…`,
+              status: `正在判断${note.type}在整体论证中的作用…`,
             }));
-            await waitForReviewBeat(560);
             return;
           }
 
@@ -432,7 +430,6 @@ export default function App() {
               blinkOn: true,
               status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
             }));
-            await waitForReviewBeat(760);
             return;
           }
 
@@ -475,9 +472,7 @@ export default function App() {
         activeIds: [],
         activeGraphId: null,
         blinkOn: false,
-        status: state.results.length > 0
-          ? `审阅完成：发现 ${state.results.length} 个潜在增强点`
-          : `审阅完成：已检查 ${state.notes.length} 个模块`,
+        status: `模块关系识别完成：分析 ${state.notes.length} 个模块`,
       }));
     } catch (error) {
       console.error("整体审阅失败：", error);
@@ -644,10 +639,14 @@ export default function App() {
             "grid",
 
           /**
-           * 审阅直接发生在画布中，不再为关系树预留右侧栏。
+           * 审阅开启时保留灰色关系说明区；说明卡直接显示在灰色背景上。
            */
           gridTemplateColumns:
-            "164px minmax(0, 1fr)",
+            reviewState.open
+              ? reviewInspectorOpen
+                ? "164px minmax(720px, 1fr) 720px"
+                : "164px minmax(720px, 1fr) 420px"
+              : "164px minmax(0, 1fr)",
 
           width:
             "100%",
@@ -1027,18 +1026,6 @@ export default function App() {
                 reviewState.running ? reviewState.blinkOn : generatingBlinkOn
               }
 
-              reviewEnhancements={
-                reviewState.running ? [] : reviewState.results
-              }
-
-              onAcceptReviewEnhancement={
-                handleReviewAccept
-              }
-
-              onRejectReviewEnhancement={
-                handleReviewReject
-              }
-
               isAdjustingLength={
                 isAdjustingLength
               }
@@ -1180,6 +1167,24 @@ beginDuplicateDrag={
             生成：按钮或 Enter
           </div>
         </main>
+
+        <ReviewPanel
+          open={reviewState.open}
+          isReviewing={reviewState.running}
+          progress={{ current: reviewState.current, total: reviewState.total }}
+          graph={reviewState.graph}
+          notes={reviewState.notes}
+          activeGraphId={reviewState.activeGraphId}
+          graphBlinkOn={reviewState.blinkOn}
+          results={reviewState.results}
+          onAccept={handleReviewAccept}
+          onReject={handleReviewReject}
+          onInspectorOpenChange={setReviewInspectorOpen}
+          onClose={() => {
+            setReviewInspectorOpen(false);
+            setReviewState((state) => ({ ...state, open: false }));
+          }}
+        />
 
       </div>
     </div>
