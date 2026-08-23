@@ -7,6 +7,92 @@ const actionButton = {
   cursor: "pointer",
 };
 
+function relationVerb(criterion) {
+  if (criterion.includes("解释")) return "解释";
+  if (criterion.includes("支持")) return "支持";
+  if (criterion.includes("回应")) return "回应";
+  if (criterion.includes("阐明")) return "阐明";
+  if (criterion.includes("总结")) return "总结";
+  return "关联";
+}
+
+function groupTreeEdges(edges) {
+  const groups = new Map();
+  edges.forEach((edge) => {
+    const key = `${edge.targetId}-${edge.targetType}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: key,
+        type: edge.targetType,
+        text: edge.targetText,
+        color: edge.targetColor,
+        fill: edge.targetFill,
+        children: [],
+      });
+    }
+    groups.get(key).children.push(edge);
+  });
+  return Array.from(groups.values());
+}
+
+function LogicNode({ type, text, color, fill }) {
+  return (
+    <div
+      title={text}
+      style={{
+        minWidth: 0,
+        padding: "7px 9px",
+        border: `1.5px solid ${color}`,
+        borderRadius: 9,
+        background: fill,
+        boxShadow: `0 2px 7px ${color}22`,
+      }}
+    >
+      <div style={{ color, fontSize: 11, fontWeight: 800 }}>{type}</div>
+      <div style={{ marginTop: 3, overflow: "hidden", color: "#4b5563", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {text || "空模块"}
+      </div>
+    </div>
+  );
+}
+
+function LogicTree({ edges }) {
+  const groups = groupTreeEdges(edges);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {groups.map((group) => {
+        const childCount = group.children.length;
+        return (
+          <div key={group.id} style={{ position: "relative" }}>
+            <div style={{ width: 142, margin: "0 auto" }}>
+              <LogicNode type={group.type} text={group.text} color={group.color} fill={group.fill} />
+            </div>
+
+            <div style={{ width: 1.5, height: 16, margin: "0 auto", background: group.color }} />
+
+            <div style={{ position: "relative", display: "grid", gridTemplateColumns: childCount === 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))", gap: "12px 10px", paddingTop: 15 }}>
+              {childCount > 1 && (
+                <div style={{ position: "absolute", left: "25%", right: "25%", top: 0, height: 1.5, background: group.color }} />
+              )}
+
+              {group.children.map((child) => (
+                <div key={child.id} style={{ position: "relative", minWidth: 0 }}>
+                  <div style={{ position: "absolute", left: "50%", top: -15, width: 1.5, height: 11, background: group.color }} />
+                  <div style={{ marginBottom: 5, color: "#738096", fontSize: 9, fontWeight: 700, textAlign: "center" }}>
+                    {relationVerb(child.criterion)} ↑
+                  </div>
+                  <LogicNode type={child.sourceType} text={child.sourceText} color={child.sourceColor} fill={child.sourceFill} />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ReviewPanel({
   open,
   isReviewing,
@@ -74,45 +160,7 @@ export default function ReviewPanel({
       {graph.length > 0 && (
         <section style={{ maxHeight: 250, overflowY: "auto", padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
           <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {graph.map((edge) => (
-              <div
-                key={edge.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr) 72px minmax(0, 1fr)",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: 8,
-                  border: "1px solid #e7ebf1",
-                  borderRadius: 10,
-                  background: "#fff",
-                }}
-              >
-                <div title={edge.sourceText} style={{ minWidth: 0 }}>
-                  <div style={{ color: "#315ea8", fontSize: 11, fontWeight: 700 }}>{edge.sourceType}</div>
-                  <div style={{ marginTop: 3, overflow: "hidden", color: "#6b7280", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {edge.sourceText || "空模块"}
-                  </div>
-                </div>
-
-                <div aria-label={edge.criterion} style={{ position: "relative", height: 28, textAlign: "center" }}>
-                  <div style={{ position: "absolute", left: 3, right: 7, top: 14, height: 1, background: "#8aa7d8" }} />
-                  <div style={{ position: "absolute", right: 2, top: 10, width: 7, height: 7, borderTop: "2px solid #6f91ca", borderRight: "2px solid #6f91ca", transform: "rotate(45deg)" }} />
-                  <span style={{ position: "relative", zIndex: 1, padding: "0 4px", background: "#fff", color: "#6f7f99", fontSize: 9 }}>
-                    {edge.criterion.replace(edge.sourceType, "").replace(edge.targetType, "").replace("是否", "") || "关联"}
-                  </span>
-                </div>
-
-                <div title={edge.targetText} style={{ minWidth: 0 }}>
-                  <div style={{ color: "#b45309", fontSize: 11, fontWeight: 700 }}>{edge.targetType}</div>
-                  <div style={{ marginTop: 3, overflow: "hidden", color: "#6b7280", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {edge.targetText || "全文内容"}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <LogicTree edges={graph} />
         </section>
       )}
 

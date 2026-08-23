@@ -348,6 +348,11 @@ export default function App() {
       targetType: relation.relationLabel.split(" → ")[1],
       sourceText: String(relation.sourceBlock.text || ""),
       targetText: String(relation.targetBlock.text || ""),
+      sourceColor: relation.sourceBlock.color || "#64748b",
+      sourceFill: relation.sourceBlock.fill || "#f1f5f9",
+      targetColor: relation.targetBlock.color || "#374151",
+      targetFill: relation.targetBlock.fill || "#f3f4f6",
+      targetId: String(relation.targetBlock.id),
       criterion: relation.criterion,
     }));
     setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", graph, results: [] });
