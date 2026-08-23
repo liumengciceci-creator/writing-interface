@@ -342,60 +342,86 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    const relations = buildReviewRelations(blocks);
-    const total = relations.length;
-    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在通读并总结整体论证框架…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
-
-    if (total === 0) {
-      setReviewState((state) => ({ ...state, running: false, status: "所选模块中没有可审阅的明确论证关系" }));
-      return;
-    }
+    setReviewState({ open: true, running: true, current: 0, total: 0, activeIds: [], blinkOn: false, status: "正在快速识别所选模块之间的联系…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
 
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) => state.running ? { ...state, blinkOn: !state.blinkOn } : state);
     }, 420);
 
     try {
-      const framework = await reviewArgumentFramework({ blocks, relations });
-      setReviewState((state) => ({ ...state, frameworkSummary: framework.frameworkSummary }));
+      // 第一阶段只调用一次模型：自主识别关系并立即显示整张图。
+      const framework = await reviewArgumentFramework({ blocks, relations: [] });
+      const blockById = new Map(blocks.map((block) => [String(block.id), block]));
+      const typeLabels = {
+        Claim: "论点",
+        Reason: "原因",
+        Evidence: "证据",
+        Counter: "反论",
+        Compare: "对比",
+        Conclusion: "结论",
+        Title: "标题",
+      };
+      const inferredRelations = (framework.graphEdges || [])
+        .map((edge, index) => {
+          const sourceBlock = blockById.get(String(edge.sourceId));
+          const targetBlock = blockById.get(String(edge.targetId));
+          if (!sourceBlock || !targetBlock) return null;
+          const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
+          const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
+          return {
+            relationType: "inferredRelation",
+            relationLabel: `${sourceType} → ${targetType}`,
+            relation: String(edge.relation || "关联"),
+            criterion: `这两个模块是否形成“${String(edge.relation || "关联")}”的内容关系`,
+            sourceBlock,
+            targetBlock,
+            contextBlocks: blocks,
+            id: `inferred-${sourceBlock.id}-${targetBlock.id}-${index}`,
+          };
+        })
+        .filter(Boolean);
+      const graph = inferredRelations.map((relation) => ({
+        id: relation.id,
+        sourceType: relation.relationLabel.split(" → ")[0],
+        targetType: relation.relationLabel.split(" → ")[1],
+        sourceText: framework.moduleSummaries[String(relation.sourceBlock.id)] || "概括生成中",
+        targetText: framework.moduleSummaries[String(relation.targetBlock.id)] || "概括生成中",
+        sourceColor: relation.sourceBlock.color || "#64748b",
+        sourceFill: relation.sourceBlock.fill || "#f1f5f9",
+        targetColor: relation.targetBlock.color || "#374151",
+        targetFill: relation.targetBlock.fill || "#f3f4f6",
+        targetId: String(relation.targetBlock.id),
+        relation: relation.relation,
+        criterion: relation.criterion,
+      }));
+      const total = inferredRelations.length;
+      setReviewState((state) => ({
+        ...state,
+        total,
+        graph,
+        frameworkSummary: framework.frameworkSummary,
+        status: total > 0 ? "关系图已生成，正在准备具体增强意见…" : "已完成整体分析",
+      }));
 
+      // 第二阶段逐条请求增强意见；不会阻塞上方关系图的显示。
       for (let index = 0; index < total; index += 1) {
-        const relation = relations[index];
+        const relation = inferredRelations[index];
         const { sourceBlock, targetBlock } = relation;
-        const graphEdge = {
-          id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
-          sourceType: relation.relationLabel.split(" → ")[0],
-          targetType: relation.relationLabel.split(" → ")[1],
-          sourceText: framework.moduleSummaries[String(sourceBlock.id)] || String(sourceBlock.text || "尚未填写内容"),
-          targetText: targetBlock.type === "全文"
-            ? "所选模块共同构成的完整论证"
-            : framework.moduleSummaries[String(targetBlock.id)] || String(targetBlock.text || "尚未填写内容"),
-          sourceColor: sourceBlock.color || "#64748b",
-          sourceFill: sourceBlock.fill || "#f1f5f9",
-          targetColor: targetBlock.color || "#374151",
-          targetFill: targetBlock.fill || "#f3f4f6",
-          targetId: String(targetBlock.id),
-          criterion: relation.criterion,
-        };
         const status = `正在检查：${relation.criterion}（${index + 1}/${total}）`;
         setReviewState((state) => ({
           ...state,
           current: index + 1,
-          activeIds: relation.activeIds || [sourceBlock.id, targetBlock.id],
-          activeGraphId: graphEdge.id,
-          graph: state.graph.some((edge) => edge.id === graphEdge.id) ? state.graph : [...state.graph, graphEdge],
+          activeIds: [sourceBlock.id, targetBlock.id],
+          activeGraphId: relation.id,
           status,
         }));
 
-        const [review] = await Promise.all([
-          reviewBlockCompatibility(relation),
-          new Promise((resolve) => window.setTimeout(resolve, 900)),
-        ]);
+        const review = await reviewBlockCompatibility(relation);
         setReviewState((state) => ({
           ...state,
           results: [...state.results, {
             ...review,
-            id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
+            id: relation.id,
             relationLabel: relation.relationLabel,
             criterion: relation.criterion,
             targetBlockId: sourceBlock.id,
@@ -405,7 +431,7 @@ export default function App() {
         }));
       }
 
-      setReviewState((state) => ({ ...state, running: false, activeIds: [], activeGraphId: null, blinkOn: false, status: `审阅完成：已检查 ${total} 组模块关系` }));
+      setReviewState((state) => ({ ...state, running: false, activeIds: [], activeGraphId: null, blinkOn: false, status: `审阅完成：已检查 ${total} 组模型识别的关系` }));
     } finally {
       window.clearInterval(blinkTimer);
     }

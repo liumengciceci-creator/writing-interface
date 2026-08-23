@@ -2087,24 +2087,37 @@ app.post(
 - 删除例子、过程细节、引导词和重复信息。
 - 概括必须能够替代原文成为论证图节点的小字。
 
-任务二：分析整体框架
-- 不要只根据模块名称套模板，要根据真实内容判断每条关系是否成立。
-- 检查原因是否真正解释论点、证据是否直接支持论点、反论是否回应论点、对比是否阐明论点、结论是否由前文推出。
-- 先用一句话说明作者如何展开论证，再明确评价总体关系是否合理，并指出最关键的薄弱关系。
-- 共2至3句，语言具体，不说“发现若干处可以加强”这类空话。
+任务二：自主识别并图示化模块关系
+- 不要使用预设的“解释、支持、回应、总结”等固定关系，也不要仅根据模块类型判断。
+- 根据每个模块的真实语义与上下文，判断哪些模块直接建立了联系。
+- 为每条联系写一个2至6个汉字的具体关系词，例如“引出后果”“补充机制”“提供实例”“形成转折”“收束前文”；关系词应由内容决定。
+- sourceId 表示主动补充、推进或处理另一个模块的节点；targetId 表示它所基于、推进或处理的节点。
+- 只保留理解这套论证所必需的直接关系，避免所有模块互相连接。
+
+任务三：用连续语言讲清论证过程
+- 使用“这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……”这种面向作者的自然语言。
+- 必须写出各模块的具体内容，不能只说“写了论点、补充了原因”。
+- 根据实际模块数量灵活组织，不得虚构不存在的步骤。
+- 最后再用一句话判断整体衔接是否合理；共3至5句。
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
 
-待检查的关系：
-${JSON.stringify(relations, null, 2)}
+模块顺序：数组中的先后顺序就是作者当前的写作顺序。
 
 只返回严格 JSON，不要代码块，不要解释。格式必须是：
 {
   "moduleSummaries": {
     "模块id": "15至28个汉字的概括"
   },
-  "frameworkSummary": "2至3句整体关系分析"
+  "graphEdges": [
+    {
+      "sourceId": "主动推进关系的模块id",
+      "targetId": "被它推进或处理的模块id",
+      "relation": "2至6个汉字的内容关系词"
+    }
+  ],
+  "frameworkSummary": "这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……。整体……。"
 }`;
 
         const response = await openai.responses.create({
@@ -2126,6 +2139,11 @@ ${JSON.stringify(relations, null, 2)}
           error.statusCode = 502;
           throw error;
         }
+        if (!Array.isArray(parsed.graphEdges)) {
+          const error = new Error("AI 没有返回模块关系图");
+          error.statusCode = 502;
+          throw error;
+        }
 
         const moduleSummaries = {};
         for (const block of blocks) {
@@ -2143,8 +2161,18 @@ ${JSON.stringify(relations, null, 2)}
             : summary;
         }
 
+        const validIds = new Set(blocks.map((block) => block.id));
+        const graphEdges = parsed.graphEdges
+          .map((edge) => ({
+            sourceId: String(edge?.sourceId || ""),
+            targetId: String(edge?.targetId || ""),
+            relation: String(edge?.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
+          }))
+          .filter((edge) => edge.sourceId !== edge.targetId && validIds.has(edge.sourceId) && validIds.has(edge.targetId));
+
         return res.json({
           moduleSummaries,
+          graphEdges,
           frameworkSummary: String(parsed.frameworkSummary).replace(/\s+/g, " ").trim(),
         });
       }

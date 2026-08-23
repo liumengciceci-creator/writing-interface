@@ -9,15 +9,6 @@ const actionButton = {
   cursor: "pointer",
 };
 
-function relationVerb(criterion) {
-  if (criterion.includes("解释")) return "解释";
-  if (criterion.includes("支持")) return "支持";
-  if (criterion.includes("回应")) return "回应";
-  if (criterion.includes("阐明")) return "阐明";
-  if (criterion.includes("总结")) return "总结";
-  return "关联";
-}
-
 function groupTreeEdges(edges) {
   const groups = new Map();
   edges.forEach((edge) => {
@@ -86,7 +77,7 @@ function LogicTree({ edges, activeEdgeId, blinkOn }) {
                 <div key={child.id} style={{ position: "relative", minWidth: 0 }}>
                   <div style={{ position: "absolute", left: "50%", top: -15, width: 1.5, height: 11, background: group.color }} />
                   <div style={{ marginBottom: 5, color: "#738096", fontSize: 9, fontWeight: 700, textAlign: "center" }}>
-                    {relationVerb(child.criterion)} ↑
+                    {child.relation || "关联"} ↑
                   </div>
                   <LogicNode type={child.sourceType} text={child.sourceText} color={child.sourceColor} fill={child.sourceFill} active={child.id === activeEdgeId} blinkOn={blinkOn} />
                 </div>
@@ -145,7 +136,11 @@ export default function ReviewPanel({
           <div>
             <div style={{ color: "#111827", fontSize: 16, fontWeight: 700 }}>模块匹配度审阅</div>
             <div style={{ marginTop: 4, color: "#6b7280", fontSize: 12 }}>
-              {isReviewing ? `正在检查 ${progress.current}/${progress.total}` : `共检查 ${progress.total} 组关系`}
+              {isReviewing
+                ? progress.total > 0
+                  ? `正在生成增强意见 ${progress.current}/${progress.total}`
+                  : "正在识别模块关系"
+                : `共检查 ${progress.total} 组关系`}
             </div>
           </div>
           <button
@@ -213,7 +208,7 @@ export default function ReviewPanel({
               cursor: "pointer",
             }}
           >
-            <span>发现 {actionableResults.length} 个可加强点</span>
+            <span>{isReviewing ? `增强意见生成中 · 已发现 ${actionableResults.length} 个` : `发现 ${actionableResults.length} 个可加强点`}</span>
             <span aria-hidden="true" style={{ color: "#718096", transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 180ms ease" }}>⌄</span>
           </button>
         )}

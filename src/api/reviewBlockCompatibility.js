@@ -52,6 +52,7 @@ function createFrameworkFallback(blocks, relations) {
   });
   return {
     moduleSummaries,
+    graphEdges: [],
     frameworkSummary: relations.length
       ? "所选模块已经形成基本论证链，但整体关系仍需结合逐条审阅结果进一步判断。"
       : "所选模块尚未形成可识别的完整论证关系。",
@@ -81,7 +82,8 @@ export async function reviewArgumentFramework({ blocks = [], relations = [], sig
         relations: compactRelations,
         outputRequirements: {
           moduleSummaries: "逐个理解模块原文后，提炼核心意思。每项只写一句15至28个汉字的概括判断，不照抄原句，不保留例子、过程细节或连接词，禁止超过32个汉字",
-          frameworkSummary: "整体分析模块之间的解释、支持、回应与总结关系是否成立；先概括作者如何展开论证，再明确指出总体是否合理及最关键的薄弱关系；2至3句，不要按模块类型套模板",
+          graphEdges: "根据实际语义自主识别模块之间的直接联系，为每条联系生成内容相关的短关系词，不使用固定关系分类",
+          frameworkSummary: "使用‘这里你提出了……基于这一点……根据这个……最后你……’的连续语言具体讲述写作过程，再判断整体衔接",
         },
       }),
       signal,
@@ -99,7 +101,8 @@ export async function reviewArgumentFramework({ blocks = [], relations = [], sig
         ? generated.replace(/[。！？!?]$/, "")
         : compactFallbackSummary(block.text, block.type);
     });
-    return { moduleSummaries, frameworkSummary };
+    const graphEdges = Array.isArray(data?.graphEdges) ? data.graphEdges : [];
+    return { moduleSummaries, graphEdges, frameworkSummary };
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     console.error("整体论证框架调用失败，已使用本地保底概括：", error);
