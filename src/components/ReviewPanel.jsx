@@ -465,7 +465,9 @@ function EnhancementInspector({ edge, items, onAccept, onReject, onClose }) {
       style={{
         flex: "1 1 300px",
         minWidth: 280,
-        height: "100vh",
+        minHeight: 0,
+        height: "100%",
+        maxHeight: "100dvh",
         overflowY: "auto",
         borderLeft: "1px solid rgba(17,24,39,0.10)",
         background: "#f5f5f5",
@@ -678,24 +680,31 @@ export default function ReviewPanel({
   return (
     <aside
       aria-label="模块关系说明"
+      data-review-panel="true"
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 140,
+        alignSelf: "start",
+        zIndex: 2000,
         display: "flex",
         width: "100%",
-        height: "100vh",
+        minHeight: 0,
+        height: "100dvh",
+        maxHeight: "100dvh",
         minWidth: 0,
-        overflow: "hidden",
+        overflow: "visible",
         background: "#e7e7e7",
         boxSizing: "border-box",
+        isolation: "isolate",
       }}
     >
       <div
         style={{
           flex: `0 0 ${GRAPH_WIDTH}px`,
           width: GRAPH_WIDTH,
-          height: "100vh",
+          minHeight: 0,
+          height: "100%",
+          maxHeight: "100dvh",
           overflowX: "hidden",
           overflowY: "auto",
           boxSizing: "border-box",
