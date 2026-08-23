@@ -2090,8 +2090,8 @@ narrative 必须结合全部模块的上下文形成连续语言：第一个相�
 {"type":"relation","sourceId":"主动补充、推进或处理另一个模块的id","targetId":"被推进或处理的模块id","relation":"由内容决定的2至6字关系词"}
 不要套用固定的解释、支持、回应、总结分类。关系词应具体，例如引出风险、补充机制、提供数据、限定结论、转向实践。只输出理解论证所必需的直接关系，避免所有模块互连。
 
-第三阶段，完成整体判断后输出最后一行：
-{"type":"final","frameworkSummary":"使用这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……。整体……。的连续语言，具体写出内容，共3至5句","enhancements":[{"sourceId":"薄弱模块id","targetId":"相关模块id","summary":"一句关系判断","suggestion":"一个最关键的内容问题","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+第三阶段，在逐个模块关系说明完成后输出最后一行：
+{"type":"final","enhancements":[{"sourceId":"薄弱模块id","targetId":"相关模块id","summary":"一句关系判断","suggestion":"一个最关键的内容问题","suggestedText":"不虚构事实的加强后来源模块全文"}]}
 只为确实薄弱的关系生成 enhancement；没有则返回空数组。`;
 
     let textBuffer = "";
@@ -2123,7 +2123,6 @@ narrative 必须结合全部模块的上下文形成连续语言：第一个相�
         } else if (item.type === "final") {
           writeLine(res, {
             type: "final",
-            frameworkSummary: String(item.frameworkSummary || "").replace(/\s+/g, " ").trim(),
             enhancements: Array.isArray(item.enhancements) ? item.enhancements : [],
           });
         }

@@ -143,7 +143,6 @@ export default function App() {
     status: "",
     graph: [],
     notes: [],
-    frameworkSummary: "",
     activeGraphId: null,
     results: [],
   });
@@ -343,7 +342,7 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在整体审阅所选模块…", graph: [], notes: [], frameworkSummary: "", activeGraphId: null, results: [] });
+    setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在识别所选模块之间的关系…", graph: [], notes: [], activeGraphId: null, results: [] });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
@@ -445,9 +444,8 @@ export default function App() {
             }).filter(Boolean);
             setReviewState((state) => ({
               ...state,
-              frameworkSummary: String(event.frameworkSummary || ""),
               results,
-              status: "正在完成整体关系判断…",
+              status: "正在整理潜在增强点…",
             }));
           }
         },
@@ -459,7 +457,7 @@ export default function App() {
         activeIds: [],
         activeGraphId: null,
         blinkOn: false,
-        status: `整体审阅完成：分析 ${state.notes.length} 个模块`,
+        status: `模块关系识别完成：分析 ${state.notes.length} 个模块`,
       }));
     } catch (error) {
       console.error("整体审阅失败：", error);
@@ -626,12 +624,11 @@ export default function App() {
             "grid",
 
           /**
-           * 审阅面板打开时占据独立的第三列，
-           * 避免悬浮在画布上遮挡正文。
+           * 审阅开启时保留灰色关系说明区；说明卡直接显示在灰色背景上。
            */
           gridTemplateColumns:
             reviewState.open
-              ? "164px minmax(720px, 1fr) 360px"
+              ? "164px minmax(720px, 1fr) 380px"
               : "164px minmax(0, 1fr)",
 
           width:
@@ -1158,9 +1155,7 @@ beginDuplicateDrag={
           open={reviewState.open}
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
-          graph={reviewState.graph}
           notes={reviewState.notes}
-          frameworkSummary={reviewState.frameworkSummary}
           activeGraphId={reviewState.activeGraphId}
           graphBlinkOn={reviewState.blinkOn}
           results={reviewState.results}
