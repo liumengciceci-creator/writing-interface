@@ -7,6 +7,8 @@ import {
 import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
+import ReviewPanel from "./components/ReviewPanel.jsx";
+import { reviewBlockCompatibility } from "./api/reviewBlockCompatibility.js";
 
 import {
   useEditor,
@@ -131,6 +133,16 @@ function countDocumentCharacters(
 }
 
 export default function App() {
+  const [reviewState, setReviewState] = useState({
+    open: false,
+    running: false,
+    current: 0,
+    total: 0,
+    activeIds: [],
+    blinkOn: false,
+    status: "",
+    results: [],
+  });
   /**
    * 用户创建的自定义标签。
    */
@@ -273,6 +285,67 @@ export default function App() {
     exportDocumentToWord(
       sections
     );
+  };
+
+  const getSelectedBlocksInDocumentOrder = () => {
+    const selectedSet = new Set(selectedIds.map(String));
+    const ordered = [];
+    sections.forEach((section) => {
+      (section?.blocks || []).forEach((block) => {
+        if (selectedSet.has(String(block.id))) ordered.push(block);
+      });
+    });
+    return ordered;
+  };
+
+  const handleReview = async () => {
+    const blocks = getSelectedBlocksInDocumentOrder();
+    if (blocks.length < 2 || reviewState.running) return;
+
+    const total = blocks.length - 1;
+    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", results: [] });
+
+    const blinkTimer = window.setInterval(() => {
+      setReviewState((state) => state.running ? { ...state, blinkOn: !state.blinkOn } : state);
+    }, 420);
+
+    try {
+      for (let index = 0; index < total; index += 1) {
+        const firstBlock = blocks[index];
+        const secondBlock = blocks[index + 1];
+        const status = `正在检查“${firstBlock.type || "模块"}”与“${secondBlock.type || "模块"}”的匹配度（${index + 1}/${total}）`;
+        setReviewState((state) => ({ ...state, current: index + 1, activeIds: [firstBlock.id, secondBlock.id], status }));
+
+        const [review] = await Promise.all([
+          reviewBlockCompatibility({ firstBlock, secondBlock }),
+          new Promise((resolve) => window.setTimeout(resolve, 900)),
+        ]);
+        setReviewState((state) => ({
+          ...state,
+          results: [...state.results, {
+            ...review,
+            id: `${firstBlock.id}-${secondBlock.id}`,
+            firstBlockId: firstBlock.id,
+            targetBlockId: secondBlock.id,
+            originalText: String(secondBlock.text || ""),
+            decision: null,
+          }],
+        }));
+      }
+
+      setReviewState((state) => ({ ...state, running: false, activeIds: [], blinkOn: false, status: `审阅完成：已检查 ${total} 组模块关系` }));
+    } finally {
+      window.clearInterval(blinkTimer);
+    }
+  };
+
+  const handleReviewAccept = (item) => {
+    handleChangeText(item.targetBlockId, item.suggestedText);
+    setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "accepted" } : result) }));
+  };
+
+  const handleReviewReject = (item) => {
+    setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "rejected" } : result) }));
   };
 
   /**
@@ -649,6 +722,10 @@ export default function App() {
     generateFromSelectedBlocks
   }
 
+  onReview={handleReview}
+  isReviewing={reviewState.running}
+  reviewStatus={reviewState.status}
+
   onComplete={
     handleComplete
   }
@@ -789,11 +866,11 @@ export default function App() {
               }
 
               generatingBlockIds={
-                generatingBlockIds
+                reviewState.running ? reviewState.activeIds : generatingBlockIds
               }
 
               generatingBlinkOn={
-                generatingBlinkOn
+                reviewState.running ? reviewState.blinkOn : generatingBlinkOn
               }
 
               isAdjustingLength={
@@ -911,6 +988,15 @@ duplicateSelectedBlocks={
 beginDuplicateDrag={
     beginDuplicateDrag
 }
+            />
+            <ReviewPanel
+              open={reviewState.open}
+              isReviewing={reviewState.running}
+              progress={{ current: reviewState.current, total: reviewState.total }}
+              results={reviewState.results}
+              onAccept={handleReviewAccept}
+              onReject={handleReviewReject}
+              onClose={() => setReviewState((state) => ({ ...state, open: false }))}
             />
           </div>
 

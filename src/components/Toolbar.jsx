@@ -12,6 +12,7 @@ export default function Toolbar({
   onResetZoom,
   onUndo,
   onGenerate,
+  onReview,
   onComplete,
   onToggleModuleVisibility,
 
@@ -19,6 +20,8 @@ export default function Toolbar({
 
   isGenerating = false,
   isAdjustingLength = false,
+  isReviewing = false,
+  reviewStatus = "",
 
   statusText = "",
   generationStatus = "",
@@ -62,7 +65,9 @@ export default function Toolbar({
   let visibleStatus = "";
 
 
-  if (
+  if (isReviewing) {
+    visibleStatus = reviewStatus || "正在审阅模块关系...";
+  } else if (
     isAdjustingLength
   ) {
     visibleStatus =
@@ -93,6 +98,7 @@ export default function Toolbar({
   const isBusyStatus =
     isGenerating ||
     isAdjustingLength ||
+    isReviewing ||
     normalizedStatusText.startsWith(
       "正在"
     );
@@ -195,6 +201,20 @@ export default function Toolbar({
                   ? `AI生成 (${selectedIds.length})`
                   : "AI生成"
           }
+        </button>
+
+        <button
+          type="button"
+          onClick={onReview}
+          disabled={selectedIds.length < 2 || isGenerating || isAdjustingLength || isReviewing}
+          style={{
+            ...toolbarWideButton,
+            opacity: selectedIds.length < 2 || isGenerating || isAdjustingLength || isReviewing ? 0.5 : 1,
+            color: isReviewing ? "#315ea8" : toolbarWideButton.color,
+          }}
+          title={selectedIds.length < 2 ? "请至少选择两个模块" : "逐一检查所选模块之间的匹配度"}
+        >
+          {isReviewing ? "审阅中..." : `审阅${selectedIds.length >= 2 ? ` (${selectedIds.length})` : ""}`}
         </button>
 
 
