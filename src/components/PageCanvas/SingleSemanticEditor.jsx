@@ -2922,7 +2922,7 @@ const SingleSemanticEditor =
                             WebkitUserSelect: "none",
                           }}
                         >
-                          生成失败，请重新生成
+                          生成失败，已保留原输入
                         </span>
                       )}
 

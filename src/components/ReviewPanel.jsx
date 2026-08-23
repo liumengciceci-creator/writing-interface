@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 const GRAPH_WIDTH = 420;
 const NODE_GAP = 48;
@@ -19,6 +19,78 @@ function samePair(leftSource, leftTarget, rightSource, rightTarget) {
       String(leftTarget) === String(rightTarget)) ||
     (String(leftSource) === String(rightTarget) &&
       String(leftTarget) === String(rightSource))
+  );
+}
+
+function selectEssentialGraph(notes, graph, results) {
+  const validIds = new Set(notes.map((note) => String(note.id)));
+  const enhancementPairs = new Set(
+    results.map((item) =>
+      [String(item.relationSourceId), String(item.relationTargetId)]
+        .sort()
+        .join("::")
+    )
+  );
+  const seenPairs = new Set();
+  const candidates = graph.flatMap((edge, index) => {
+    const sourceId = String(edge.sourceId);
+    const targetId = String(edge.targetId);
+    if (!validIds.has(sourceId) || !validIds.has(targetId) || sourceId === targetId) return [];
+
+    const pairKey = [sourceId, targetId].sort().join("::");
+    if (seenPairs.has(pairKey)) return [];
+    seenPairs.add(pairKey);
+
+    return [{
+      ...edge,
+      sourceId,
+      targetId,
+      importance: Math.max(1, Math.min(5, Number(edge.importance) || 3)),
+      hasEnhancement: enhancementPairs.has(pairKey),
+      arrivalIndex: index,
+    }];
+  });
+
+  const limit = Math.min(5, Math.max(1, notes.length));
+  return candidates
+    .sort((left, right) =>
+      Number(right.hasEnhancement) - Number(left.hasEnhancement) ||
+      right.importance - left.importance ||
+      left.arrivalIndex - right.arrivalIndex
+    )
+    .slice(0, Math.max(limit, candidates.filter((edge) => edge.hasEnhancement).length))
+    .sort((left, right) => left.arrivalIndex - right.arrivalIndex);
+}
+
+function useProgressiveGraph(graph) {
+  const [visibleIds, setVisibleIds] = useState([]);
+  const graphKey = graph.map((edge) => edge.id).join("|");
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
+
+  useEffect(() => {
+    const allowedIds = new Set(graph.map((edge) => edge.id));
+    setVisibleIds((current) => current.filter((id) => allowedIds.has(id)));
+  }, [graphKey]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setVisibleIds((current) => {
+        const currentGraph = graphRef.current;
+        const allowedIds = new Set(currentGraph.map((edge) => edge.id));
+        const retained = current.filter((id) => allowedIds.has(id));
+        const nextEdge = currentGraph.find((edge) => !retained.includes(edge.id));
+        if (nextEdge) return [...retained, nextEdge.id];
+        return retained.length === current.length ? current : retained;
+      });
+    }, 820);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return useMemo(
+    () => graph.filter((edge) => visibleIds.includes(edge.id)),
+    [graph, graphKey, visibleIds]
   );
 }
 
@@ -89,9 +161,10 @@ function RelationGraph({
 }) {
   const containerRef = useRef(null);
   const [routes, setRoutes] = useState([]);
+  const visibleGraph = useProgressiveGraph(graph);
   const { edges, laneCount } = useMemo(
-    () => buildEdgeLayout(notes, graph),
-    [notes, graph]
+    () => buildEdgeLayout(notes, visibleGraph),
+    [notes, visibleGraph]
   );
   const gutterWidth = laneCount > 0 ? Math.min(164, 54 + laneCount * LANE_GAP) : 18;
 
@@ -241,7 +314,18 @@ function RelationGraph({
               strokeLinejoin="miter"
               markerEnd={`url(#review-edge-arrow-${route.id})`}
               opacity={active && !graphBlinkOn ? 0.46 : 0.86}
-            />
+              pathLength="1"
+              strokeDasharray="1"
+              strokeDashoffset="1"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="1"
+                to="0"
+                dur="0.72s"
+                fill="freeze"
+              />
+            </path>
           );
         })}
       </svg>
@@ -440,6 +524,16 @@ function EnhancementInspector({ edge, items, onAccept, onReject, onClose }) {
               boxShadow: "0 3px 10px rgba(92,70,16,0.08)",
             }}
           >
+            <div
+              style={{
+                marginBottom: 6,
+                color: "#80621b",
+                fontSize: 10.5,
+                fontWeight: 800,
+              }}
+            >
+              {item.criterion || item.category || "内容关系把关"}
+            </div>
             <div style={{ color: "#4b5563", fontSize: 11.8, lineHeight: 1.58 }}>
               {item.summary || item.comment}
             </div>
@@ -480,7 +574,7 @@ function EnhancementInspector({ edge, items, onAccept, onReject, onClose }) {
               >
                 {item.decision === "accepted" ? "✓ 已加强" : "已拒绝，本条保持原文"}
               </div>
-            ) : (
+            ) : item.suggestedText !== item.originalText ? (
               <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
                 <button
                   type="button"
@@ -497,6 +591,21 @@ function EnhancementInspector({ edge, items, onAccept, onReject, onClose }) {
                   拒绝
                 </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onReject(item)}
+                style={{
+                  ...actionButton,
+                  width: "100%",
+                  marginTop: 10,
+                  border: "1px solid #d7dce3",
+                  background: "#fff",
+                  color: "#4b5563",
+                }}
+              >
+                保留原文
+              </button>
             )}
           </article>
         ))}
@@ -520,16 +629,21 @@ export default function ReviewPanel({
   onInspectorOpenChange,
 }) {
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
-  const actionableResults = results.filter(
-    (item) => item.suggestedText !== item.originalText
+  const reviewResults = useMemo(
+    () => results.filter((item) => item.summary || item.suggestion),
+    [results]
+  );
+  const essentialGraph = useMemo(
+    () => selectEssentialGraph(notes, graph, reviewResults),
+    [notes, graph, reviewResults]
   );
   const edgeLayout = useMemo(
-    () => buildEdgeLayout(notes, graph).edges,
-    [notes, graph]
+    () => buildEdgeLayout(notes, essentialGraph).edges,
+    [notes, essentialGraph]
   );
   const selectedEdge = edgeLayout.find((edge) => edge.id === selectedEdgeId) || null;
   const selectedItems = selectedEdge
-    ? actionableResults.filter((item) =>
+    ? reviewResults.filter((item) =>
         samePair(
           item.relationSourceId,
           item.relationTargetId,
@@ -538,6 +652,12 @@ export default function ReviewPanel({
         )
       )
     : [];
+
+  useEffect(() => {
+    if (!selectedEdgeId || selectedEdge) return;
+    setSelectedEdgeId(null);
+    onInspectorOpenChange?.(false);
+  }, [selectedEdge, selectedEdgeId, onInspectorOpenChange]);
 
   if (!open) return null;
 
@@ -641,8 +761,8 @@ export default function ReviewPanel({
 
           <RelationGraph
             notes={notes}
-            graph={graph}
-            results={actionableResults}
+            graph={essentialGraph}
+            results={reviewResults}
             activeGraphId={activeGraphId}
             graphBlinkOn={graphBlinkOn}
             selectedEdgeId={selectedEdgeId}

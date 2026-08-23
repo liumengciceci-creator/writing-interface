@@ -349,6 +349,8 @@ export default function App() {
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
     const relationByPair = new Map();
+    const getRelationPairKey = (sourceId, targetId) =>
+      [String(sourceId), String(targetId)].sort().join("::");
     const typeLabels = {
       Claim: "论点",
       Reason: "原因",
@@ -399,7 +401,7 @@ export default function App() {
             const sourceBlock = blockById.get(String(event.sourceId));
             const targetBlock = blockById.get(String(event.targetId));
             if (!sourceBlock || !targetBlock) return;
-            const pairKey = `${String(sourceBlock.id)}-${String(targetBlock.id)}`;
+            const pairKey = getRelationPairKey(sourceBlock.id, targetBlock.id);
             if (relationByPair.has(pairKey)) return;
             const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
             const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
@@ -410,6 +412,7 @@ export default function App() {
               sourceId: String(sourceBlock.id),
               targetId: String(targetBlock.id),
               relation,
+              importance: Math.max(1, Math.min(5, Number(event.importance) || 3)),
               color: sourceBlock.color || targetBlock.color || "#9aa3af",
               relationLabel: `${sourceType} → ${targetType}`,
               criterion: `这两个模块形成“${relation}”的内容关系`,
@@ -435,13 +438,14 @@ export default function App() {
               const sourceBlock = blockById.get(String(item.sourceId));
               const targetBlock = blockById.get(String(item.targetId));
               if (!sourceBlock || !targetBlock) return null;
-              const relation = relationByPair.get(`${String(item.sourceId)}-${String(item.targetId)}`);
+              const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
               const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
               const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
               return {
-                id: relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}-${index}`,
+                id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
-                criterion: relation?.criterion || "模型识别出的内容关系",
+                category: String(item.category || "内容关系把关"),
+                criterion: String(item.criterion || relation?.criterion || "模型识别出的内容关系"),
                 relationSourceId: String(sourceBlock.id),
                 relationTargetId: String(targetBlock.id),
                 targetBlockId: sourceBlock.id,

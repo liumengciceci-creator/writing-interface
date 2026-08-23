@@ -80,6 +80,7 @@ type: ${block.type}
 text: ${block.text || ""}
 userInput: ${block.userInput || ""}
 directive: ${block.directive || block.userInput || ""}
+originalText: ${block.originalText || ""}
 userInputMode: ${block.userInputMode || "empty"}
 requiredPrefix: ${block.requiredPrefix || ""}
 instruction: ${block.instruction || ""}
@@ -1398,14 +1399,15 @@ async function generateValidatedBufferedBlocks({
       const id = String(block.id);
       const text = String(textById.get(id) || "").trim();
       const directive = String(block.directive || block.userInput || "").trim();
+      const comparisonText = directive || String(block.originalText || "").trim();
       const unchanged = Boolean(
-        directive &&
+        comparisonText &&
           normalizeGeneratedComparison(text) ===
-            normalizeGeneratedComparison(directive)
+            normalizeGeneratedComparison(comparisonText)
       );
 
       return !text || unchanged
-        ? [{ id, empty: !text, unchanged, directive, returnedText: text }]
+        ? [{ id, empty: !text, unchanged, directive: comparisonText, returnedText: text }]
         : [];
     });
 
@@ -2092,6 +2094,8 @@ app.post(
     res.flushHeaders?.();
     writeLine(res, { type: "ready", blockIds: blocks.map((block) => block.id) });
 
+    const maxRelations = Math.min(5, Math.max(1, blocks.length));
+
     const prompt = `你是一名严谨的中文论证写作编辑。请实时审阅以下模块，并严格按审阅进度逐行输出 NDJSON。每完成一个判断就立刻输出一行，禁止等待全部分析完成后再统一输出，禁止代码块和额外文字。
 
 模块（数组顺序即写作顺序）：
@@ -2100,19 +2104,29 @@ ${JSON.stringify(blocks, null, 2)}
 输出顺序与格式：
 这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按照写作顺序理解模块，但必须同时检查当前模块与全部其他模块的真实语义联系，不能只比较相邻模块。
 
-先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并输出你确认的直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
+先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并只输出你确认的关键直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
 
 模块行格式：
 {"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄","narrative":"面向作者说明这个模块如何推进整体论证的一至两句具体文字"}
 narrative 必须结合全部模块的上下文形成连续语言：第一个相关模块用“这里你提出了……”；后续模块根据真实关系灵活使用“基于这一点，你……”“根据这个……，你又……”“随后你……”“最后你……”。必须写出具体内容，不能只说“提出论点、补充原因、提供证据”。
 
 关系行格式：
-{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的2至6字关系词"}
+{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的2至6字关系词","importance":1到5的整数}
 sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如证据指向它支持的论点，原因指向它解释的论点，反论指向它质疑或限定的论点。不要强迫相邻模块连线，也不要遗漏有直接语义联系的非相邻模块。不要生成仅因位置相邻而成立的关系，也不要让所有模块彼此互连。关系词应具体，例如提供数据、解释机制、质疑前提、限定结论、转向实践。同一对模块的同一关系只输出一次。
 
-全部模块与相邻关系完成后输出最后一行：
-{"type":"final","enhancements":[{"sourceId":"薄弱模块id","targetId":"相关模块id","summary":"一句关系判断","suggestion":"一个最关键的内容问题","suggestedText":"不虚构事实的加强后来源模块全文"}]}
-只为确实薄弱的已输出关系生成 enhancement；增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系；没有则返回空数组。`;
+关系图必须简洁：总共最多输出 ${maxRelations} 条最关键关系。优先保留“证据→核心论点、原因→核心论点、反论→它质疑或限定的论点、结论→它归纳的核心论点”等决定论证成立与否的联系。若 A→B、B→C 已足以说明推进过程，不要再输出仅可由这两条推导出的 A→C；不要输出重复、弱相关或装饰性关系。重要关系优先输出，importance=5 表示不可缺少，1 表示较弱。
+
+全部模块与关键关系完成后，做一次内容把关，再输出最后一行：
+- 论点是否清楚、可论证且范围适当；
+- 原因是否真正解释了论点中的因果或机制；
+- 证据是否相关、具体、可信且数量与力度足以支持观点，相关性不能被当成因果性；
+- 反论是否直接回应核心论点，正文是否对它作出回应或合理限定；
+- 结论是否覆盖所选段落的核心论点、主要机制、关键证据及必要限定，是否遗漏前文重要部分或加入未经支持的新判断；
+- 是否存在逻辑跳跃、概念偷换、重复论点、缺少限定或过度概括。
+
+最后一行格式：
+{"type":"final","enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"可执行且不虚构事实的修改办法","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系。只要存在实质改进空间，4个及以上模块通常给出2至5条互不重复的增强建议；不要只检查相邻模块，也不要为了凑数虚构问题或事实。`;
 
     let textBuffer = "";
     const validIds = new Set(blocks.map((block) => block.id));
@@ -2139,6 +2153,7 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
             sourceId: String(item.sourceId),
             targetId: String(item.targetId),
             relation: String(item.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
+            importance: Math.max(1, Math.min(5, Number(item.importance) || 3)),
           });
         } else if (item.type === "final") {
           writeLine(res, {
@@ -2522,6 +2537,7 @@ app.post(
           id: block.id,
           type: block.type,
           directive: String(block.directive || block.userInput || ""),
+          originalText: String(block.originalText || ""),
           userInput: String(block.userInput || ""),
           userInputMode: block.userInputMode || "empty",
           searchPolicy: block.searchPolicy || "disabled",

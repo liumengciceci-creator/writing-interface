@@ -349,20 +349,6 @@ function patchBlocks(sections, updater) {
   }));
 }
 
-function clearSingleBlockText(sections, blockId) {
-  return patchBlocks(sections, (block) => {
-    if (String(block.id) !== String(blockId)) return block;
-
-    return {
-      ...block,
-      text: "",
-      sources: [],
-      height: estimateBlockHeight("", block.width),
-      isGenerated: true,
-    };
-  });
-}
-
 function setSingleBlockSources(sections, blockId, sources) {
   const normalizedSources = Array.isArray(sources)
     ? sources
@@ -772,6 +758,7 @@ export function useStreamingGenerate({
         type: entry.block?.type || "Unknown",
         text: "",
         directive,
+        originalText: String(entry.block?.text || ""),
         // 保留 userInput 字段以兼容旧后端，但它与 directive 含义一致：
         // 都是用户希望模型执行的写作要求，而不是允许原样返回的正文。
         userInput: directive,
@@ -815,6 +802,7 @@ export function useStreamingGenerate({
         type: target.type,
         userInputMode: target.userInputMode,
         directive: inspectGenerationText(target.directive),
+        originalText: inspectGenerationText(target.originalText),
         searchPolicy: target.searchPolicy,
         userInput: inspectGenerationText(target.userInput),
         instruction: target.instruction,
@@ -826,6 +814,9 @@ export function useStreamingGenerate({
         String(entry.block.id),
         String(requestTargetBlocks[index]?.directive || ""),
       ])
+    );
+    const originalBlockByRealId = new Map(
+      targets.map((entry) => [String(entry.block.id), entry.block])
     );
 
     setSelectedIds?.([]);
@@ -845,10 +836,6 @@ export function useStreamingGenerate({
 
         return {
           ...block,
-          text: "",
-          sources: [],
-          height: estimateBlockHeight("", block.width),
-          isGenerated: true,
           generationDirective: directiveByRealId.get(blockId) || "",
           generationError: null,
         };
@@ -934,13 +921,7 @@ export function useStreamingGenerate({
             startedRequestIds.add(requestId);
             generatedTextByRequestId.set(requestId, "");
             setGenerationStatus(
-              `正在流式生成 ${targetIndex + 1}/${targets.length} 个模块…`
-            );
-            setGeneratingBlockIds((previousIds) =>
-              previousIds.filter((id) => String(id) !== realBlockId)
-            );
-            setSections((previous) =>
-              clearSingleBlockText(previous, realBlockId)
+              `已完成校验，正在接收 ${targetIndex + 1}/${targets.length} 个模块…`
             );
           }
 
@@ -950,10 +931,6 @@ export function useStreamingGenerate({
               requestId,
               `${generatedTextByRequestId.get(requestId) || ""}${delta}`
             );
-            const pending =
-              pendingDeltaMapRef.current.get(realBlockId) || "";
-            pendingDeltaMapRef.current.set(realBlockId, pending + delta);
-            scheduleFlush();
           }
 
           if (event.type === "block_done") {
@@ -1119,12 +1096,17 @@ export function useStreamingGenerate({
             };
           }
 
+          const originalBlock = originalBlockByRealId.get(blockId);
+          const originalText = String(originalBlock?.text || "");
+
           return {
             ...block,
-            text: "",
-            sources: [],
-            height: estimateBlockHeight("", block.width),
-            isGenerated: true,
+            text: originalText,
+            sources: Array.isArray(originalBlock?.sources)
+              ? originalBlock.sources
+              : [],
+            height: estimateBlockHeight(originalText, block.width),
+            isGenerated: originalBlock?.isGenerated,
             generationDirective: directiveByRealId.get(blockId) || "",
             generationError: error?.message || "生成失败",
           };
@@ -1132,7 +1114,7 @@ export function useStreamingGenerate({
       );
       setSelectedIds?.(failedTargetIds);
       setGenerationStatus(
-        `错误：${failedTargetIds.length || targets.length} 个模块生成失败，原始输入未作为结果保留。${error?.message || "生成失败"}`
+        `错误：${failedTargetIds.length || targets.length} 个模块生成失败，已保留用户输入并明确标记失败。${error?.message || "生成失败"}`
       );
     } finally {
       stopBlinking();

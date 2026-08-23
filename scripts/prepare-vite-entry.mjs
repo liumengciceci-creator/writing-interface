@@ -1,4 +1,7 @@
-<!doctype html>
+import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const html = `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -11,3 +14,7 @@
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
+`;
+
+await writeFile(resolve(process.cwd(), "index.html"), html, "utf8");
+console.log("Vite entry verified: /src/main.jsx");
