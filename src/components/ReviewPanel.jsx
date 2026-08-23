@@ -22,19 +22,21 @@ export default function ReviewPanel({
     <aside
       aria-label="模块审阅意见"
       style={{
-        position: "fixed",
-        top: 88,
-        right: 20,
-        bottom: 24,
-        zIndex: 80,
-        width: 336,
+        position: "sticky",
+        top: 0,
+        zIndex: 40,
+        width: "100%",
+        height: "100vh",
+        minWidth: 0,
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        border: "1px solid rgba(17,24,39,0.10)",
-        borderRadius: 16,
+        border: 0,
+        borderLeft: "1px solid rgba(17,24,39,0.10)",
+        borderRadius: 0,
         background: "rgba(255,255,255,0.97)",
-        boxShadow: "0 16px 44px rgba(15,23,42,0.16)",
+        boxShadow: "-8px 0 28px rgba(15,23,42,0.08)",
         backdropFilter: "blur(12px)",
       }}
     >

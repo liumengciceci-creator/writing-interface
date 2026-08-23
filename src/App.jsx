@@ -489,11 +489,13 @@ export default function App() {
             "grid",
 
           /**
-           * 两列布局：
-           * 左侧标签栏 + 中间编辑区。
+           * 审阅面板打开时占据独立的第三列，
+           * 避免悬浮在画布上遮挡正文。
            */
           gridTemplateColumns:
-            "164px minmax(0, 1fr)",
+            reviewState.open
+              ? "164px minmax(720px, 1fr) 360px"
+              : "164px minmax(0, 1fr)",
 
           width:
             "100%",
@@ -989,15 +991,6 @@ beginDuplicateDrag={
     beginDuplicateDrag
 }
             />
-            <ReviewPanel
-              open={reviewState.open}
-              isReviewing={reviewState.running}
-              progress={{ current: reviewState.current, total: reviewState.total }}
-              results={reviewState.results}
-              onAccept={handleReviewAccept}
-              onReject={handleReviewReject}
-              onClose={() => setReviewState((state) => ({ ...state, open: false }))}
-            />
           </div>
 
           {/* 底部操作提示 */}
@@ -1023,6 +1016,16 @@ beginDuplicateDrag={
             生成：按钮或 Enter
           </div>
         </main>
+
+        <ReviewPanel
+          open={reviewState.open}
+          isReviewing={reviewState.running}
+          progress={{ current: reviewState.current, total: reviewState.total }}
+          results={reviewState.results}
+          onAccept={handleReviewAccept}
+          onReject={handleReviewReject}
+          onClose={() => setReviewState((state) => ({ ...state, open: false }))}
+        />
 
       </div>
     </div>
