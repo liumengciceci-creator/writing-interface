@@ -23,7 +23,7 @@ function createLocalReview({ relationType, sourceBlock, targetBlock }) {
   const targetText = String(targetBlock?.text || "").trim();
 
   if (!sourceText || !targetText) {
-    return { score: 35, title: `${rule.title}：内容不完整`, comment: "相关模块中存在空白内容，暂时无法判断这条论证关系。", suggestedText: sourceText };
+    return { score: 35, title: `${rule.title}：内容不完整`, summary: "相关模块内容不完整，暂时无法判断这条关系。", comment: "相关模块内容不完整，暂时无法判断这条关系。", suggestedText: sourceText };
   }
 
   const sourceUnits = getTextUnits(sourceText);
@@ -37,9 +37,8 @@ function createLocalReview({ relationType, sourceBlock, targetBlock }) {
   return {
     score: connected ? 86 : 64,
     title: connected ? rule.goodTitle : rule.weakTitle,
-    comment: connected
-      ? `当前内容与审阅目标之间存在可识别的“${rule.title.replace("是否", "")}”关系。`
-      : `当前内容本身有效，但没有清楚回答“${rule.title}”，建议更直接地回扣审阅目标。`,
+    summary: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
+    comment: connected ? `${rule.goodTitle}。` : `${rule.weakTitle}，可以进一步加强。`,
     suggestedText: connected || sourceText.startsWith(rule.connector) ? sourceText : `${rule.connector}${sourceText}`,
   };
 }
@@ -62,6 +61,7 @@ export async function reviewBlockCompatibility({ relationType, sourceBlock, targ
       score: Number(data.score) || 70,
       title: String(data.title || RELATION_RULES[relationType]?.title || "论证关系建议"),
       comment: String(data.comment),
+      summary: String(data.summary || data.comment).split(/[。！？!?]/)[0].slice(0, 48) + "。",
       suggestedText,
     };
   } catch (error) {

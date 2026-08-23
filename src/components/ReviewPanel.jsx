@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const actionButton = {
   height: 32,
   padding: "0 14px",
@@ -35,7 +37,7 @@ function groupTreeEdges(edges) {
   return Array.from(groups.values());
 }
 
-function LogicNode({ type, text, color, fill }) {
+function LogicNode({ type, text, color, fill, active = false, blinkOn = false }) {
   return (
     <div
       title={text}
@@ -45,7 +47,10 @@ function LogicNode({ type, text, color, fill }) {
         border: `1.5px solid ${color}`,
         borderRadius: 9,
         background: fill,
-        boxShadow: `0 2px 7px ${color}22`,
+        boxShadow: active && blinkOn ? `0 0 0 3px ${color}35, 0 5px 16px ${color}55` : `0 2px 7px ${color}22`,
+        opacity: active && !blinkOn ? 0.56 : 1,
+        transform: active && blinkOn ? "scale(1.025)" : "scale(1)",
+        transition: "opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease",
       }}
     >
       <div style={{ color, fontSize: 11, fontWeight: 800 }}>{type}</div>
@@ -56,17 +61,18 @@ function LogicNode({ type, text, color, fill }) {
   );
 }
 
-function LogicTree({ edges }) {
+function LogicTree({ edges, activeEdgeId, blinkOn }) {
   const groups = groupTreeEdges(edges);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {groups.map((group) => {
         const childCount = group.children.length;
+        const groupActive = group.children.some((child) => child.id === activeEdgeId);
         return (
           <div key={group.id} style={{ position: "relative" }}>
             <div style={{ width: 142, margin: "0 auto" }}>
-              <LogicNode type={group.type} text={group.text} color={group.color} fill={group.fill} />
+              <LogicNode type={group.type} text={group.text} color={group.color} fill={group.fill} active={groupActive} blinkOn={blinkOn} />
             </div>
 
             <div style={{ width: 1.5, height: 16, margin: "0 auto", background: group.color }} />
@@ -82,7 +88,7 @@ function LogicTree({ edges }) {
                   <div style={{ marginBottom: 5, color: "#738096", fontSize: 9, fontWeight: 700, textAlign: "center" }}>
                     {relationVerb(child.criterion)} ↑
                   </div>
-                  <LogicNode type={child.sourceType} text={child.sourceText} color={child.sourceColor} fill={child.sourceFill} />
+                  <LogicNode type={child.sourceType} text={child.sourceText} color={child.sourceColor} fill={child.sourceFill} active={child.id === activeEdgeId} blinkOn={blinkOn} />
                 </div>
               ))}
             </div>
@@ -98,12 +104,17 @@ export default function ReviewPanel({
   isReviewing,
   progress,
   graph = [],
+  activeGraphId = null,
+  graphBlinkOn = false,
   results,
   onAccept,
   onReject,
   onClose,
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   if (!open) return null;
+
+  const actionableResults = results.filter((item) => item.suggestedText !== item.originalText);
 
   return (
     <aside
@@ -160,7 +171,7 @@ export default function ReviewPanel({
       {graph.length > 0 && (
         <section style={{ maxHeight: 250, overflowY: "auto", padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
           <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
-          <LogicTree edges={graph} />
+          <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
         </section>
       )}
 
@@ -177,10 +188,35 @@ export default function ReviewPanel({
           </div>
         )}
 
-        {results.map((item) => (
+        {graph.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((value) => !value)}
+            aria-expanded={detailsOpen}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "13px 14px",
+              border: "1px solid #dfe5ee",
+              borderRadius: 11,
+              background: "#fff",
+              color: "#374151",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <span>发现 {actionableResults.length} 个潜在可以增强的点</span>
+            <span aria-hidden="true" style={{ color: "#718096", transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 180ms ease" }}>⌄</span>
+          </button>
+        )}
+
+        {detailsOpen && actionableResults.map((item) => (
           <article
             key={item.id}
-            style={{ marginBottom: 12, padding: 14, border: "1px solid #e6eaf0", borderRadius: 12, background: "#fff" }}
+            style={{ marginTop: 10, padding: 12, border: "1px solid #e6eaf0", borderRadius: 10, background: "#fff" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#315ea8", fontSize: 12, fontWeight: 700 }}>
@@ -188,13 +224,8 @@ export default function ReviewPanel({
                 <span aria-hidden="true" style={{ color: "#7c9bd3", fontSize: 16 }}>→</span>
                 {item.relationLabel.split(" → ")[1]}
               </span>
-              <span style={{ color: item.score >= 80 ? "#287a55" : "#a16207", fontSize: 11, fontWeight: 700 }}>
-                匹配度 {item.score}%
-              </span>
             </div>
-            <div style={{ marginTop: 9, color: "#64748b", fontSize: 11, fontWeight: 600 }}>{item.criterion}</div>
-            <div style={{ marginTop: 5, color: "#1f2937", fontSize: 14, fontWeight: 700 }}>{item.title}</div>
-            <div style={{ marginTop: 7, color: "#4b5563", fontSize: 12, lineHeight: 1.65 }}>{item.comment}</div>
+            <div style={{ marginTop: 7, color: "#4b5563", fontSize: 12, lineHeight: 1.6 }}>{item.summary || item.comment}</div>
 
             {item.suggestedText !== item.originalText && (
               <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#f5f7fb", color: "#374151", fontSize: 12, lineHeight: 1.65 }}>
@@ -206,10 +237,6 @@ export default function ReviewPanel({
             {item.decision ? (
               <div style={{ marginTop: 11, color: item.decision === "accepted" ? "#287a55" : "#6b7280", fontSize: 12, fontWeight: 600 }}>
                 {item.decision === "accepted" ? "✓ 已加强" : "已拒绝，本条保持原文"}
-              </div>
-            ) : item.suggestedText === item.originalText ? (
-              <div style={{ marginTop: 11, color: "#287a55", fontSize: 12, fontWeight: 600 }}>
-                ✓ 当前关系清楚，无需加强
               </div>
             ) : (
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

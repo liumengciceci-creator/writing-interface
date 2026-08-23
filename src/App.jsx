@@ -142,6 +142,7 @@ export default function App() {
     blinkOn: false,
     status: "",
     graph: [],
+    activeGraphId: null,
     results: [],
   });
   /**
@@ -342,20 +343,7 @@ export default function App() {
 
     const relations = buildReviewRelations(blocks);
     const total = relations.length;
-    const graph = relations.map((relation) => ({
-      id: `${relation.relationType}-${relation.sourceBlock.id}-${relation.targetBlock.id}`,
-      sourceType: relation.relationLabel.split(" → ")[0],
-      targetType: relation.relationLabel.split(" → ")[1],
-      sourceText: String(relation.sourceBlock.text || ""),
-      targetText: String(relation.targetBlock.text || ""),
-      sourceColor: relation.sourceBlock.color || "#64748b",
-      sourceFill: relation.sourceBlock.fill || "#f1f5f9",
-      targetColor: relation.targetBlock.color || "#374151",
-      targetFill: relation.targetBlock.fill || "#f3f4f6",
-      targetId: String(relation.targetBlock.id),
-      criterion: relation.criterion,
-    }));
-    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", graph, results: [] });
+    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", graph: [], activeGraphId: null, results: [] });
 
     if (total === 0) {
       setReviewState((state) => ({ ...state, running: false, status: "所选模块中没有可审阅的明确论证关系" }));
@@ -370,8 +358,28 @@ export default function App() {
       for (let index = 0; index < total; index += 1) {
         const relation = relations[index];
         const { sourceBlock, targetBlock } = relation;
+        const graphEdge = {
+          id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
+          sourceType: relation.relationLabel.split(" → ")[0],
+          targetType: relation.relationLabel.split(" → ")[1],
+          sourceText: String(sourceBlock.text || ""),
+          targetText: String(targetBlock.text || ""),
+          sourceColor: sourceBlock.color || "#64748b",
+          sourceFill: sourceBlock.fill || "#f1f5f9",
+          targetColor: targetBlock.color || "#374151",
+          targetFill: targetBlock.fill || "#f3f4f6",
+          targetId: String(targetBlock.id),
+          criterion: relation.criterion,
+        };
         const status = `正在检查：${relation.criterion}（${index + 1}/${total}）`;
-        setReviewState((state) => ({ ...state, current: index + 1, activeIds: relation.activeIds || [sourceBlock.id, targetBlock.id], status }));
+        setReviewState((state) => ({
+          ...state,
+          current: index + 1,
+          activeIds: relation.activeIds || [sourceBlock.id, targetBlock.id],
+          activeGraphId: graphEdge.id,
+          graph: state.graph.some((edge) => edge.id === graphEdge.id) ? state.graph : [...state.graph, graphEdge],
+          status,
+        }));
 
         const [review] = await Promise.all([
           reviewBlockCompatibility(relation),
@@ -391,7 +399,7 @@ export default function App() {
         }));
       }
 
-      setReviewState((state) => ({ ...state, running: false, activeIds: [], blinkOn: false, status: `审阅完成：已检查 ${total} 组模块关系` }));
+      setReviewState((state) => ({ ...state, running: false, activeIds: [], activeGraphId: null, blinkOn: false, status: `审阅完成：已检查 ${total} 组模块关系` }));
     } finally {
       window.clearInterval(blinkTimer);
     }
@@ -1080,6 +1088,8 @@ beginDuplicateDrag={
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
           graph={reviewState.graph}
+          activeGraphId={reviewState.activeGraphId}
+          graphBlinkOn={reviewState.blinkOn}
           results={reviewState.results}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}
