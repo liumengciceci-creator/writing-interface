@@ -2047,6 +2047,186 @@ app.post(
     }
   }
 );
+
+/**
+ * 论证框架与模块关系审阅接口。
+ *
+ * reviewMode === "argumentFramework"：
+ * 通读全部模块，为每个模块生成一句概括，并分析整体论证是否合理。
+ *
+ * 其他情况：
+ * 审阅一条具体的模块关系，并在确有必要时给出内容加强版本。
+ */
+app.post(
+  "/api/review-block-compatibility",
+  async (req, res) => {
+    try {
+      const body = req.body || {};
+
+      if (body.reviewMode === "argumentFramework") {
+        const blocks = Array.isArray(body.blocks)
+          ? body.blocks
+              .filter((block) => block && block.id != null)
+              .map((block) => ({
+                id: String(block.id),
+                type: String(block.type || "Unknown"),
+                text: String(block.text || "").trim(),
+              }))
+          : [];
+        const relations = Array.isArray(body.relations) ? body.relations : [];
+
+        if (blocks.length === 0) {
+          return res.status(400).json({ error: "没有可审阅的模块" });
+        }
+
+        const prompt = `你是一名严谨的中文论证写作编辑。请通读所有模块，并完成两个任务：
+
+任务一：概括每个模块
+- 必须理解内容后重新概括，不能照抄原句。
+- 每个概括只保留一个核心判断，15至28个汉字，绝对不得超过32个汉字。
+- 删除例子、过程细节、引导词和重复信息。
+- 概括必须能够替代原文成为论证图节点的小字。
+
+任务二：分析整体框架
+- 不要只根据模块名称套模板，要根据真实内容判断每条关系是否成立。
+- 检查原因是否真正解释论点、证据是否直接支持论点、反论是否回应论点、对比是否阐明论点、结论是否由前文推出。
+- 先用一句话说明作者如何展开论证，再明确评价总体关系是否合理，并指出最关键的薄弱关系。
+- 共2至3句，语言具体，不说“发现若干处可以加强”这类空话。
+
+模块：
+${JSON.stringify(blocks, null, 2)}
+
+待检查的关系：
+${JSON.stringify(relations, null, 2)}
+
+只返回严格 JSON，不要代码块，不要解释。格式必须是：
+{
+  "moduleSummaries": {
+    "模块id": "15至28个汉字的概括"
+  },
+  "frameworkSummary": "2至3句整体关系分析"
+}`;
+
+        const response = await openai.responses.create({
+          model: WRITING_MODEL,
+          input: prompt,
+        });
+        const parsed = parseModelJson(
+          response.output_text,
+          "整体论证框架没有返回有效 JSON"
+        );
+
+        if (!parsed?.moduleSummaries || typeof parsed.moduleSummaries !== "object") {
+          const error = new Error("AI 没有返回模块概括");
+          error.statusCode = 502;
+          throw error;
+        }
+        if (!String(parsed.frameworkSummary || "").trim()) {
+          const error = new Error("AI 没有返回整体关系分析");
+          error.statusCode = 502;
+          throw error;
+        }
+
+        const moduleSummaries = {};
+        for (const block of blocks) {
+          const summary = String(parsed.moduleSummaries[block.id] || "")
+            .replace(/\s+/g, " ")
+            .replace(/[。！？!?]+$/, "")
+            .trim();
+          if (!summary) {
+            const error = new Error(`AI 未概括模块 ${block.id}`);
+            error.statusCode = 502;
+            throw error;
+          }
+          moduleSummaries[block.id] = summary.length > 32
+            ? `${summary.slice(0, 31)}…`
+            : summary;
+        }
+
+        return res.json({
+          moduleSummaries,
+          frameworkSummary: String(parsed.frameworkSummary).replace(/\s+/g, " ").trim(),
+        });
+      }
+
+      const relationType = String(body.relationType || "");
+      const sourceBlock = body.sourceBlock || {};
+      const targetBlock = body.targetBlock || {};
+      const sourceText = String(sourceBlock.text || "").trim();
+      const targetText = String(targetBlock.text || "").trim();
+
+      if (!relationType || !sourceText || !targetText) {
+        return res.status(400).json({ error: "模块关系审阅参数不完整" });
+      }
+
+      const relationCriteria = {
+        reasonExplainsClaim: "原因是否具体解释了论点为何成立",
+        evidenceSupportsClaim: "证据是否直接、充分地支持论点，而非仅与主题相关",
+        counterChallengesClaim: "反论是否直接回应或限制了原论点",
+        compareClarifiesClaim: "对比是否具有明确维度并阐明了论点",
+        conclusionSummarizesDocument: "结论是否准确回扣前文论点、原因和证据",
+      };
+      const criterion = relationCriteria[relationType] || String(body.criterion || "两个模块的关系是否合理");
+      const contextBlocks = Array.isArray(body.contextBlocks)
+        ? body.contextBlocks.map((block) => ({ id: block.id, type: block.type, text: block.text }))
+        : [];
+
+      const prompt = `你是一名严谨的中文论证写作编辑。请审阅一条论证关系。
+
+检查标准：${criterion}
+来源模块：${JSON.stringify({ id: sourceBlock.id, type: sourceBlock.type, text: sourceText }, null, 2)}
+目标模块：${JSON.stringify({ id: targetBlock.id, type: targetBlock.type, text: targetText }, null, 2)}
+上下文：${JSON.stringify(contextBlocks, null, 2)}
+
+要求：
+1. 根据具体内容判断，不得只复述模块类型。
+2. summary 用一句简短的话直接判断这条关系。
+3. suggestion 只说明内容上最值得加强的一点，例如原因机制偏弱、证据缺少来源、结论没有回扣关键证据。
+4. 如果关系已经充分，suggestedText 必须原样返回来源模块文本，不要为了修改而修改。
+5. 如果确需加强，suggestedText 在保留原意的基础上补足关键逻辑，不添加未经提供的数据或事实。
+
+只返回严格 JSON：
+{
+  "score": 0到100的整数,
+  "title": "简短标题",
+  "summary": "一句具体判断",
+  "comment": "1至2句分析",
+  "suggestion": "一句内容加强建议",
+  "suggestedText": "加强后的来源模块全文，或关系充分时的原文"
+}`;
+
+      const response = await openai.responses.create({
+        model: WRITING_MODEL,
+        input: prompt,
+      });
+      const parsed = parseModelJson(
+        response.output_text,
+        "模块关系审阅没有返回有效 JSON"
+      );
+      const suggestedText = String(parsed?.suggestedText || "").trim();
+      if (!suggestedText || !String(parsed?.comment || "").trim()) {
+        const error = new Error("AI 返回的关系审阅结果不完整");
+        error.statusCode = 502;
+        throw error;
+      }
+
+      return res.json({
+        score: Math.max(0, Math.min(100, Number(parsed.score) || 70)),
+        title: String(parsed.title || "论证关系建议").trim(),
+        summary: String(parsed.summary || parsed.comment).trim(),
+        comment: String(parsed.comment).trim(),
+        suggestion: String(parsed.suggestion || "可以进一步加强这条论证关系。").trim(),
+        suggestedText,
+      });
+    } catch (error) {
+      console.error("❌ review-block-compatibility error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "模块关系审阅失败",
+        details: error.details || error.cause?.message || error.message,
+      });
+    }
+  }
+);
 /**
  * 流式模块生成接口。
  */

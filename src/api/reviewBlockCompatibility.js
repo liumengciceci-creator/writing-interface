@@ -13,10 +13,42 @@ function cleanParagraph(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function compactFallbackSummary(text, type) {
+  const normalized = String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/^(例如|比如|因此|所以|综上|此外|同时|然而|但是|这是因为)[，,:：\s]*/, "")
+    .trim();
+  if (!normalized) return "尚未填写内容";
+
+  const clauses = normalized.split(/[。！？!?；;]/).map((item) => item.trim()).filter(Boolean);
+  const preferredPatterns = {
+    Claim: /会|能够|可能|导致|影响|削弱|增强|取代|依赖/,
+    Reason: /因为|由于|导致|减少|缺少|接受|依赖|训练/,
+    Evidence: /学生|研究|数据|案例|调查|实验|结果|直接|核验/,
+    Counter: /然而|但是|相反|局限|不足|并非/,
+    Compare: /相比|不同|差异|而/,
+    Conclusion: /因此|总体|最终|导致|表明|依赖|削弱/,
+  };
+  const chosen = clauses.find((clause) => preferredPatterns[type]?.test(clause)) || clauses[0] || normalized;
+  const compact = chosen
+    .replace(/^(例如|比如|因此|所以|综上|此外|同时|然而|但是|这是因为)[，,:：\s]*/, "")
+    .replace(/[“”"']/g, "")
+    .trim();
+  return compact.length > 30 ? `${compact.slice(0, 29)}…` : compact;
+}
+
+function isUsableModelSummary(summary, original) {
+  const result = cleanParagraph(summary).replace(/[。！？!?]$/, "");
+  const source = cleanParagraph(original).replace(/[。！？!?]$/, "");
+  if (!result || result.length > 32) return false;
+  if (source.length > 32 && (result === source || source.startsWith(result) && result.length > 28)) return false;
+  return true;
+}
+
 function createFrameworkFallback(blocks, relations) {
   const moduleSummaries = {};
   blocks.forEach((block) => {
-    moduleSummaries[String(block.id)] = cleanOneSentence(block.text);
+    moduleSummaries[String(block.id)] = compactFallbackSummary(block.text, block.type);
   });
   return {
     moduleSummaries,
@@ -48,7 +80,7 @@ export async function reviewArgumentFramework({ blocks = [], relations = [], sig
         blocks,
         relations: compactRelations,
         outputRequirements: {
-          moduleSummaries: "逐个理解模块原文后，各写一句完整、准确、简短的内容概括；不要只截取原文，不超过42个汉字",
+          moduleSummaries: "逐个理解模块原文后，提炼核心意思。每项只写一句15至28个汉字的概括判断，不照抄原句，不保留例子、过程细节或连接词，禁止超过32个汉字",
           frameworkSummary: "整体分析模块之间的解释、支持、回应与总结关系是否成立；先概括作者如何展开论证，再明确指出总体是否合理及最关键的薄弱关系；2至3句，不要按模块类型套模板",
         },
       }),
@@ -62,10 +94,10 @@ export async function reviewArgumentFramework({ blocks = [], relations = [], sig
 
     const moduleSummaries = {};
     blocks.forEach((block) => {
-      moduleSummaries[String(block.id)] = cleanOneSentence(
-        rawSummaries[String(block.id)] ?? rawSummaries[block.id],
-        cleanOneSentence(block.text)
-      );
+      const generated = cleanOneSentence(rawSummaries[String(block.id)] ?? rawSummaries[block.id], "");
+      moduleSummaries[String(block.id)] = isUsableModelSummary(generated, block.text)
+        ? generated.replace(/[。！？!?]$/, "")
+        : compactFallbackSummary(block.text, block.type);
     });
     return { moduleSummaries, frameworkSummary };
   } catch (error) {
