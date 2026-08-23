@@ -8,7 +8,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ReviewPanel from "./components/ReviewPanel.jsx";
-import { reviewBlockCompatibility } from "./api/reviewBlockCompatibility.js";
+import { reviewArgumentFramework, reviewBlockCompatibility } from "./api/reviewBlockCompatibility.js";
 
 import {
   useEditor,
@@ -142,6 +142,7 @@ export default function App() {
     blinkOn: false,
     status: "",
     graph: [],
+    frameworkSummary: "",
     activeGraphId: null,
     results: [],
   });
@@ -337,35 +338,13 @@ export default function App() {
     return relations;
   };
 
-  const summarizeModuleText = (text, type) => {
-    const normalized = String(text || "")
-      .replace(/^(例如|比如|因此|所以|综上|此外|同时|然而|但是)[，,:：\s]*/, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (!normalized) return "尚未填写内容";
-    if (type === "全文") return "所选模块构成的完整论证";
-
-    const clauses = normalized.split(/[，,。；;：:！？!?]/).filter(Boolean);
-    const keywords = {
-      Claim: /关键|核心|影响|取决于|能够|不能|并非|是否/,
-      Reason: /因为|由于|导致|依赖|源于|能够|使得/,
-      Evidence: /例如|研究|数据|案例|调查|实验|任务|结果/,
-      Counter: /然而|但是|相反|局限|质疑|不能|不足/,
-      Compare: /相比|对比|而|差异|不同/,
-      Conclusion: /因此|综上|总体|关键|取决于|表明/,
-    };
-    const selected = clauses.find((clause) => keywords[type]?.test(clause)) || clauses[0] || normalized;
-    return selected.replace(/^[，,：:\s]+/, "").trim();
-  };
-
   const handleReview = async () => {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
     const relations = buildReviewRelations(blocks);
     const total = relations.length;
-    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", graph: [], activeGraphId: null, results: [] });
+    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在通读并总结整体论证框架…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
 
     if (total === 0) {
       setReviewState((state) => ({ ...state, running: false, status: "所选模块中没有可审阅的明确论证关系" }));
@@ -377,6 +356,9 @@ export default function App() {
     }, 420);
 
     try {
+      const framework = await reviewArgumentFramework({ blocks, relations });
+      setReviewState((state) => ({ ...state, frameworkSummary: framework.frameworkSummary }));
+
       for (let index = 0; index < total; index += 1) {
         const relation = relations[index];
         const { sourceBlock, targetBlock } = relation;
@@ -384,8 +366,10 @@ export default function App() {
           id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
           sourceType: relation.relationLabel.split(" → ")[0],
           targetType: relation.relationLabel.split(" → ")[1],
-          sourceText: summarizeModuleText(sourceBlock.text, sourceBlock.type),
-          targetText: summarizeModuleText(targetBlock.text, targetBlock.type),
+          sourceText: framework.moduleSummaries[String(sourceBlock.id)] || String(sourceBlock.text || "尚未填写内容"),
+          targetText: targetBlock.type === "全文"
+            ? "所选模块共同构成的完整论证"
+            : framework.moduleSummaries[String(targetBlock.id)] || String(targetBlock.text || "尚未填写内容"),
           sourceColor: sourceBlock.color || "#64748b",
           sourceFill: sourceBlock.fill || "#f1f5f9",
           targetColor: targetBlock.color || "#374151",
@@ -1110,6 +1094,7 @@ beginDuplicateDrag={
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
           graph={reviewState.graph}
+          frameworkSummary={reviewState.frameworkSummary}
           activeGraphId={reviewState.activeGraphId}
           graphBlinkOn={reviewState.blinkOn}
           results={reviewState.results}

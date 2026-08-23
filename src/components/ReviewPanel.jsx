@@ -43,7 +43,7 @@ function LogicNode({ type, text, color, fill, active = false, blinkOn = false })
       title={text}
       style={{
         minWidth: 0,
-        padding: "7px 9px",
+        padding: "9px 10px",
         border: `1.5px solid ${color}`,
         borderRadius: 9,
         background: fill,
@@ -54,7 +54,7 @@ function LogicNode({ type, text, color, fill, active = false, blinkOn = false })
       }}
     >
       <div style={{ color, fontSize: 11, fontWeight: 800 }}>{type}</div>
-      <div style={{ marginTop: 3, color: "#4b5563", fontSize: 10, lineHeight: 1.45, whiteSpace: "normal", overflowWrap: "anywhere" }}>
+      <div style={{ marginTop: 4, color: "#4b5563", fontSize: 10.5, lineHeight: 1.55, whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "break-word" }}>
         {text || "空模块"}
       </div>
     </div>
@@ -71,7 +71,7 @@ function LogicTree({ edges, activeEdgeId, blinkOn }) {
         const groupActive = group.children.some((child) => child.id === activeEdgeId);
         return (
           <div key={group.id} style={{ position: "relative" }}>
-            <div style={{ width: 142, margin: "0 auto" }}>
+            <div style={{ width: "min(176px, 82%)", margin: "0 auto" }}>
               <LogicNode type={group.type} text={group.text} color={group.color} fill={group.fill} active={groupActive} blinkOn={blinkOn} />
             </div>
 
@@ -99,28 +99,12 @@ function LogicTree({ edges, activeEdgeId, blinkOn }) {
   );
 }
 
-function argumentSummary(edges, enhancementCount, isReviewing) {
-  const sourceTypes = new Set(edges.map((edge) => edge.sourceType));
-  const targetTypes = new Set(edges.map((edge) => edge.targetType));
-  const steps = [];
-
-  if (targetTypes.has("论点")) steps.push("你先写了论点");
-  if (sourceTypes.has("原因")) steps.push("再用原因解释论点");
-  if (sourceTypes.has("证据")) steps.push("并用证据支持论点");
-  if (sourceTypes.has("反论")) steps.push("随后用反论回应论点");
-  if (sourceTypes.has("对比")) steps.push("再通过对比阐明论点");
-  if (sourceTypes.has("结论")) steps.push("最后用结论总结全文");
-
-  const processText = steps.length > 0 ? `${steps.join("，")}。` : "正在识别文章的论证结构。";
-  if (isReviewing) return `${processText}系统正在继续检查可以加强的关系。`;
-  return `${processText}总体结构已经形成，发现 ${enhancementCount} 处关系可以进一步加强。`;
-}
-
 export default function ReviewPanel({
   open,
   isReviewing,
   progress,
   graph = [],
+  frameworkSummary = "",
   activeGraphId = null,
   graphBlinkOn = false,
   results,
@@ -191,7 +175,7 @@ export default function ReviewPanel({
           <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
           <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
           <div style={{ marginTop: 14, padding: "10px 11px", borderRadius: 9, background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.65 }}>
-            {argumentSummary(graph, actionableResults.length, isReviewing)}
+            {frameworkSummary || (isReviewing ? "正在通读所有模块并分析它们之间的论证关系…" : "整体框架分析暂未生成。")}
           </div>
         </section>
       )}

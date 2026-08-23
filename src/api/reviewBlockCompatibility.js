@@ -2,6 +2,79 @@ import { API_BASE_URL } from "../apiConfig";
 
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 
+function cleanOneSentence(value, fallback = "尚未填写内容") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  const sentence = text.match(/^.*?[。！？!?](?=\s|$)/)?.[0] || text;
+  return sentence.replace(/\s+/g, " ").trim();
+}
+
+function cleanParagraph(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function createFrameworkFallback(blocks, relations) {
+  const moduleSummaries = {};
+  blocks.forEach((block) => {
+    moduleSummaries[String(block.id)] = cleanOneSentence(block.text);
+  });
+  return {
+    moduleSummaries,
+    frameworkSummary: relations.length
+      ? "所选模块已经形成基本论证链，但整体关系仍需结合逐条审阅结果进一步判断。"
+      : "所选模块尚未形成可识别的完整论证关系。",
+  };
+}
+
+/**
+ * 让模型先通读全部所选模块，再统一概括节点并判断整套论证框架。
+ * 这一步与逐条关系审阅分开，避免用模块类型机械拼接总体总结。
+ */
+export async function reviewArgumentFramework({ blocks = [], relations = [], signal }) {
+  const compactRelations = relations.map(({ relationType, relationLabel, criterion, sourceBlock, targetBlock }) => ({
+    relationType,
+    relationLabel,
+    criterion,
+    sourceId: String(sourceBlock?.id),
+    targetId: String(targetBlock?.id),
+  }));
+
+  try {
+    const response = await fetch(REVIEW_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reviewMode: "argumentFramework",
+        blocks,
+        relations: compactRelations,
+        outputRequirements: {
+          moduleSummaries: "逐个理解模块原文后，各写一句完整、准确、简短的内容概括；不要只截取原文，不超过42个汉字",
+          frameworkSummary: "整体分析模块之间的解释、支持、回应与总结关系是否成立；先概括作者如何展开论证，再明确指出总体是否合理及最关键的薄弱关系；2至3句，不要按模块类型套模板",
+        },
+      }),
+      signal,
+    });
+    if (!response.ok) throw new Error(`整体框架审阅失败：${response.status}`);
+    const data = await response.json();
+    const rawSummaries = data?.moduleSummaries || data?.summaries;
+    const frameworkSummary = cleanParagraph(data?.frameworkSummary || data?.overallAnalysis);
+    if (!rawSummaries || typeof rawSummaries !== "object" || !frameworkSummary) throw new Error("整体框架审阅结果不完整");
+
+    const moduleSummaries = {};
+    blocks.forEach((block) => {
+      moduleSummaries[String(block.id)] = cleanOneSentence(
+        rawSummaries[String(block.id)] ?? rawSummaries[block.id],
+        cleanOneSentence(block.text)
+      );
+    });
+    return { moduleSummaries, frameworkSummary };
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    console.error("整体论证框架调用失败，已使用本地保底概括：", error);
+    return createFrameworkFallback(blocks, relations);
+  }
+}
+
 const RELATION_RULES = {
   reasonExplainsClaim: { title: "原因是否解释论点", goodTitle: "原因能够解释论点", weakTitle: "原因与论点的解释关系不够明确", connector: "之所以如此，是因为" },
   evidenceSupportsClaim: { title: "证据是否支持论点", goodTitle: "证据能够支持论点", weakTitle: "证据与论点的支持关系不够明确", connector: "这一论点可以从以下事实得到支持：" },
@@ -102,7 +175,7 @@ export async function reviewBlockCompatibility({ relationType, sourceBlock, targ
       score: Number(data.score) || 70,
       title: String(data.title || RELATION_RULES[relationType]?.title || "论证关系建议"),
       comment: String(data.comment),
-      summary: String(data.summary || data.comment).split(/[。！？!?]/)[0].slice(0, 48) + "。",
+      summary: cleanOneSentence(data.summary || data.comment),
       suggestion: String(data.suggestion || data.recommendation || "可以进一步补充具体内容，使这条论证关系更充分。"),
       suggestedText,
     };
