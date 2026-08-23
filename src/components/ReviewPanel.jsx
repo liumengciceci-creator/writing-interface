@@ -11,6 +11,7 @@ export default function ReviewPanel({
   open,
   isReviewing,
   progress,
+  graph = [],
   results,
   onAccept,
   onReject,
@@ -70,6 +71,51 @@ export default function ReviewPanel({
         </div>
       </header>
 
+      {graph.length > 0 && (
+        <section style={{ maxHeight: 250, overflowY: "auto", padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
+          <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {graph.map((edge) => (
+              <div
+                key={edge.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) 72px minmax(0, 1fr)",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: 8,
+                  border: "1px solid #e7ebf1",
+                  borderRadius: 10,
+                  background: "#fff",
+                }}
+              >
+                <div title={edge.sourceText} style={{ minWidth: 0 }}>
+                  <div style={{ color: "#315ea8", fontSize: 11, fontWeight: 700 }}>{edge.sourceType}</div>
+                  <div style={{ marginTop: 3, overflow: "hidden", color: "#6b7280", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {edge.sourceText || "空模块"}
+                  </div>
+                </div>
+
+                <div aria-label={edge.criterion} style={{ position: "relative", height: 28, textAlign: "center" }}>
+                  <div style={{ position: "absolute", left: 3, right: 7, top: 14, height: 1, background: "#8aa7d8" }} />
+                  <div style={{ position: "absolute", right: 2, top: 10, width: 7, height: 7, borderTop: "2px solid #6f91ca", borderRight: "2px solid #6f91ca", transform: "rotate(45deg)" }} />
+                  <span style={{ position: "relative", zIndex: 1, padding: "0 4px", background: "#fff", color: "#6f7f99", fontSize: 9 }}>
+                    {edge.criterion.replace(edge.sourceType, "").replace(edge.targetType, "").replace("是否", "") || "关联"}
+                  </span>
+                </div>
+
+                <div title={edge.targetText} style={{ minWidth: 0 }}>
+                  <div style={{ color: "#b45309", fontSize: 11, fontWeight: 700 }}>{edge.targetType}</div>
+                  <div style={{ marginTop: 3, overflow: "hidden", color: "#6b7280", fontSize: 10, lineHeight: 1.4, textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {edge.targetText || "全文内容"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         {isReviewing && results.length === 0 && (
           <div style={{ padding: "32px 18px", color: "#6b7280", fontSize: 13, lineHeight: 1.7, textAlign: "center" }}>
@@ -104,24 +150,27 @@ export default function ReviewPanel({
 
             {item.suggestedText !== item.originalText && (
               <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#f5f7fb", color: "#374151", fontSize: 12, lineHeight: 1.65 }}>
-                <div style={{ marginBottom: 4, color: "#64748b", fontSize: 11, fontWeight: 700 }}>建议修改</div>
+                <div style={{ marginBottom: 4, color: "#64748b", fontSize: 11, fontWeight: 700 }}>可加强部分</div>
                 {item.suggestedText}
               </div>
             )}
 
             {item.decision ? (
               <div style={{ marginTop: 11, color: item.decision === "accepted" ? "#287a55" : "#6b7280", fontSize: 12, fontWeight: 600 }}>
-                {item.decision === "accepted" ? "✓ 已接受修改" : "已拒绝，本条保持原文"}
+                {item.decision === "accepted" ? "✓ 已加强" : "已拒绝，本条保持原文"}
+              </div>
+            ) : item.suggestedText === item.originalText ? (
+              <div style={{ marginTop: 11, color: "#287a55", fontSize: 12, fontWeight: 600 }}>
+                ✓ 当前关系清楚，无需加强
               </div>
             ) : (
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button
                   type="button"
                   onClick={() => onAccept(item)}
-                  disabled={item.suggestedText === item.originalText}
-                  style={{ ...actionButton, flex: 1, border: 0, background: item.suggestedText === item.originalText ? "#e5e7eb" : "#315ea8", color: item.suggestedText === item.originalText ? "#9ca3af" : "#fff", cursor: item.suggestedText === item.originalText ? "default" : "pointer" }}
+                  style={{ ...actionButton, flex: 1, border: 0, background: "#315ea8", color: "#fff" }}
                 >
-                  接受修改
+                  加强
                 </button>
                 <button type="button" onClick={() => onReject(item)} style={{ ...actionButton, border: "1px solid #d7dce3", background: "#fff", color: "#4b5563" }}>
                   拒绝

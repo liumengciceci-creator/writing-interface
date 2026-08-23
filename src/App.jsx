@@ -141,6 +141,7 @@ export default function App() {
     activeIds: [],
     blinkOn: false,
     status: "",
+    graph: [],
     results: [],
   });
   /**
@@ -341,7 +342,15 @@ export default function App() {
 
     const relations = buildReviewRelations(blocks);
     const total = relations.length;
-    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", results: [] });
+    const graph = relations.map((relation) => ({
+      id: `${relation.relationType}-${relation.sourceBlock.id}-${relation.targetBlock.id}`,
+      sourceType: relation.relationLabel.split(" → ")[0],
+      targetType: relation.relationLabel.split(" → ")[1],
+      sourceText: String(relation.sourceBlock.text || ""),
+      targetText: String(relation.targetBlock.text || ""),
+      criterion: relation.criterion,
+    }));
+    setReviewState({ open: true, running: true, current: 0, total, activeIds: [], blinkOn: false, status: "正在准备审阅…", graph, results: [] });
 
     if (total === 0) {
       setReviewState((state) => ({ ...state, running: false, status: "所选模块中没有可审阅的明确论证关系" }));
@@ -1065,6 +1074,7 @@ beginDuplicateDrag={
           open={reviewState.open}
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
+          graph={reviewState.graph}
           results={reviewState.results}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}
