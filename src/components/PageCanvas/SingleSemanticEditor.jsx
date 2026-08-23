@@ -2896,6 +2896,36 @@ const SingleSemanticEditor =
                       )}
                     </span>
 
+                    {block.generationError &&
+                      !isGenerating && (
+                        <span
+                          aria-live="polite"
+                          data-generation-error="true"
+                          title={String(
+                            block.generationError
+                          )}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            minHeight: 22,
+                            margin: "0 6px 6px 0",
+                            padding: "1px 8px",
+                            border: "1px solid #ef9a9a",
+                            borderRadius: 6,
+                            background: "#fff1f1",
+                            color: "#b42318",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            lineHeight: "18px",
+                            verticalAlign: "middle",
+                            userSelect: "none",
+                            WebkitUserSelect: "none",
+                          }}
+                        >
+                          生成失败，请重新生成
+                        </span>
+                      )}
+
                     <LengthFlowSpacer
                       lengthResizePreview={
                         normalizeId(

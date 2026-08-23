@@ -133,6 +133,7 @@ function countDocumentCharacters(
 }
 
 export default function App() {
+  const [reviewInspectorOpen, setReviewInspectorOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
     open: false,
     running: false,
@@ -342,6 +343,7 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
+    setReviewInspectorOpen(false);
     setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在识别所选模块之间的关系…", graph: [], notes: [], activeGraphId: null, results: [] });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
@@ -420,9 +422,9 @@ export default function App() {
               graph: state.graph.some((item) => item.id === relationInfo.id)
                 ? state.graph
                 : [...state.graph, relationInfo],
-              activeIds: [],
-              activeGraphId: null,
-              blinkOn: false,
+              activeIds: [sourceBlock.id, targetBlock.id],
+              activeGraphId: relationInfo.id,
+              blinkOn: true,
               status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
             }));
             return;
@@ -637,7 +639,9 @@ export default function App() {
            */
           gridTemplateColumns:
             reviewState.open
-              ? "164px minmax(720px, 1fr) 380px"
+              ? reviewInspectorOpen
+                ? "164px minmax(720px, 1fr) 720px"
+                : "164px minmax(720px, 1fr) 420px"
               : "164px minmax(0, 1fr)",
 
           width:
@@ -1171,7 +1175,11 @@ beginDuplicateDrag={
           results={reviewState.results}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}
-          onClose={() => setReviewState((state) => ({ ...state, open: false }))}
+          onInspectorOpenChange={setReviewInspectorOpen}
+          onClose={() => {
+            setReviewInspectorOpen(false);
+            setReviewState((state) => ({ ...state, open: false }));
+          }}
         />
 
       </div>

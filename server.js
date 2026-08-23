@@ -1346,6 +1346,7 @@ async function generateValidatedBufferedBlocks({
   const maxAttempts = 3;
   let lastInvalid = [];
   let lastResponse = null;
+  const validTextById = new Map();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (isClientClosed() || signal?.aborted) {
@@ -1408,6 +1409,15 @@ async function generateValidatedBufferedBlocks({
         : [];
     });
 
+    const invalidIdSet = new Set(lastInvalid.map((item) => String(item.id)));
+    targetBlocks.forEach((block) => {
+      const id = String(block.id);
+      const text = String(textById.get(id) || "").trim();
+      if (!invalidIdSet.has(id) && text) {
+        validTextById.set(id, text);
+      }
+    });
+
     writeLine(res, {
       type: "debug",
       stage: "server_attempt_validated",
@@ -1429,6 +1439,12 @@ async function generateValidatedBufferedBlocks({
     `模型连续 ${maxAttempts} 次未执行模块指令：${lastInvalid
       .map((item) => item.id)
       .join(", ")}`
+  );
+  error.code = "GENERATION_VALIDATION_FAILED";
+  error.failedIds = lastInvalid.map((item) => String(item.id));
+  error.partialTextById = validTextById;
+  error.partialBlocks = targetBlocks.filter((block) =>
+    validTextById.has(String(block.id))
   );
   error.details = lastInvalid;
   throw error;
@@ -2082,19 +2098,21 @@ app.post(
 ${JSON.stringify(blocks, null, 2)}
 
 输出顺序与格式：
-严格按照写作顺序生成一条从上到下的论证链。先输出第一个模块；此后每处理一个新模块，先输出“上一模块到当前模块”的关系，再立刻输出当前模块。禁止先输出完所有模块再统一输出关系。
+这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按照写作顺序理解模块，但必须同时检查当前模块与全部其他模块的真实语义联系，不能只比较相邻模块。
+
+先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并输出你确认的直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
 
 模块行格式：
 {"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄","narrative":"面向作者说明这个模块如何推进整体论证的一至两句具体文字"}
 narrative 必须结合全部模块的上下文形成连续语言：第一个相关模块用“这里你提出了……”；后续模块根据真实关系灵活使用“基于这一点，你……”“根据这个……，你又……”“随后你……”“最后你……”。必须写出具体内容，不能只说“提出论点、补充原因、提供证据”。
 
-相邻模块关系行格式：
-{"type":"relation","sourceId":"写作顺序中的上一模块id","targetId":"当前模块id","relation":"由两段具体内容决定的2至6字关系词"}
-每两个相邻模块之间必须输出一条关系。不要套用固定的解释、支持、回应、总结分类；关系词应具体，例如引出风险、补充机制、提供数据、限定结论、转向实践。不要额外生成跨越多个模块的连线。
+关系行格式：
+{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的2至6字关系词"}
+sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如证据指向它支持的论点，原因指向它解释的论点，反论指向它质疑或限定的论点。不要强迫相邻模块连线，也不要遗漏有直接语义联系的非相邻模块。不要生成仅因位置相邻而成立的关系，也不要让所有模块彼此互连。关系词应具体，例如提供数据、解释机制、质疑前提、限定结论、转向实践。同一对模块的同一关系只输出一次。
 
 全部模块与相邻关系完成后输出最后一行：
 {"type":"final","enhancements":[{"sourceId":"薄弱模块id","targetId":"相关模块id","summary":"一句关系判断","suggestion":"一个最关键的内容问题","suggestedText":"不虚构事实的加强后来源模块全文"}]}
-只为确实薄弱的相邻模块关系生成 enhancement，sourceId 与 targetId 必须来自此前输出的一条相邻关系；没有则返回空数组。`;
+只为确实薄弱的已输出关系生成 enhancement；增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系；没有则返回空数组。`;
 
     let textBuffer = "";
     const validIds = new Set(blocks.map((block) => block.id));
@@ -2573,6 +2591,21 @@ app.post(
         return;
       }
 
+      if (
+        !wasAborted &&
+        Array.isArray(error?.partialBlocks) &&
+        error.partialBlocks.length > 0 &&
+        error?.partialTextById instanceof Map &&
+        canWriteResponse(res)
+      ) {
+        await emitBufferedBlocks(
+          res,
+          error.partialBlocks,
+          error.partialTextById,
+          () => clientClosed
+        );
+      }
+
       console.error(
         "❌ OpenAI generate-stream error:",
         error
@@ -2581,6 +2614,8 @@ app.post(
       if (canWriteResponse(res)) {
         writeLine(res, {
           type: "error",
+          code: error?.code || (wasAborted ? "GENERATION_ABORTED" : "GENERATION_FAILED"),
+          failedIds: Array.isArray(error?.failedIds) ? error.failedIds : [],
           error: wasAborted
             ? "生成请求超时或已取消"
             : error.message || "OpenAI request failed",

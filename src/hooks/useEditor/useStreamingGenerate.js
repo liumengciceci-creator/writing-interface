@@ -205,6 +205,11 @@ const TYPE_PLACEHOLDER_TEXT = {
 };
 
 function getBlockDirective(block) {
+  const storedDirective = String(
+    block?.generationDirective || ""
+  ).trim();
+  if (storedDirective) return storedDirective;
+
   const text = String(block?.text || "").trim();
   if (!text) return "";
 
@@ -816,31 +821,12 @@ export function useStreamingGenerate({
       })),
     });
 
-    const restoreAllTargets = () => {
-      const originalsById = new Map(
-        targets.map((entry) => [String(entry.block.id), entry.block])
-      );
-
-      setSections((previous) =>
-        patchBlocks(previous, (block) => {
-          const original = originalsById.get(String(block.id));
-          if (!original) return block;
-
-          return {
-            ...block,
-            text: original.text || "",
-            sources: Array.isArray(original.sources)
-              ? original.sources
-              : [],
-            height: estimateBlockHeight(
-              original.text || "",
-              block.width
-            ),
-            isGenerated: original.isGenerated,
-          };
-        })
-      );
-    };
+    const directiveByRealId = new Map(
+      targets.map((entry, index) => [
+        String(entry.block.id),
+        String(requestTargetBlocks[index]?.directive || ""),
+      ])
+    );
 
     setSelectedIds?.([]);
     cancelledRef.current = false;
@@ -851,6 +837,22 @@ export function useStreamingGenerate({
     setGeneratingBlockIds(targetIds);
     setGenerationStatus(
       `正在整体分析 ${targets.length} 个模块及其上下文…`
+    );
+    setSections((previous) =>
+      patchBlocks(previous, (block) => {
+        const blockId = String(block.id);
+        if (!selectedIdSet.has(blockId)) return block;
+
+        return {
+          ...block,
+          text: "",
+          sources: [],
+          height: estimateBlockHeight("", block.width),
+          isGenerated: true,
+          generationDirective: directiveByRealId.get(blockId) || "",
+          generationError: null,
+        };
+      })
     );
     startBlinking();
 
@@ -871,7 +873,14 @@ export function useStreamingGenerate({
               error: event.error,
               details: event.details,
             });
-            throw new Error(event.error || "生成服务返回错误");
+            const streamError = new Error(
+              event.error || "生成服务返回错误"
+            );
+            streamError.code = event.code || "GENERATION_FAILED";
+            streamError.failedIds = Array.isArray(event.failedIds)
+              ? event.failedIds.map(String)
+              : [];
+            throw streamError;
           }
 
           if (event.type === "debug") {
@@ -969,7 +978,11 @@ export function useStreamingGenerate({
       for (let index = 0; index < targets.length; index += 1) {
         const requestId = String(index + 1);
         const targetEntry = targets[index];
-        const originalText = String(targetEntry.block?.text || "").trim();
+        const originalText = String(
+          directiveByRealId.get(String(targetEntry.block.id)) ||
+            targetEntry.block?.text ||
+            ""
+        ).trim();
         const cleanedText = sanitizeGeneratedText(
           generatedTextByRequestId.get(requestId) || ""
         );
@@ -1029,6 +1042,8 @@ export function useStreamingGenerate({
             text: cleanedText,
             height: estimateBlockHeight(cleanedText, block.width),
             isGenerated: true,
+            generationDirective: "",
+            generationError: null,
           };
         })
       );
@@ -1061,10 +1076,63 @@ export function useStreamingGenerate({
       clearPendingFrame();
       pendingDeltaMapRef.current = new Map();
       expectedGeneratedTextRef.current = new Map();
-      restoreAllTargets();
-      setSelectedIds?.(targetIds);
+      const validTextByRealId = new Map();
+      const failedTargetIds = [];
+
+      targets.forEach((entry, index) => {
+        const requestId = String(index + 1);
+        const realBlockId = String(entry.block.id);
+        const originalText = String(
+          directiveByRealId.get(realBlockId) || entry.block?.text || ""
+        ).trim();
+        const generatedText = sanitizeGeneratedText(
+          generatedTextByRequestId.get(requestId) || ""
+        );
+        const valid = Boolean(
+          completedRequestIds.has(requestId) &&
+            generatedText &&
+            normalizeGenerationComparison(generatedText) !==
+              normalizeGenerationComparison(originalText)
+        );
+
+        if (valid) {
+          validTextByRealId.set(realBlockId, generatedText);
+        } else {
+          failedTargetIds.push(realBlockId);
+        }
+      });
+
+      setSections((previous) =>
+        patchBlocks(previous, (block) => {
+          const blockId = String(block.id);
+          if (!selectedIdSet.has(blockId)) return block;
+
+          const validText = validTextByRealId.get(blockId);
+          if (validText) {
+            return {
+              ...block,
+              text: validText,
+              height: estimateBlockHeight(validText, block.width),
+              isGenerated: true,
+              generationDirective: "",
+              generationError: null,
+            };
+          }
+
+          return {
+            ...block,
+            text: "",
+            sources: [],
+            height: estimateBlockHeight("", block.width),
+            isGenerated: true,
+            generationDirective: directiveByRealId.get(blockId) || "",
+            generationError: error?.message || "生成失败",
+          };
+        })
+      );
+      setSelectedIds?.(failedTargetIds);
       setGenerationStatus(
-        `错误：整体生成已停止。${error?.message || "生成失败"}`
+        `错误：${failedTargetIds.length || targets.length} 个模块生成失败，原始输入未作为结果保留。${error?.message || "生成失败"}`
       );
     } finally {
       stopBlinking();

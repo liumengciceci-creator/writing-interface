@@ -654,6 +654,8 @@ export function useBlockActions({
                             ...block,
                             text:
                               nextText,
+                            generationDirective: "",
+                            generationError: null,
                           };
 
                           delete nextBlock.x;
@@ -682,6 +684,12 @@ export function useBlockActions({
 
                           text:
                             nextText,
+
+                          generationDirective:
+                            "",
+
+                          generationError:
+                            null,
 
                           height:
                             estimateBlockHeight(
@@ -831,6 +839,8 @@ export function useBlockActions({
                             ...block,
                             text:
                               nextText,
+                            generationDirective: "",
+                            generationError: null,
                           };
 
                           delete nextBlock.x;
@@ -859,6 +869,12 @@ export function useBlockActions({
 
                           text:
                             nextText,
+
+                          generationDirective:
+                            "",
+
+                          generationError:
+                            null,
 
                           height:
                             estimateBlockHeight(
