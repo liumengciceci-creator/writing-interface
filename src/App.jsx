@@ -8,7 +8,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ReviewPanel from "./components/ReviewPanel.jsx";
-import { reviewArgumentFramework, reviewBlockCompatibility } from "./api/reviewBlockCompatibility.js";
+import { reviewArgumentFrameworkStream } from "./api/reviewBlockCompatibility.js";
 
 import {
   useEditor,
@@ -342,96 +342,133 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    setReviewState({ open: true, running: true, current: 0, total: 0, activeIds: [], blinkOn: false, status: "正在快速识别所选模块之间的联系…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
+    setReviewState({ open: true, running: true, current: 0, total: 0, activeIds: [], blinkOn: false, status: "正在整体审阅所选模块…", graph: [], frameworkSummary: "", activeGraphId: null, results: [] });
 
+    const blockById = new Map(blocks.map((block) => [String(block.id), block]));
+    const summaries = new Map();
+    const relationByPair = new Map();
+    const typeLabels = {
+      Claim: "论点",
+      Reason: "原因",
+      Evidence: "证据",
+      Counter: "反论",
+      Compare: "对比",
+      Conclusion: "结论",
+      Title: "标题",
+    };
     const blinkTimer = window.setInterval(() => {
-      setReviewState((state) => state.running ? { ...state, blinkOn: !state.blinkOn } : state);
+      setReviewState((state) => state.running && state.activeGraphId
+        ? { ...state, blinkOn: !state.blinkOn }
+        : state);
     }, 420);
 
     try {
-      // 第一阶段只调用一次模型：自主识别关系并立即显示整张图。
-      const framework = await reviewArgumentFramework({ blocks, relations: [] });
-      const blockById = new Map(blocks.map((block) => [String(block.id), block]));
-      const typeLabels = {
-        Claim: "论点",
-        Reason: "原因",
-        Evidence: "证据",
-        Counter: "反论",
-        Compare: "对比",
-        Conclusion: "结论",
-        Title: "标题",
-      };
-      const inferredRelations = (framework.graphEdges || [])
-        .map((edge, index) => {
-          const sourceBlock = blockById.get(String(edge.sourceId));
-          const targetBlock = blockById.get(String(edge.targetId));
-          if (!sourceBlock || !targetBlock) return null;
-          const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
-          const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
-          return {
-            relationType: "inferredRelation",
-            relationLabel: `${sourceType} → ${targetType}`,
-            relation: String(edge.relation || "关联"),
-            criterion: `这两个模块是否形成“${String(edge.relation || "关联")}”的内容关系`,
-            sourceBlock,
-            targetBlock,
-            contextBlocks: blocks,
-            id: `inferred-${sourceBlock.id}-${targetBlock.id}-${index}`,
-          };
-        })
-        .filter(Boolean);
-      const graph = inferredRelations.map((relation) => ({
-        id: relation.id,
-        sourceType: relation.relationLabel.split(" → ")[0],
-        targetType: relation.relationLabel.split(" → ")[1],
-        sourceText: framework.moduleSummaries[String(relation.sourceBlock.id)] || "概括生成中",
-        targetText: framework.moduleSummaries[String(relation.targetBlock.id)] || "概括生成中",
-        sourceColor: relation.sourceBlock.color || "#64748b",
-        sourceFill: relation.sourceBlock.fill || "#f1f5f9",
-        targetColor: relation.targetBlock.color || "#374151",
-        targetFill: relation.targetBlock.fill || "#f3f4f6",
-        targetId: String(relation.targetBlock.id),
-        relation: relation.relation,
-        criterion: relation.criterion,
-      }));
-      const total = inferredRelations.length;
+      await reviewArgumentFrameworkStream({
+        blocks,
+        onEvent: (event) => {
+          if (event.type === "module") {
+            summaries.set(String(event.id), String(event.summary || ""));
+            setReviewState((state) => ({
+              ...state,
+              status: `正在概括${typeLabels[blockById.get(String(event.id))?.type] || "模块"}内容…`,
+            }));
+            return;
+          }
+
+          if (event.type === "relation") {
+            const sourceBlock = blockById.get(String(event.sourceId));
+            const targetBlock = blockById.get(String(event.targetId));
+            if (!sourceBlock || !targetBlock) return;
+            const pairKey = `${String(sourceBlock.id)}-${String(targetBlock.id)}`;
+            if (relationByPair.has(pairKey)) return;
+            const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
+            const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
+            const relation = String(event.relation || "关联");
+            const id = `inferred-${sourceBlock.id}-${targetBlock.id}-${relationByPair.size}`;
+            const relationInfo = {
+              id,
+              relationLabel: `${sourceType} → ${targetType}`,
+              criterion: `这两个模块形成“${relation}”的内容关系`,
+              sourceBlock,
+              targetBlock,
+            };
+            relationByPair.set(pairKey, relationInfo);
+            const graphEdge = {
+              id,
+              sourceType,
+              targetType,
+              sourceText: summaries.get(String(sourceBlock.id)) || "正在概括此模块",
+              targetText: summaries.get(String(targetBlock.id)) || "正在概括此模块",
+              sourceColor: sourceBlock.color || "#64748b",
+              sourceFill: sourceBlock.fill || "#f1f5f9",
+              targetColor: targetBlock.color || "#374151",
+              targetFill: targetBlock.fill || "#f3f4f6",
+              targetId: String(targetBlock.id),
+              relation,
+              criterion: relationInfo.criterion,
+            };
+            setReviewState((state) => ({
+              ...state,
+              current: state.graph.length + 1,
+              total: state.graph.length + 1,
+              activeIds: [sourceBlock.id, targetBlock.id],
+              activeGraphId: id,
+              blinkOn: true,
+              graph: [...state.graph, graphEdge],
+              status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
+            }));
+            return;
+          }
+
+          if (event.type === "final") {
+            const results = (Array.isArray(event.enhancements) ? event.enhancements : []).map((item, index) => {
+              const sourceBlock = blockById.get(String(item.sourceId));
+              const targetBlock = blockById.get(String(item.targetId));
+              if (!sourceBlock || !targetBlock) return null;
+              const relation = relationByPair.get(`${String(item.sourceId)}-${String(item.targetId)}`);
+              const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
+              const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
+              return {
+                id: relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}-${index}`,
+                relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
+                criterion: relation?.criterion || "模型识别出的内容关系",
+                targetBlockId: sourceBlock.id,
+                originalText: String(sourceBlock.text || ""),
+                suggestedText: String(item.suggestedText || sourceBlock.text || ""),
+                summary: String(item.summary || "这条关系可以进一步加强。"),
+                comment: String(item.summary || "这条关系可以进一步加强。"),
+                suggestion: String(item.suggestion || "可以进一步补足这条关系中的关键逻辑。"),
+                decision: null,
+              };
+            }).filter(Boolean);
+            setReviewState((state) => ({
+              ...state,
+              frameworkSummary: String(event.frameworkSummary || ""),
+              results,
+              status: "正在完成整体关系判断…",
+            }));
+          }
+        },
+      });
+
       setReviewState((state) => ({
         ...state,
-        total,
-        graph,
-        frameworkSummary: framework.frameworkSummary,
-        status: total > 0 ? "关系图已生成，正在准备具体增强意见…" : "已完成整体分析",
+        running: false,
+        activeIds: [],
+        activeGraphId: null,
+        blinkOn: false,
+        status: `整体审阅完成：识别 ${state.graph.length} 组关系`,
       }));
-
-      // 第二阶段逐条请求增强意见；不会阻塞上方关系图的显示。
-      for (let index = 0; index < total; index += 1) {
-        const relation = inferredRelations[index];
-        const { sourceBlock, targetBlock } = relation;
-        const status = `正在检查：${relation.criterion}（${index + 1}/${total}）`;
-        setReviewState((state) => ({
-          ...state,
-          current: index + 1,
-          activeIds: [sourceBlock.id, targetBlock.id],
-          activeGraphId: relation.id,
-          status,
-        }));
-
-        const review = await reviewBlockCompatibility(relation);
-        setReviewState((state) => ({
-          ...state,
-          results: [...state.results, {
-            ...review,
-            id: relation.id,
-            relationLabel: relation.relationLabel,
-            criterion: relation.criterion,
-            targetBlockId: sourceBlock.id,
-            originalText: String(sourceBlock.text || ""),
-            decision: null,
-          }],
-        }));
-      }
-
-      setReviewState((state) => ({ ...state, running: false, activeIds: [], activeGraphId: null, blinkOn: false, status: `审阅完成：已检查 ${total} 组模型识别的关系` }));
+    } catch (error) {
+      console.error("整体审阅失败：", error);
+      setReviewState((state) => ({
+        ...state,
+        running: false,
+        activeIds: [],
+        activeGraphId: null,
+        blinkOn: false,
+        status: "整体审阅失败，请稍后重试",
+      }));
     } finally {
       window.clearInterval(blinkTimer);
     }

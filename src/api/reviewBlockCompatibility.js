@@ -1,6 +1,44 @@
 import { API_BASE_URL } from "../apiConfig";
 
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
+const REVIEW_STREAM_URL = `${API_BASE_URL}/api/review-framework-stream`;
+
+export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, signal }) {
+  const response = await fetch(REVIEW_STREAM_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ blocks }),
+    signal,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `整体审阅失败：${response.status}`);
+  }
+  if (!response.body) throw new Error("当前浏览器不支持流式审阅");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "error") throw new Error(event.message || "整体审阅失败");
+        onEvent?.(event);
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) onEvent?.(JSON.parse(buffer));
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 function cleanOneSentence(value, fallback = "尚未填写内容") {
   const text = String(value || "").replace(/\s+/g, " ").trim();
@@ -53,6 +91,7 @@ function createFrameworkFallback(blocks, relations) {
   return {
     moduleSummaries,
     graphEdges: [],
+    enhancements: [],
     frameworkSummary: relations.length
       ? "所选模块已经形成基本论证链，但整体关系仍需结合逐条审阅结果进一步判断。"
       : "所选模块尚未形成可识别的完整论证关系。",
@@ -102,7 +141,8 @@ export async function reviewArgumentFramework({ blocks = [], relations = [], sig
         : compactFallbackSummary(block.text, block.type);
     });
     const graphEdges = Array.isArray(data?.graphEdges) ? data.graphEdges : [];
-    return { moduleSummaries, graphEdges, frameworkSummary };
+    const enhancements = Array.isArray(data?.enhancements) ? data.enhancements : [];
+    return { moduleSummaries, graphEdges, enhancements, frameworkSummary };
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     console.error("整体论证框架调用失败，已使用本地保底概括：", error);

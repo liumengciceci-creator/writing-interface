@@ -134,13 +134,13 @@ export default function ReviewPanel({
       <header style={{ position: "sticky", top: 0, zIndex: 5, padding: "18px 18px 14px", borderBottom: "1px solid #edf0f4", background: "rgba(255,255,255,0.97)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ color: "#111827", fontSize: 16, fontWeight: 700 }}>模块匹配度审阅</div>
+            <div style={{ color: "#111827", fontSize: 16, fontWeight: 700 }}>整体论证审阅</div>
             <div style={{ marginTop: 4, color: "#6b7280", fontSize: 12 }}>
               {isReviewing
                 ? progress.total > 0
-                  ? `正在生成增强意见 ${progress.current}/${progress.total}`
-                  : "正在识别模块关系"
-                : `共检查 ${progress.total} 组关系`}
+                  ? `正在实时判断模块关系 · 已识别 ${progress.current} 条`
+                  : "正在通读并概括所选模块"
+                : `共识别 ${progress.total} 组关系`}
             </div>
           </div>
           <button
@@ -167,11 +167,18 @@ export default function ReviewPanel({
 
       {graph.length > 0 && (
         <section style={{ padding: "14px 14px 12px", borderBottom: "1px solid #edf0f4", background: "#fafbfc" }}>
-          <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>论证逻辑图</div>
-          <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
-          <div style={{ marginTop: 14, padding: "10px 11px", borderRadius: 9, background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.65 }}>
-            {frameworkSummary || (isReviewing ? "正在通读所有模块并分析它们之间的论证关系…" : "整体框架分析暂未生成。")}
+          {frameworkSummary && (
+            <>
+              <div style={{ marginBottom: 8, color: "#374151", fontSize: 12, fontWeight: 700 }}>整体关系判断</div>
+              <div style={{ marginBottom: 16, padding: "11px 12px", borderRadius: 9, background: "#fff", color: "#4b5563", fontSize: 12, lineHeight: 1.75 }}>
+                {frameworkSummary}
+              </div>
+            </>
+          )}
+          <div style={{ marginBottom: 10, color: "#374151", fontSize: 12, fontWeight: 700 }}>
+            {isReviewing ? "正在形成模块关系图" : "模块关系图"}
           </div>
+          <LogicTree edges={graph} activeEdgeId={activeGraphId} blinkOn={graphBlinkOn} />
         </section>
       )}
 
@@ -208,7 +215,7 @@ export default function ReviewPanel({
               cursor: "pointer",
             }}
           >
-            <span>{isReviewing ? `增强意见生成中 · 已发现 ${actionableResults.length} 个` : `发现 ${actionableResults.length} 个可加强点`}</span>
+            <span>{isReviewing ? "整体判断完成后显示加强点" : `发现 ${actionableResults.length} 个可加强点`}</span>
             <span aria-hidden="true" style={{ color: "#718096", transform: detailsOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 180ms ease" }}>⌄</span>
           </button>
         )}

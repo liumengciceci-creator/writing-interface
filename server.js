@@ -2049,6 +2049,116 @@ app.post(
 );
 
 /**
+ * 流式整体论证审阅。
+ * 模型每确认一个模块概括或一条关系，立即以 NDJSON 推送给前端。
+ */
+app.post(
+  "/api/review-framework-stream",
+  async (req, res) => {
+    const blocks = Array.isArray(req.body?.blocks)
+      ? req.body.blocks
+          .filter((block) => block && block.id != null && String(block.text || "").trim())
+          .map((block) => ({
+            id: String(block.id),
+            type: String(block.type || "Unknown"),
+            text: String(block.text || "").trim(),
+          }))
+      : [];
+
+    if (blocks.length < 2) {
+      return res.status(400).json({ error: "至少需要两个有效模块" });
+    }
+
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+    writeLine(res, { type: "ready", blockIds: blocks.map((block) => block.id) });
+
+    const prompt = `你是一名严谨的中文论证写作编辑。请实时审阅以下模块，并严格按审阅进度逐行输出 NDJSON。每完成一个判断就立刻输出一行，禁止等待全部分析完成后再统一输出，禁止代码块和额外文字。
+
+模块（数组顺序即写作顺序）：
+${JSON.stringify(blocks, null, 2)}
+
+输出阶段与格式：
+第一阶段，为每个模块依次输出一行：
+{"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄"}
+
+第二阶段，自主判断真实内容关系。每确认一条直接关系立即输出一行：
+{"type":"relation","sourceId":"主动补充、推进或处理另一个模块的id","targetId":"被推进或处理的模块id","relation":"由内容决定的2至6字关系词"}
+不要套用固定的解释、支持、回应、总结分类。关系词应具体，例如引出风险、补充机制、提供数据、限定结论、转向实践。只输出理解论证所必需的直接关系，避免所有模块互连。
+
+第三阶段，完成整体判断后输出最后一行：
+{"type":"final","frameworkSummary":"使用这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……。整体……。的连续语言，具体写出内容，共3至5句","enhancements":[{"sourceId":"薄弱模块id","targetId":"相关模块id","summary":"一句关系判断","suggestion":"一个最关键的内容问题","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+只为确实薄弱的关系生成 enhancement；没有则返回空数组。`;
+
+    let textBuffer = "";
+    const validIds = new Set(blocks.map((block) => block.id));
+    const emitParsedLine = (rawLine) => {
+      const line = String(rawLine || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+      if (!line) return;
+      try {
+        const item = JSON.parse(line);
+        if (item.type === "module" && validIds.has(String(item.id))) {
+          writeLine(res, {
+            type: "module",
+            id: String(item.id),
+            summary: String(item.summary || "").replace(/\s+/g, " ").trim().slice(0, 32),
+          });
+        } else if (
+          item.type === "relation" &&
+          validIds.has(String(item.sourceId)) &&
+          validIds.has(String(item.targetId)) &&
+          String(item.sourceId) !== String(item.targetId)
+        ) {
+          writeLine(res, {
+            type: "relation",
+            sourceId: String(item.sourceId),
+            targetId: String(item.targetId),
+            relation: String(item.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
+          });
+        } else if (item.type === "final") {
+          writeLine(res, {
+            type: "final",
+            frameworkSummary: String(item.frameworkSummary || "").replace(/\s+/g, " ").trim(),
+            enhancements: Array.isArray(item.enhancements) ? item.enhancements : [],
+          });
+        }
+      } catch (error) {
+        console.warn("跳过无法解析的审阅流行：", line, error.message);
+      }
+    };
+
+    try {
+      const stream = await openai.responses.create({
+        model: WRITING_MODEL,
+        input: prompt,
+        reasoning: { effort: "low" },
+        stream: true,
+      });
+
+      for await (const event of stream) {
+        if (event.type !== "response.output_text.delta") continue;
+        textBuffer += String(event.delta || "");
+        const lines = textBuffer.split("\n");
+        textBuffer = lines.pop() || "";
+        lines.forEach(emitParsedLine);
+      }
+      if (textBuffer.trim()) emitParsedLine(textBuffer);
+      writeLine(res, { type: "done" });
+      return res.end();
+    } catch (error) {
+      console.error("❌ review-framework-stream error:", error);
+      if (!res.writableEnded) {
+        writeLine(res, { type: "error", message: error.message || "整体审阅失败" });
+        res.end();
+      }
+    }
+  }
+);
+
+/**
  * 论证框架与模块关系审阅接口。
  *
  * reviewMode === "argumentFramework"：
@@ -2100,6 +2210,11 @@ app.post(
 - 根据实际模块数量灵活组织，不得虚构不存在的步骤。
 - 最后再用一句话判断整体衔接是否合理；共3至5句。
 
+任务四：一次性给出必要的增强意见
+- 只针对确实薄弱的直接关系提出意见；关系充分则不要生成。
+- suggestion 只指出一个最关键的内容问题。
+- suggestedText 在保留来源模块原意的基础上补足逻辑，不得虚构数据或事实。
+
 模块：
 ${JSON.stringify(blocks, null, 2)}
 
@@ -2117,12 +2232,22 @@ ${JSON.stringify(blocks, null, 2)}
       "relation": "2至6个汉字的内容关系词"
     }
   ],
-  "frameworkSummary": "这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……。整体……。"
+  "frameworkSummary": "这里你提出了……。基于这一点，你……。根据这个……，你又……。最后你……。整体……。",
+  "enhancements": [
+    {
+      "sourceId": "需要加强的来源模块id",
+      "targetId": "与它相关的目标模块id",
+      "summary": "一句具体关系判断",
+      "suggestion": "一句内容问题",
+      "suggestedText": "加强后的来源模块全文"
+    }
+  ]
 }`;
 
         const response = await openai.responses.create({
           model: WRITING_MODEL,
           input: prompt,
+          reasoning: { effort: "low" },
         });
         const parsed = parseModelJson(
           response.output_text,
@@ -2169,10 +2294,20 @@ ${JSON.stringify(blocks, null, 2)}
             relation: String(edge?.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
           }))
           .filter((edge) => edge.sourceId !== edge.targetId && validIds.has(edge.sourceId) && validIds.has(edge.targetId));
+        const enhancements = (Array.isArray(parsed.enhancements) ? parsed.enhancements : [])
+          .map((item) => ({
+            sourceId: String(item?.sourceId || ""),
+            targetId: String(item?.targetId || ""),
+            summary: String(item?.summary || "").replace(/\s+/g, " ").trim(),
+            suggestion: String(item?.suggestion || "").replace(/\s+/g, " ").trim(),
+            suggestedText: String(item?.suggestedText || "").trim(),
+          }))
+          .filter((item) => validIds.has(item.sourceId) && validIds.has(item.targetId) && item.suggestion && item.suggestedText);
 
         return res.json({
           moduleSummaries,
           graphEdges,
+          enhancements,
           frameworkSummary: String(parsed.frameworkSummary).replace(/\s+/g, " ").trim(),
         });
       }
