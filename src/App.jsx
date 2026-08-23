@@ -8,7 +8,6 @@ import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ReviewPanel from "./components/ReviewPanel.jsx";
-import CanvasRelationOverlay from "./components/CanvasRelationOverlay.jsx";
 import { reviewBlockCompatibility } from "./api/reviewBlockCompatibility.js";
 
 import {
@@ -384,7 +383,6 @@ export default function App() {
         const graphEdge = {
           id: `${relation.relationType}-${sourceBlock.id}-${targetBlock.id}`,
           sourceType: relation.relationLabel.split(" → ")[0],
-          sourceId: String(sourceBlock.id),
           targetType: relation.relationLabel.split(" → ")[1],
           sourceText: summarizeModuleText(sourceBlock.text, sourceBlock.type),
           targetText: summarizeModuleText(targetBlock.text, targetBlock.type),
@@ -393,11 +391,6 @@ export default function App() {
           targetColor: targetBlock.color || "#374151",
           targetFill: targetBlock.fill || "#f3f4f6",
           targetId: String(targetBlock.id),
-          targetDomId: String(
-            targetBlock.id === "selected-document"
-              ? relation.contextBlocks.find((item) => item.type === "Claim")?.id || relation.contextBlocks[0]?.id
-              : targetBlock.id
-          ),
           criterion: relation.criterion,
         };
         const status = `正在检查：${relation.criterion}（${index + 1}/${total}）`;
@@ -589,7 +582,7 @@ export default function App() {
            */
           gridTemplateColumns:
             reviewState.open
-              ? "minmax(0, 1fr) minmax(300px, 360px)"
+              ? "164px minmax(720px, 1fr) 360px"
               : "164px minmax(0, 1fr)",
 
           width:
@@ -608,11 +601,6 @@ export default function App() {
         {/* 左侧标签栏 */}
         <div
           style={{
-            display:
-              reviewState.open
-                ? "none"
-                : "block",
-
             position:
               "relative",
 
@@ -906,9 +894,7 @@ export default function App() {
                 "flex",
 
               justifyContent:
-                reviewState.open
-                  ? "flex-start"
-                  : "center",
+                "center",
 
               alignItems:
                 "flex-start",
@@ -917,12 +903,7 @@ export default function App() {
                * 允许浮动模块越过画布边界，
                * 显示在画布右侧区域。
                */
-              overflowX:
-                reviewState.open
-                  ? "auto"
-                  : "visible",
-
-              overflowY:
+              overflow:
                 "visible",
 
               position:
@@ -1129,16 +1110,12 @@ beginDuplicateDrag={
           isReviewing={reviewState.running}
           progress={{ current: reviewState.current, total: reviewState.total }}
           graph={reviewState.graph}
+          activeGraphId={reviewState.activeGraphId}
+          graphBlinkOn={reviewState.blinkOn}
           results={reviewState.results}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}
           onClose={() => setReviewState((state) => ({ ...state, open: false }))}
-        />
-
-        <CanvasRelationOverlay
-          edges={reviewState.graph}
-          activeEdgeId={reviewState.activeGraphId}
-          blinkOn={reviewState.blinkOn}
         />
 
       </div>
