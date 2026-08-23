@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../apiConfig";
 
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 const REVIEW_STREAM_URL = `${API_BASE_URL}/api/review-framework-stream`;
+const REVIEW_DETAIL_STREAM_URL = `${API_BASE_URL}/api/review-enhancement-detail-stream`;
 
 export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, signal }) {
   const response = await fetch(REVIEW_STREAM_URL, {
@@ -30,11 +31,65 @@ export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, sign
         if (!line.trim()) continue;
         const event = JSON.parse(line);
         if (event.type === "error") throw new Error(event.message || "整体审阅失败");
-        onEvent?.(event);
+        await onEvent?.(event);
       }
     }
     buffer += decoder.decode();
-    if (buffer.trim()) onEvent?.(JSON.parse(buffer));
+    if (buffer.trim()) await onEvent?.(JSON.parse(buffer));
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function streamReviewEnhancementDetail({
+  issue,
+  sourceBlock,
+  targetBlock,
+  contextBlocks = [],
+  onDelta,
+  signal,
+}) {
+  const response = await fetch(REVIEW_DETAIL_STREAM_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ issue, sourceBlock, targetBlock, contextBlocks }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `详细审阅失败：${response.status}`);
+  }
+  if (!response.body) throw new Error("当前浏览器不支持流式审阅");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "error") {
+          throw new Error(event.message || "详细审阅失败");
+        }
+        if (event.type === "delta") onDelta?.(String(event.delta || ""));
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      const event = JSON.parse(buffer);
+      if (event.type === "error") throw new Error(event.message || "详细审阅失败");
+      if (event.type === "delta") onDelta?.(String(event.delta || ""));
+    }
   } finally {
     reader.releaseLock();
   }

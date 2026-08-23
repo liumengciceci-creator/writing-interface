@@ -1,13 +1,14 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
-import ReviewPanel from "./components/ReviewPanel.jsx";
+import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
 import { reviewArgumentFrameworkStream } from "./api/reviewBlockCompatibility.js";
 
 import {
@@ -19,6 +20,9 @@ import {
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
+
+const waitForReviewBeat = (duration) =>
+  new Promise((resolve) => window.setTimeout(resolve, duration));
 
 /**
  * 从 localStorage 读取用户创建的自定义模块模板。
@@ -133,9 +137,9 @@ function countDocumentCharacters(
 }
 
 export default function App() {
-  const [reviewInspectorOpen, setReviewInspectorOpen] = useState(false);
+  const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const reviewFocusTimerRef = useRef(null);
   const [reviewState, setReviewState] = useState({
-    open: false,
     running: false,
     current: 0,
     total: 0,
@@ -343,8 +347,23 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    setReviewInspectorOpen(false);
-    setReviewState({ open: true, running: true, current: 0, total: blocks.length, activeIds: [], blinkOn: false, status: "正在识别所选模块之间的关系…", graph: [], notes: [], activeGraphId: null, results: [] });
+    if (reviewFocusTimerRef.current) {
+      window.clearInterval(reviewFocusTimerRef.current);
+      reviewFocusTimerRef.current = null;
+    }
+    setReviewPanelOpen(false);
+    setReviewState({
+      running: true,
+      current: 0,
+      total: blocks.length,
+      activeIds: [],
+      blinkOn: false,
+      status: "正在识别所选模块之间的关系…",
+      graph: [],
+      notes: [],
+      activeGraphId: null,
+      results: [],
+    });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
@@ -369,16 +388,16 @@ export default function App() {
     try {
       await reviewArgumentFrameworkStream({
         blocks,
-        onEvent: (event) => {
+        onEvent: async (event) => {
           if (event.type === "module") {
-            summaries.set(String(event.id), String(event.summary || ""));
+            summaries.set(String(event.id), String(event.focus || ""));
             const block = blockById.get(String(event.id));
             if (!block) return;
             const note = {
               id: String(event.id),
               blockId: String(event.id),
               type: typeLabels[block.type] || block.type || "模块",
-              text: String(event.narrative || event.summary || ""),
+              text: String(event.focus || ""),
               color: block.color || "#64748b",
               fill: block.fill || "#f8fafc",
             };
@@ -392,8 +411,11 @@ export default function App() {
               activeIds: [block.id],
               activeGraphId: `note-${block.id}`,
               blinkOn: true,
-              status: `正在判断${note.type}在整体论证中的作用…`,
+              status: note.text
+                ? `正在检查${note.type}：${note.text}`
+                : `正在检查${note.type}在整体论证中的作用…`,
             }));
+            await waitForReviewBeat(560);
             return;
           }
 
@@ -430,6 +452,7 @@ export default function App() {
               blinkOn: true,
               status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
             }));
+            await waitForReviewBeat(760);
             return;
           }
 
@@ -449,6 +472,21 @@ export default function App() {
                 relationSourceId: String(sourceBlock.id),
                 relationTargetId: String(targetBlock.id),
                 targetBlockId: sourceBlock.id,
+                sourceBlock: {
+                  id: sourceBlock.id,
+                  type: sourceBlock.type,
+                  text: String(sourceBlock.text || ""),
+                },
+                targetBlock: {
+                  id: targetBlock.id,
+                  type: targetBlock.type,
+                  text: String(targetBlock.text || ""),
+                },
+                contextBlocks: blocks.map((block) => ({
+                  id: block.id,
+                  type: block.type,
+                  text: String(block.text || ""),
+                })),
                 originalText: String(sourceBlock.text || ""),
                 suggestedText: String(item.suggestedText || sourceBlock.text || ""),
                 summary: String(item.summary || "这条关系可以进一步加强。"),
@@ -472,8 +510,11 @@ export default function App() {
         activeIds: [],
         activeGraphId: null,
         blinkOn: false,
-        status: `模块关系识别完成：分析 ${state.notes.length} 个模块`,
+        status: state.results.length > 0
+          ? `审阅完成：发现 ${state.results.length} 个潜在增强点`
+          : `审阅完成：已检查 ${state.notes.length} 个模块`,
       }));
+      setReviewPanelOpen(true);
     } catch (error) {
       console.error("整体审阅失败：", error);
       setReviewState((state) => ({
@@ -484,19 +525,72 @@ export default function App() {
         blinkOn: false,
         status: "整体审阅失败，请稍后重试",
       }));
+      setReviewPanelOpen(false);
     } finally {
       window.clearInterval(blinkTimer);
     }
   };
 
+  const clearReviewIssueFocus = () => {
+    if (reviewFocusTimerRef.current) {
+      window.clearInterval(reviewFocusTimerRef.current);
+      reviewFocusTimerRef.current = null;
+    }
+    setReviewState((state) => ({
+      ...state,
+      activeIds: [],
+      activeGraphId: null,
+      blinkOn: false,
+    }));
+  };
+
+  const handleFocusReviewIssue = (item) => {
+    if (!item) {
+      clearReviewIssueFocus();
+      return;
+    }
+
+    if (reviewFocusTimerRef.current) {
+      window.clearInterval(reviewFocusTimerRef.current);
+    }
+
+    const sourceId = String(item.relationSourceId);
+    const targetId = String(item.relationTargetId);
+    setReviewState((state) => ({
+      ...state,
+      activeIds: [sourceId, targetId],
+      activeGraphId: `issue-${item.id}`,
+      blinkOn: true,
+    }));
+
+    let blinkCount = 0;
+    reviewFocusTimerRef.current = window.setInterval(() => {
+      blinkCount += 1;
+      setReviewState((state) => ({ ...state, blinkOn: !state.blinkOn }));
+      if (blinkCount >= 8) {
+        window.clearInterval(reviewFocusTimerRef.current);
+        reviewFocusTimerRef.current = null;
+        setReviewState((state) => ({ ...state, blinkOn: true }));
+      }
+    }, 340);
+  };
+
   const handleReviewAccept = (item) => {
     handleChangeText(item.targetBlockId, item.suggestedText);
     setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "accepted" } : result) }));
+    clearReviewIssueFocus();
   };
 
   const handleReviewReject = (item) => {
     setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "rejected" } : result) }));
+    clearReviewIssueFocus();
   };
+
+  useEffect(() => () => {
+    if (reviewFocusTimerRef.current) {
+      window.clearInterval(reviewFocusTimerRef.current);
+    }
+  }, []);
 
   /**
    * 保存自定义标签。
@@ -639,13 +733,11 @@ export default function App() {
             "grid",
 
           /**
-           * 审阅开启时保留灰色关系说明区；说明卡直接显示在灰色背景上。
+           * 审阅完成后仅展开紧凑的潜在修改点面板，不再显示关系树。
            */
           gridTemplateColumns:
-            reviewState.open
-              ? reviewInspectorOpen
-                ? "164px minmax(720px, 1fr) 720px"
-                : "164px minmax(720px, 1fr) 420px"
+            reviewPanelOpen
+              ? "164px minmax(720px, 1fr) 340px"
               : "164px minmax(0, 1fr)",
 
           width:
@@ -1019,11 +1111,15 @@ export default function App() {
               }
 
               generatingBlockIds={
-                reviewState.running ? reviewState.activeIds : generatingBlockIds
+                reviewState.activeIds.length > 0
+                  ? reviewState.activeIds
+                  : generatingBlockIds
               }
 
               generatingBlinkOn={
-                reviewState.running ? reviewState.blinkOn : generatingBlinkOn
+                reviewState.activeIds.length > 0
+                  ? reviewState.blinkOn
+                  : generatingBlinkOn
               }
 
               isAdjustingLength={
@@ -1168,21 +1264,15 @@ beginDuplicateDrag={
           </div>
         </main>
 
-        <ReviewPanel
-          open={reviewState.open}
-          isReviewing={reviewState.running}
-          progress={{ current: reviewState.current, total: reviewState.total }}
-          graph={reviewState.graph}
-          notes={reviewState.notes}
-          activeGraphId={reviewState.activeGraphId}
-          graphBlinkOn={reviewState.blinkOn}
+        <ReviewIssuesPanel
+          open={reviewPanelOpen}
           results={reviewState.results}
+          onFocusIssue={handleFocusReviewIssue}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}
-          onInspectorOpenChange={setReviewInspectorOpen}
           onClose={() => {
-            setReviewInspectorOpen(false);
-            setReviewState((state) => ({ ...state, open: false }));
+            clearReviewIssueFocus();
+            setReviewPanelOpen(false);
           }}
         />
 
