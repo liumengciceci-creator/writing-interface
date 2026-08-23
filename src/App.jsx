@@ -589,7 +589,7 @@ export default function App() {
            */
           gridTemplateColumns:
             reviewState.open
-              ? "164px minmax(720px, 1fr) 360px"
+              ? "minmax(0, 1fr) minmax(300px, 360px)"
               : "164px minmax(0, 1fr)",
 
           width:
@@ -608,6 +608,11 @@ export default function App() {
         {/* 左侧标签栏 */}
         <div
           style={{
+            display:
+              reviewState.open
+                ? "none"
+                : "block",
+
             position:
               "relative",
 
@@ -901,7 +906,9 @@ export default function App() {
                 "flex",
 
               justifyContent:
-                "center",
+                reviewState.open
+                  ? "flex-start"
+                  : "center",
 
               alignItems:
                 "flex-start",
@@ -910,7 +917,12 @@ export default function App() {
                * 允许浮动模块越过画布边界，
                * 显示在画布右侧区域。
                */
-              overflow:
+              overflowX:
+                reviewState.open
+                  ? "auto"
+                  : "visible",
+
+              overflowY:
                 "visible",
 
               position:

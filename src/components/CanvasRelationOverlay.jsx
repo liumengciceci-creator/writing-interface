@@ -1,4 +1,5 @@
 import { useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 function getBlockRect(blockId) {
   if (blockId == null) return null;
@@ -72,12 +73,12 @@ export default function CanvasRelationOverlay({ edges = [], activeEdgeId = null,
 
   if (paths.length === 0) return null;
 
-  return (
+  return createPortal(
     <svg
       aria-label="画布论证关系"
       width="100%"
       height="100%"
-      style={{ position: "fixed", inset: 0, zIndex: 35, overflow: "visible", pointerEvents: "none" }}
+      style={{ position: "fixed", inset: 0, zIndex: 39, overflow: "visible", pointerEvents: "none" }}
     >
       <defs>
         {paths.map((item) => (
@@ -109,6 +110,7 @@ export default function CanvasRelationOverlay({ edges = [], activeEdgeId = null,
           </g>
         );
       })}
-    </svg>
+    </svg>,
+    document.body
   );
 }
