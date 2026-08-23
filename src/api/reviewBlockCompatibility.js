@@ -30,11 +30,11 @@ export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, sign
         if (!line.trim()) continue;
         const event = JSON.parse(line);
         if (event.type === "error") throw new Error(event.message || "整体审阅失败");
-        onEvent?.(event);
+        await onEvent?.(event);
       }
     }
     buffer += decoder.decode();
-    if (buffer.trim()) onEvent?.(JSON.parse(buffer));
+    if (buffer.trim()) await onEvent?.(JSON.parse(buffer));
   } finally {
     reader.releaseLock();
   }

@@ -2107,8 +2107,8 @@ ${JSON.stringify(blocks, null, 2)}
 先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并只输出你确认的关键直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
 
 模块行格式：
-{"type":"module","id":"模块id","summary":"理解原文后重新概括的15至28个汉字，不能照抄","narrative":"面向作者说明这个模块如何推进整体论证的一至两句具体文字"}
-narrative 必须结合全部模块的上下文形成连续语言：第一个相关模块用“这里你提出了……”；后续模块根据真实关系灵活使用“基于这一点，你……”“根据这个……，你又……”“随后你……”“最后你……”。必须写出具体内容，不能只说“提出论点、补充原因、提供证据”。
+{"type":"module","id":"模块id","focus":"10至20个汉字，说明当前正在检查这个模块的哪项内容作用"}
+模块行只用于驱动画布上的实时闪烁反馈，因此必须简短，不要输出概括段落、narrative 或原文复述。
 
 关系行格式：
 {"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的2至6字关系词","importance":1到5的整数}
@@ -2139,8 +2139,10 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
           writeLine(res, {
             type: "module",
             id: String(item.id),
-            summary: String(item.summary || "").replace(/\s+/g, " ").trim().slice(0, 32),
-            narrative: String(item.narrative || item.summary || "").replace(/\s+/g, " ").trim(),
+            focus: String(item.focus || item.summary || "检查模块在论证中的作用")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 24),
           });
         } else if (
           item.type === "relation" &&
