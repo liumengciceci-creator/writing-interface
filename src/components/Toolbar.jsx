@@ -155,7 +155,21 @@ export default function Toolbar({
           title={`${t("toolbar.undo")} · ⌘Z`}
           aria-label={t("toolbar.undo")}
         >
-          ↶
+          <svg
+            aria-hidden="true"
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M9 6.5H4m0 0 4-4m-4 4h9.2a6.3 6.3 0 0 1 0 12.6H8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.35"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
         <button
           type="button"
@@ -170,7 +184,22 @@ export default function Toolbar({
           title={`${t("toolbar.redo")} · ⇧⌘Z`}
           aria-label={t("toolbar.redo")}
         >
-          ↷
+          <svg
+            aria-hidden="true"
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            style={{ transform: "scaleX(-1)" }}
+          >
+            <path
+              d="M9 6.5H4m0 0 4-4m-4 4h9.2a6.3 6.3 0 0 1 0 12.6H8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.35"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
         <button
           type="button"
