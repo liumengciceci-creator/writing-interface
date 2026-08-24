@@ -593,12 +593,16 @@ export function useBlockActions({
    */
   const handleChangeText =
     useCallback(
-      (blockId, value) => {
+      (blockId, value, options = {}) => {
         const targetId =
           String(blockId);
 
         const nextText =
           String(value ?? "");
+        const nextIsGenerated =
+          typeof options?.isGenerated === "boolean"
+            ? options.isGenerated
+            : undefined;
 
         setSections(
           (previousSections) => {
@@ -631,10 +635,11 @@ export function useBlockActions({
                         }
 
                         if (
-                          String(
-                            block.text ??
-                              ""
-                          ) === nextText
+                          String(block.text ?? "") === nextText &&
+                          (
+                            nextIsGenerated === undefined ||
+                            block.isGenerated === nextIsGenerated
+                          )
                         ) {
                           return block;
                         }
@@ -654,6 +659,9 @@ export function useBlockActions({
                             ...block,
                             text:
                               nextText,
+                            ...(nextIsGenerated !== undefined
+                              ? { isGenerated: nextIsGenerated }
+                              : {}),
                             generationDirective: "",
                             generationError: null,
                           };
@@ -684,6 +692,10 @@ export function useBlockActions({
 
                           text:
                             nextText,
+
+                          ...(nextIsGenerated !== undefined
+                            ? { isGenerated: nextIsGenerated }
+                            : {}),
 
                           generationDirective:
                             "",

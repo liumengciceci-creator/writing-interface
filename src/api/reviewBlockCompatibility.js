@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../apiConfig";
+import { generateBlocksStream } from "./generateBlocksStream";
 
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 const REVIEW_STREAM_URL = `${API_BASE_URL}/api/review-framework-stream`;
@@ -6,11 +7,16 @@ const REVIEW_DETAIL_STREAM_URL = `${API_BASE_URL}/api/review-enhancement-detail-
 const APPLY_REVIEW_INSTRUCTION_URL = `${API_BASE_URL}/api/apply-review-instruction`;
 const APPLY_REVIEW_INSTRUCTION_STREAM_URL = `${API_BASE_URL}/api/apply-review-instruction-stream`;
 
-export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, signal }) {
+export async function reviewArgumentFrameworkStream({
+  blocks = [],
+  templates = [],
+  onEvent,
+  signal,
+}) {
   const response = await fetch(REVIEW_STREAM_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ blocks }),
+    body: JSON.stringify({ blocks, templates }),
     signal,
   });
   if (!response.ok) {
@@ -41,6 +47,69 @@ export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, sign
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * 接受“两个模块之间缺少一个模块”的审阅意见后，复用正文生成流，
+ * 为刚插入的模块生成内容。这里只构造一个明确的单模块任务，真正的
+ * 流式协议和返回校验仍由 generateBlocksStream 统一负责。
+ */
+export async function generateReviewInsertedBlockStream({
+  instruction,
+  insertType,
+  insertLabel,
+  sourceBlock,
+  targetBlock,
+  contextBlocks = [],
+  onEvent,
+  signal,
+}) {
+  const normalizedInstruction = String(instruction || "").trim();
+  const normalizedType = String(insertType || "Generated").trim();
+  const normalizedLabel = String(insertLabel || normalizedType).trim();
+
+  if (!normalizedInstruction) {
+    throw new Error("缺少新增模块的生成指令");
+  }
+
+  const targetId = "review-insert-target";
+  const generationInstruction = [
+    "你正在为一篇论证文本生成一个审阅后确认缺失的新模块。",
+    `新模块类型：${normalizedType}`,
+    `新模块标签：${normalizedLabel}`,
+    `前一个模块：${String(sourceBlock?.text || "").trim()}`,
+    `后一个模块：${String(targetBlock?.text || "").trim()}`,
+    `审阅确认的补充要求：${normalizedInstruction}`,
+    "生成能够真正补足这处论证缺口的正文，使前后模块在逻辑上成立并自然衔接。",
+    "只使用上下文已经出现的观点和材料；不得虚构数据、研究、来源、案例或外部事实。",
+    "如果是过渡模块，只写完成衔接所必需的短语或短句；如果是原因、论点、反论、对比或结论模块，则完成该类型真正承担的论证功能。",
+    "只输出可直接写入新模块的正文，不输出标签、解释、修改说明、Markdown或引号，也不得原样复述审阅指令。",
+  ].join("\n");
+
+  return generateBlocksStream({
+    targetBlocks: [
+      {
+        id: targetId,
+        type: normalizedType,
+        text: "",
+        directive: normalizedInstruction,
+        originalText: normalizedLabel,
+        userInput: normalizedInstruction,
+        userInputMode: "instruction",
+        requiredPrefix: "",
+        instruction: generationInstruction,
+        searchPolicy: "disabled",
+      },
+    ],
+    contextBlocks: (Array.isArray(contextBlocks) ? contextBlocks : [])
+      .filter((block) => block && String(block.text || "").trim())
+      .map((block, index) => ({
+        ...block,
+        id: `review-context-${index + 1}`,
+      })),
+    onEvent,
+    signal,
+  });
 }
 
 export async function streamReviewEnhancementDetail({

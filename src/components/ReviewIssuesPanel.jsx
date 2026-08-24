@@ -93,8 +93,11 @@ export default function ReviewIssuesPanel({
 
   const pendingResults = results.filter((item) => !item.decision);
   const selectedItem = pendingResults.find((item) => item.id === selectedIssueId) || null;
-  const accentColor = selectedItem?.sourceBlock?.color || "#d6a31a";
-  const accentFill = selectedItem?.sourceBlock?.fill || "#fff8e7";
+  const accentSource = selectedItem?.action === "insert"
+    ? selectedItem?.suggestedModule
+    : selectedItem?.sourceBlock;
+  const accentColor = accentSource?.color || "#d6a31a";
+  const accentFill = accentSource?.fill || "#fff8e7";
   const modificationInstruction = String(
     selectedItem?.modificationInstruction || selectedItem?.suggestion || ""
   ).trim();
@@ -172,6 +175,7 @@ export default function ReviewIssuesPanel({
               color: "#596171",
               fontSize: 11.2,
               lineHeight: 1.72,
+              whiteSpace: "pre-wrap",
             }}
           >
             {renderSummaryWithHighlights(overallSummary, summaryHighlights)}
@@ -213,7 +217,9 @@ export default function ReviewIssuesPanel({
           >
             {pendingResults.map((item, index) => {
               const selected = item.id === selectedIssueId;
-              const itemColor = item.sourceBlock?.color || "#d6a31a";
+              const itemColor = item.action === "insert"
+                ? item.suggestedModule?.color || "#d6a31a"
+                : item.sourceBlock?.color || "#d6a31a";
 
               return (
                 <button
@@ -286,12 +292,17 @@ export default function ReviewIssuesPanel({
               boxShadow: "0 2px 5px rgba(15,23,42,0.10)",
             }}
           >
-            {t("review.instruction", {
-              label: blockTypeLabel(
-                selectedItem.sourceBlock?.type,
-                selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type
-              ),
-            })}
+            {selectedItem.action === "insert"
+              ? t("review.insertInstruction", {
+                  label: selectedItem.suggestedModule?.label ||
+                    blockTypeLabel(selectedItem.insertType, selectedItem.insertType),
+                })
+              : t("review.instruction", {
+                  label: blockTypeLabel(
+                    selectedItem.sourceBlock?.type,
+                    selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type
+                  ),
+                })}
           </span>
 
           <div
@@ -337,7 +348,13 @@ export default function ReviewIssuesPanel({
                   opacity: applyLoading ? 0.7 : 1,
                 }}
               >
-                {applyLoading ? t("review.applying") : t("review.apply")}
+                {applyLoading
+                  ? selectedItem.action === "insert"
+                    ? t("review.inserting")
+                    : t("review.applying")
+                  : selectedItem.action === "insert"
+                    ? t("review.insert")
+                    : t("review.apply")}
               </button>
               <button
                 type="button"

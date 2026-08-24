@@ -2204,6 +2204,30 @@ app.post(
       return res.status(400).json({ error: "至少需要两个有效模块" });
     }
 
+    const fallbackTemplates = [
+      { type: "Claim", label: "论点" },
+      { type: "Reason", label: "原因" },
+      { type: "Evidence", label: "证据" },
+      { type: "Counter", label: "反论" },
+      { type: "Compare", label: "对比" },
+      { type: "Question", label: "问题" },
+      { type: "Transition", label: "过渡" },
+      { type: "Conclusion", label: "结论" },
+    ];
+    const requestedTemplates = Array.isArray(req.body?.templates)
+      ? req.body.templates
+          .filter((item) => item && String(item.type || "").trim())
+          .map((item) => ({
+            type: String(item.type || "").trim(),
+            label: String(item.label || item.type || "").trim(),
+          }))
+      : [];
+    const templates = (requestedTemplates.length ? requestedTemplates : fallbackTemplates)
+      .filter(
+        (item, index, items) =>
+          items.findIndex((candidate) => candidate.type === item.type) === index
+      );
+
     res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -2220,17 +2244,20 @@ app.post(
 模块（数组顺序即写作顺序）：
 ${JSON.stringify(blocks, null, 2)}
 
+当前标签栏中允许使用的模块类型：
+${JSON.stringify(templates, null, 2)}
+
 输出顺序与格式：
 这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按照写作顺序理解模块，但必须同时检查当前模块与全部其他模块的真实语义联系，不能只比较相邻模块。
 
 先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并只输出你确认的关键直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
 
 模块行格式：
-{"type":"module","id":"模块id","focus":"中文10至20个汉字或英文6至14个单词，说明当前正在检查这个模块的哪项内容作用"}
+{"type":"module","id":"模块id","focus":"一句简短文字，说明当前正在检查这个模块的哪项内容作用"}
 模块行只用于驱动画布上的实时闪烁反馈，因此必须简短，不要输出概括段落、narrative 或原文复述。
 
 关系行格式：
-{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的中文2至6字或英文1至4词关系词","importance":1到5的整数}
+{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的简短关系词","importance":1到5的整数}
 sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如证据指向它支持的论点，原因指向它解释的论点，反论指向它质疑或限定的论点。不要强迫相邻模块连线，也不要遗漏有直接语义联系的非相邻模块。不要生成仅因位置相邻而成立的关系，也不要让所有模块彼此互连。关系词应具体，例如提供数据、解释机制、质疑前提、限定结论、转向实践。同一对模块的同一关系只输出一次。
 
 关系图必须简洁：总共最多输出 ${maxRelations} 条最关键关系。优先保留“证据→核心论点、原因→核心论点、反论→它质疑或限定的论点、结论→它归纳的核心论点”等决定论证成立与否的联系。若 A→B、B→C 已足以说明推进过程，不要再输出仅可由这两条推导出的 A→C；不要输出重复、弱相关或装饰性关系。重要关系优先输出，importance=5 表示不可缺少，1 表示较弱。
@@ -2247,11 +2274,16 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 只有在措辞或限定直接造成上述逻辑错误时才可以提及语言问题。不得把“加入可能、也许、一定程度上等缓和词”“补充限定语”“让语气更谨慎”“表达更学术”单独视为增强点；也不得以换词、删重复、调整语气等细枝末节占用增强建议。若结论强于现有理由或证据，必须指出具体缺失的推理或支撑关系，并要求重新对齐主张与依据，不能只建议加上“可能”。
 
 最后一行格式：
-{"type":"final","overallSummary":"一段连续的整体关系总结","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2","总结中需要加粗的短语3"],"enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"主张与理由匹配/推理链完整性/因果机制/证据解释与充分性/反论回应/结论推导/结构连贯之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"一条具体、可直接交给大模型执行的修改指令"}]}
-overallSummary 必须由你通读全部模块后生成，不能使用固定模板或只罗列模块类型。使用与正文语言一致的连续自然表达，具体说明各模块如何推进、支持、解释、限定或修正彼此，并在结尾简要判断整体衔接。中文控制在100至180个汉字，英文控制在70至130个单词。summaryHighlights 提取 overallSummary 中3至5个最关键的原文短语，中文每项4至14个汉字，英文每项2至8个单词，必须能在 overallSummary 中逐字找到；前端会将这些短语加粗。
-每条 suggestion 是一段基于 GRE 分析性写作核心标准的、完整连贯的“论证加强指令”，不是语言润色意见，也不是替作者另写一个模块。每段必须把三层意思说清楚：第一，准确指出当前主张、理由、证据、反论或结论之间哪一步逻辑没有成立，以及缺失的具体内容是什么；第二，明确说明应怎样利用并重组现有材料，补足推理连接、解释证据的证明作用、区分因果与相关、消除理由重复、正面回应反论，或让结论重新对应前文；第三，说明这一修改将具体改善哪一段推理，使读者能够怎样从已有依据抵达结论。三层意思要自然组织成一段，不要写成标签、提纲、短语串或互不衔接的命令，也不要让所有建议机械套用同一句式。
-修改必须保留原观点和现有材料，只对真正影响论证成立或分析深度的内容提出动作。不得把增加“可能”“也许”“一定程度上”等词、补充泛泛限定、调整语气、替换词语、删减个别重复或“让表达更学术”作为独立建议。即使原结论过强，也应指出它超出了哪项理由或证据能够支持的范围，并要求修复这条推理关系，而不是只让作者把语气变弱。不得要求新增数据、研究、文献、来源、案例、外部事实、新论点或新模块；如现有材料不能证明当前结论，应要求作者利用现有内容重建论证关系，或把主张调整到现有推理实际能够推出的层级。不要输出“可改为……”或完整替换文本。中文 suggestion 控制在120至220个汉字，英文控制在80至150个单词；表达完整优先，不得为了压缩长度省略“逻辑缺口—修改动作—推理改善”中的任何一层。
-增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系。只要存在实质改进空间，4个及以上模块通常给出2至5条互不重复的增强建议；不要只检查相邻模块，也不要为了凑数虚构问题或事实。`;
+{"type":"final","overallSummary":"整体论证链判断与必要要点","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2"],"enhancements":[{"action":"revise或insert","sourceId":"需要修改的模块id；insert时为缺口前一个模块id","targetId":"与问题相关的模块id；insert时为缺口后一个模块id","insertType":"insert时填写标签栏中准确的type；revise时为空字符串","category":"主张与理由匹配/推理链完整性/因果机制/证据解释与充分性/反论回应/结论推导/结构连贯/缺失模块之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"完整、可直接执行的修改或新增模块指令"}]}
+overallSummary 必须由你通读全部模块后生成，不能使用固定模板或只罗列模块类型。优先用一句话明确概括真实的推进链，例如“形成了‘写作困难 → 现有支持缺口 → 模块化为何能够回应缺口 → 形成性研究仍需确认什么’的完整论证链”。关系较复杂时可在这句话后换行，用“• ”列出若干个真正重要的完整判断；每一点都要结合具体内容，不能把审阅标准机械抄给作者。不要设置或追求固定字数，以把逻辑说明完整为准。summaryHighlights 提取 overallSummary 中最关键且能够逐字找到的少量短语，前端会将这些短语加粗。
+
+enhancements 同时允许两种动作：
+- action="revise"：现有模块存在实质逻辑缺口，需要加强当前内容。sourceId 是需要修改的模块，targetId 是与该问题直接相关的模块，insertType 必须为空。
+- action="insert"：两个相邻模块之间缺少一个独立的论证功能，修改任何一个现有模块都无法清楚承担该功能。此时 sourceId 必须是文档顺序中缺口前一个模块，targetId 必须是紧邻其后的模块，insertType 必须严格选用上方标签栏中的一个 type。suggestion 必须明确写出“这里应添加一个什么模块”、该模块要分析或衔接什么，以及加入后补上哪一步论证链。过渡缺失时选择 Transition；缺少解释“为什么”的独立分析时选择 Reason；其他情况根据真实功能选择相应标签，不能随意用 Generated。
+
+每条 revise suggestion 是一段基于 GRE 分析性写作核心标准的、完整连贯的“论证加强指令”，不是语言润色意见，也不是替作者另写一个模块。每段必须把三层意思说清楚：第一，准确指出当前主张、理由、证据、反论或结论之间哪一步逻辑没有成立，以及缺失的具体内容是什么；第二，明确说明应怎样利用并重组现有材料，补足推理连接、解释证据的证明作用、区分因果与相关、消除理由重复、正面回应反论，或让结论重新对应前文；第三，说明这一修改将具体改善哪一段推理，使读者能够怎样从已有依据抵达结论。内容较复杂时可以用“• ”分成少量完整要点，但不能写成短语串或互不衔接的命令，也不要让所有建议机械套用同一句式。不要设置或追求固定字数，以把“逻辑缺口—修改动作—推理改善”说明完整为准。
+对于 revise，必须保留原观点和现有材料，只对真正影响论证成立或分析深度的内容提出动作。不得把增加“可能”“也许”“一定程度上”等词、补充泛泛限定、调整语气、替换词语、删减个别重复或“让表达更学术”作为独立建议。即使原结论过强，也应指出它超出了哪项理由或证据能够支持的范围，并要求修复这条推理关系，而不是只让作者把语气变弱。revise 不得要求新增数据、研究、文献、来源、案例、外部事实、新论点或额外模块；如现有材料不能证明当前结论，应要求作者利用现有内容重建论证关系，或把主张调整到现有推理实际能够推出的层级。不要输出“可改为……”或完整替换文本。对于 insert，只能建议添加当前这一处真正缺失的模块，并说明怎样用现有材料完成它；不得在一条建议里继续要求更多模块或外部材料。所有 suggestion 均不设置字数限制，以完整说明实际问题和执行动作所需的长度为准。
+revise 增强点可以位于任意两个相关模块之间；insert 增强点只能定位在两个相邻模块形成的真实缺口。增强建议没有固定数量：可以没有、只有一条，也可以有多条，只输出你认为最影响论证成立、分析深度或结构连贯的实际问题。不得为了达到数量而虚构问题，也不要让次要措辞问题挤占重要逻辑问题。`;
 
     let textBuffer = "";
     const validIds = new Set(blocks.map((block) => block.id));
@@ -2275,8 +2307,7 @@ overallSummary 必须由你通读全部模块后生成，不能使用固定模�
             id: String(item.id),
             focus: String(item.focus || item.summary || "检查模块在论证中的作用")
               .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 24),
+              .trim(),
           });
         } else if (
           item.type === "relation" &&
@@ -2288,7 +2319,7 @@ overallSummary 必须由你通读全部模块后生成，不能使用固定模�
             type: "relation",
             sourceId: String(item.sourceId),
             targetId: String(item.targetId),
-            relation: String(item.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
+            relation: String(item.relation || "关联").replace(/\s+/g, " ").trim(),
             importance: Math.max(1, Math.min(5, Number(item.importance) || 3)),
           });
         } else if (item.type === "phase" && item.phase === "enhancements") {
@@ -2298,7 +2329,8 @@ overallSummary 必须由你通读全部模块后生成，不能使用固定模�
           writeLine(res, {
             type: "final",
             overallSummary: String(item.overallSummary || item.frameworkSummary || "")
-              .replace(/\s+/g, " ")
+              .replace(/[ \t]+/g, " ")
+              .replace(/\n{3,}/g, "\n\n")
               .trim(),
             summaryHighlights: Array.isArray(item.summaryHighlights)
               ? item.summaryHighlights
@@ -2306,7 +2338,42 @@ overallSummary 必须由你通读全部模块后生成，不能使用固定模�
                   .filter(Boolean)
                   .slice(0, 5)
               : [],
-            enhancements: Array.isArray(item.enhancements) ? item.enhancements : [],
+            enhancements: Array.isArray(item.enhancements)
+              ? item.enhancements
+                  .map((enhancement) => {
+                    const action = enhancement?.action === "insert" ? "insert" : "revise";
+                    const sourceId = String(enhancement?.sourceId || "");
+                    const targetId = String(enhancement?.targetId || "");
+                    if (
+                      !validIds.has(sourceId) ||
+                      !validIds.has(targetId) ||
+                      sourceId === targetId
+                    ) {
+                      return null;
+                    }
+
+                    const insertType = String(enhancement?.insertType || "").trim();
+                    if (action === "insert") {
+                      const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
+                      const targetIndex = blocks.findIndex((block) => block.id === targetId);
+                      const typeAllowed = templates.some((template) => template.type === insertType);
+                      if (targetIndex !== sourceIndex + 1 || !typeAllowed) return null;
+                    }
+
+                    return {
+                      ...enhancement,
+                      action,
+                      sourceId,
+                      targetId,
+                      insertType: action === "insert" ? insertType : "",
+                      suggestion: String(enhancement?.suggestion || "")
+                        .replace(/[ \t]+/g, " ")
+                        .replace(/\n{3,}/g, "\n\n")
+                        .trim(),
+                    };
+                  })
+                  .filter((enhancement) => enhancement?.suggestion)
+              : [],
           });
         }
       } catch (error) {
@@ -2412,7 +2479,7 @@ ${JSON.stringify(issue, null, 2)}
 
 输出要求：
 1. 直接输出给作者看的意见，并严格使用与原文相同的主要语言；不要根据界面语言翻译内容，不要输出 JSON、Markdown、标题符号或思考过程。
-2. 中文总长度控制在150至260个汉字，英文控制在100至180个单词。使用一段连贯自然的语言写清当前具体不足、为何构成问题、应怎样调整现有表述，以及调整后与本问题直接对应的论证作用。不得写成标签、提纲、短语串或互不衔接的命令；不要机械列出固定标题，也不要让所有意见套用同一句式。表达完整优先，不得为了压缩长度省略其中任何一层。
+2. 不设置字数限制。使用连贯自然的语言写清当前具体不足、为何构成问题、应怎样调整现有表述，以及调整后与本问题直接对应的论证作用。内容较复杂时可用“• ”分成少量完整要点，但不得写成标签、短语串或互不衔接的命令；不要机械列出固定标题，也不要让所有意见套用同一句式。表达完整优先，不得省略其中任何一层。
 3. 必须具体说明这两个模块的内容如何关联，不能只说“可以加强”或复述模块标签。
 4. 按 GRE 分析性写作的核心论证标准从现有文本内部把关：主张能否由理由推出，是否缺少关键中间推理或因果机制；已有证据是否真正支撑主张并得到解释；多个理由是否共同推进分析而非重复结论；反论是否击中并回应关键前提；结论是否由前文推出。优先诊断论证结构与推理，不做一般语言润色。
 5. 建议必须是局部的论证加强：补足原文暗含但未说出的推理连接、解释已有材料为何能够支持观点、修复因果与相关的混淆、消除理由之间的逻辑重复、正面回应反论，或让结论准确对应前文。保留原模块的核心内容和现有材料，不要建议整段重写。
@@ -2502,9 +2569,9 @@ ${instruction}
 
 执行要求：
 1. 输出修改后的来源模块全文，只输出可直接写回模块的正文，不输出标题、解释、修改说明、Markdown或引号。
-2. 按 GRE 分析性写作标准进行局部加强，只处理指令指出的不清楚、不充分、限定不准或衔接薄弱之处；不要把修改指令复述进正文。
-3. 保留原模块的核心观点、现有材料、句子骨架和大部分措辞。优先通过明确判断、补足原文暗含的推理连接、解释已有材料、增加限定、收紧表述、删减重复或调整句序来加强，禁止整段另写。
-4. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时收窄或限定结论。
+2. 按 GRE 分析性写作的核心论证标准执行指令，只处理它指出的主张与理由不匹配、关键推理缺失、因果机制断裂、证据作用未解释、反论未回应或结论未由前文推出等实质问题；不要把修改指令复述进正文。
+3. 保留原模块的核心观点、现有材料、句子骨架和大部分措辞。优先补足原文暗含的推理连接、解释已有材料为何支持观点、修复因果与相关的混淆、正面回应反论或让结论重新对应前文，禁止整段另写。不得把增加“可能”等缓和词或一般语言润色当作完成指令。
+4. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时应重建现有主张与依据的关系，而不是只弱化语气。
 5. 保持原文语言、模块类型和大致篇幅，只输出局部加强后的模块全文。`;
 
       let revisedText = "";
@@ -2614,10 +2681,10 @@ ${instruction}
 
 执行要求：
 1. 输出修改后的来源模块全文，只输出可直接写回模块的正文，不输出标题、解释、修改说明、Markdown或引号。
-2. 按 GRE 分析性写作标准识别指令针对的具体缺口，例如立场不够清楚、分析不到位、原因表述不充分、已有证据与观点的连接未说清、结论过强、限定不准确、反论回应不明确或前后衔接跳跃。
-3. 只做局部加强：明确判断、补出原文已暗含的一步推理、解释现有材料的作用、增加必要限定、收紧过强表述、删除重复、调整句序或加强过渡。不要把修改指令复述进正文。
+2. 按 GRE 分析性写作的核心论证标准识别指令针对的具体缺口，例如主张无法由理由推出、关键中间推理或因果机制缺失、已有证据与观点的支持关系未解释、多个理由只是重复结论、反论没有回应关键前提，或结论没有由前文推出。
+3. 只做局部的论证加强：补出原文已暗含的一步推理、解释现有材料的证明作用、修复因果与相关的混淆、正面回应反论，或让结论重新对应前文。不要把修改指令复述进正文，也不得把增加“可能”等缓和词或一般语言润色当作完成指令。
 4. 保留原模块的核心观点、现有材料、句子骨架和大部分措辞，禁止把整个模块换成另一段内容。
-5. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时应收窄或限定当前判断。
+5. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时应重建现有主张与依据的关系，而不是只弱化语气。
 6. 保持原文语言、模块类型和大致篇幅，只输出局部加强后的模块全文。`;
 
     try {

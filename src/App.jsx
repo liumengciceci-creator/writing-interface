@@ -13,8 +13,10 @@ import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
 import LanguageMenu from "./components/LanguageMenu.jsx";
 import {
   applyReviewInstructionStream,
+  generateReviewInsertedBlockStream,
   reviewArgumentFrameworkStream,
 } from "./api/reviewBlockCompatibility.js";
+import { BLOCK_TYPES } from "./constants.js";
 
 import {
   useEditor,
@@ -196,6 +198,20 @@ export default function App() {
     setCustomTemplates,
   ] = useState(
     loadCustomTemplates
+  );
+
+  const reviewTemplates = useMemo(
+    () => [...BLOCK_TYPES, ...customTemplates]
+      .filter(
+        (template, index, templates) =>
+          template?.type &&
+          (
+            template.isCustom === true ||
+            !["Title", "Generated", "Merged"].includes(template.type)
+          ) &&
+          templates.findIndex((candidate) => candidate?.type === template.type) === index
+      ),
+    [customTemplates]
   );
 
 
@@ -487,6 +503,7 @@ export default function App() {
     try {
       await reviewArgumentFrameworkStream({
         blocks,
+        templates: reviewTemplates,
         onEvent: async (event) => {
           if (event.type === "module") {
             summaries.set(String(event.id), String(event.focus || ""));
@@ -569,9 +586,14 @@ export default function App() {
 
           if (event.type === "final") {
             const results = (Array.isArray(event.enhancements) ? event.enhancements : []).map((item, index) => {
+              const action = item.action === "insert" ? "insert" : "revise";
               const sourceBlock = blockById.get(String(item.sourceId));
               const targetBlock = blockById.get(String(item.targetId));
               if (!sourceBlock || !targetBlock) return null;
+              const suggestedTemplate = action === "insert"
+                ? reviewTemplates.find((template) => template.type === String(item.insertType || ""))
+                : null;
+              if (action === "insert" && !suggestedTemplate) return null;
               const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
               const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
               const targetType = blockTypeLabel(targetBlock.type, targetBlock.type || t("app.module"));
@@ -580,12 +602,27 @@ export default function App() {
               if (!modificationInstruction) return null;
               return {
                 id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
+                action,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
                 category: String(item.category || t("app.contentReview")),
                 criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
                 relationSourceId: String(sourceBlock.id),
                 relationTargetId: String(targetBlock.id),
                 targetBlockId: sourceBlock.id,
+                insertAfterId: action === "insert" ? String(sourceBlock.id) : null,
+                insertBeforeId: action === "insert" ? String(targetBlock.id) : null,
+                insertType: action === "insert" ? suggestedTemplate.type : null,
+                suggestedModule: action === "insert"
+                  ? {
+                      type: suggestedTemplate.type,
+                      label: blockTypeLabel(
+                        suggestedTemplate.type,
+                        suggestedTemplate.label || suggestedTemplate.type
+                      ),
+                      color: suggestedTemplate.color || "#64748b",
+                      fill: suggestedTemplate.fill || "#f8fafc",
+                    }
+                  : null,
                 sourceBlock: {
                   id: sourceBlock.id,
                   type: sourceBlock.type,
@@ -689,6 +726,116 @@ export default function App() {
   };
 
   const handleReviewAccept = async (item) => {
+    if (item.action === "insert") {
+      const currentBlocks = getReviewableBlocksFromSections(sections);
+      const afterIndex = currentBlocks.findIndex(
+        (block) => String(block.id) === String(item.insertAfterId)
+      );
+      const beforeIndex = currentBlocks.findIndex(
+        (block) => String(block.id) === String(item.insertBeforeId)
+      );
+
+      if (afterIndex < 0 || beforeIndex !== afterIndex + 1) {
+        throw new Error(t("review.insertPositionChanged"));
+      }
+
+      const moduleTemplate = item.suggestedModule;
+      if (!moduleTemplate?.type) {
+        throw new Error(t("review.insertTypeMissing"));
+      }
+
+      const insertedBlock = handleInsertInlineBlock(
+        {
+          type: moduleTemplate.type,
+          label: moduleTemplate.label,
+          color: moduleTemplate.color,
+          fill: moduleTemplate.fill,
+          text: moduleTemplate.label,
+          isGenerated: false,
+        },
+        beforeIndex
+      );
+      const insertedBlockId = String(insertedBlock?.id || "");
+      if (!insertedBlockId) throw new Error(t("review.insertFailed"));
+
+      const applyGraphId = `apply-review-insert-${item.id}`;
+      let streamedText = "";
+      let textStarted = false;
+
+      setReviewState((state) => ({
+        ...state,
+        activeIds: [insertedBlockId],
+        activeGraphId: applyGraphId,
+        blinkOn: true,
+      }));
+
+      const blinkTimer = window.setInterval(() => {
+        setReviewState((state) =>
+          state.activeGraphId === applyGraphId && !textStarted
+            ? { ...state, blinkOn: !state.blinkOn }
+            : state
+        );
+      }, 320);
+
+      try {
+        await generateReviewInsertedBlockStream({
+          instruction: item.modificationInstruction || item.suggestion,
+          insertType: moduleTemplate.type,
+          insertLabel: moduleTemplate.label,
+          sourceBlock: item.sourceBlock,
+          targetBlock: item.targetBlock,
+          contextBlocks: item.contextBlocks,
+          onEvent: (event) => {
+            if (event.type === "error") {
+              throw new Error(event.error || t("review.insertFailed"));
+            }
+            if (event.type === "block_start") {
+              textStarted = true;
+              window.clearInterval(blinkTimer);
+              handleChangeText(insertedBlockId, "");
+              setReviewState((state) => ({ ...state, blinkOn: false }));
+              return;
+            }
+            if (event.type === "chunk") {
+              streamedText += String(event.delta || "");
+              handleChangeText(insertedBlockId, streamedText);
+              return;
+            }
+            if (event.type === "block_done") {
+              const finalText = streamedText.trim();
+              if (!finalText) throw new Error(t("review.insertFailed"));
+              handleChangeText(insertedBlockId, finalText, { isGenerated: true });
+            }
+          },
+        });
+
+        if (!streamedText.trim()) throw new Error(t("review.insertFailed"));
+        setReviewState((state) => ({
+          ...state,
+          results: state.results.map((result) =>
+            result.id === item.id ? { ...result, decision: "accepted" } : result
+          ),
+        }));
+        clearReviewIssueFocus();
+        return;
+      } catch (error) {
+        handleDeleteInlineBlock(insertedBlockId);
+        throw error;
+      } finally {
+        window.clearInterval(blinkTimer);
+        setReviewState((state) =>
+          state.activeGraphId === applyGraphId
+            ? {
+                ...state,
+                activeIds: [],
+                activeGraphId: null,
+                blinkOn: false,
+              }
+            : state
+        );
+      }
+    }
+
     const liveSourceBlock = getBlockById(item.targetBlockId) || item.sourceBlock;
     const liveTargetBlock = getBlockById(item.relationTargetId) || item.targetBlock;
     const targetBlockId = String(item.targetBlockId);

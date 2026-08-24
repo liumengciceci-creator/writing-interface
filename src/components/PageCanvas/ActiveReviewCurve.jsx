@@ -73,12 +73,38 @@ function createCurve(sourceRect, suggestionRect) {
   };
 }
 
+function createGapAnchorRect(firstRect, secondRect) {
+  const sameRow = Math.abs(firstRect.centerY - secondRect.centerY) <= 18;
+  const secondFollowsHorizontally = sameRow && secondRect.left >= firstRect.right;
+
+  const anchorX = secondFollowsHorizontally
+    ? (firstRect.right + secondRect.left) / 2
+    : (firstRect.centerX + secondRect.centerX) / 2;
+  const anchorY = secondFollowsHorizontally
+    ? (firstRect.centerY + secondRect.centerY) / 2
+    : (firstRect.bottom + secondRect.top) / 2;
+
+  return {
+    left: anchorX,
+    right: anchorX,
+    top: anchorY,
+    bottom: anchorY,
+    centerX: anchorX,
+    centerY: anchorY,
+  };
+}
+
 export default function ActiveReviewCurve({ stageRef, issue }) {
   const [curve, setCurve] = useState(null);
 
   useLayoutEffect(() => {
     const stage = stageRef?.current;
-    const sourceId = issue?.relationSourceId;
+    const sourceId = issue?.action === "insert"
+      ? issue?.insertAfterId
+      : issue?.relationSourceId;
+    const gapTargetId = issue?.action === "insert"
+      ? issue?.insertBeforeId
+      : null;
 
     if (!stage || sourceId == null || !issue?.id) {
       setCurve(null);
@@ -96,11 +122,22 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
     const measure = () => {
       frameId = null;
       const sourceElements = findBlockElements(stage, sourceId);
+      const gapTargetElements = gapTargetId
+        ? findBlockElements(stage, gapTargetId)
+        : [];
       const suggestionElement = findSuggestionElement(issue.id);
       const sourceRect = getCombinedRect(sourceElements);
+      const gapTargetRect = gapTargetId
+        ? getCombinedRect(gapTargetElements)
+        : null;
       const suggestionRect = suggestionElement?.getBoundingClientRect();
 
-      if (!sourceRect || !suggestionRect?.width || !suggestionRect?.height) {
+      if (
+        !sourceRect ||
+        (gapTargetId && !gapTargetRect) ||
+        !suggestionRect?.width ||
+        !suggestionRect?.height
+      ) {
         setCurve(null);
         if (retryCount < 10) {
           retryCount += 1;
@@ -120,12 +157,17 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
       }
 
       setCurve({
-        ...createCurve(sourceRect, {
+        ...createCurve(
+          gapTargetRect
+            ? createGapAnchorRect(sourceRect, gapTargetRect)
+            : sourceRect,
+          {
           left: suggestionRect.left,
           right: suggestionRect.right,
           centerX: (suggestionRect.left + suggestionRect.right) / 2,
           centerY: (suggestionRect.top + suggestionRect.bottom) / 2,
-        }),
+          }
+        ),
         width: window.innerWidth,
         height: window.innerHeight,
       });
@@ -144,6 +186,9 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
       resizeObserver = new ResizeObserver(requestMeasure);
       resizeObserver.observe(stage);
       findBlockElements(stage, sourceId).forEach((element) => resizeObserver.observe(element));
+      if (gapTargetId) {
+        findBlockElements(stage, gapTargetId).forEach((element) => resizeObserver.observe(element));
+      }
       const suggestionElement = findSuggestionElement(issue.id);
       if (suggestionElement) {
         resizeObserver.observe(suggestionElement);
@@ -158,11 +203,20 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
       window.removeEventListener("resize", requestMeasure);
       window.removeEventListener("scroll", requestMeasure, true);
     };
-  }, [issue?.id, issue?.relationSourceId, stageRef]);
+  }, [
+    issue?.action,
+    issue?.id,
+    issue?.insertAfterId,
+    issue?.insertBeforeId,
+    issue?.relationSourceId,
+    stageRef,
+  ]);
 
   if (!issue || !curve) return null;
 
-  const color = issue.sourceBlock?.color || "#d6a31a";
+  const color = issue.action === "insert"
+    ? issue.suggestedModule?.color || "#d6a31a"
+    : issue.sourceBlock?.color || "#d6a31a";
   const curveDrawId = `review-curve-draw-${normalizeId(issue.id).replace(
     /[^a-zA-Z0-9_-]/g,
     "-"
