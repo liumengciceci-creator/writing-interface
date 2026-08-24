@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useRef,
   useState,
 } from "react";
 
@@ -9,18 +10,35 @@ import {
 
 export function useHistory({
   initialSections,
+  sections,
   setSections,
   clearInteractionState,
 }) {
   /**
-   * 编辑历史。
-   *
-   * history 中始终至少保留一份初始状态。
+   * 每一项都是一次文档 action 发生前的完整快照。
    */
   const [history, setHistory] =
-    useState(() => [
-      cloneSections(initialSections),
-    ]);
+    useState([]);
+
+  /**
+   * 撤销后可向前恢复的状态。
+   * 数组第一项始终是下一次“重做”要恢复的状态。
+   */
+  const [future, setFuture] =
+    useState([]);
+
+  const historyRef = useRef(history);
+  const futureRef = useRef(future);
+  historyRef.current = history;
+  futureRef.current = future;
+
+  /**
+   * 快捷键可能连续触发，不能只依赖下一次 React render 才更新当前值。
+   */
+  const sectionsRef = useRef(
+    cloneSections(sections || initialSections)
+  );
+  sectionsRef.current = sections;
 
   /**
    * 保存一次撤销快照。
@@ -45,25 +63,48 @@ export function useHistory({
           clonedSnapshot
         );
 
-        setHistory(
-          (prevHistory) => {
-            const nextHistory = [
-              ...prevHistory,
-              clonedSnapshot,
-            ];
+        const previousHistory =
+          historyRef.current;
 
-            console.log(
-              "history length:",
-              prevHistory.length,
-              "->",
-              nextHistory.length
-            );
+        /**
+         * React Strict Mode 可能重复执行包含此调用的 state updater。
+         * 连续相同快照只保存一次，避免一次操作需要点两次撤销。
+         */
+        const lastSnapshot =
+          previousHistory[
+            previousHistory.length - 1
+          ];
 
-            console.groupEnd();
+        const isDuplicate =
+          lastSnapshot != null &&
+          JSON.stringify(lastSnapshot) ===
+            JSON.stringify(clonedSnapshot);
 
-            return nextHistory;
-          }
-        );
+        if (!isDuplicate) {
+          const nextHistory = [
+            ...previousHistory,
+            clonedSnapshot,
+          ];
+
+          historyRef.current =
+            nextHistory;
+          setHistory(nextHistory);
+
+          console.log(
+            "history length:",
+            previousHistory.length,
+            "->",
+            nextHistory.length
+          );
+        }
+
+        console.groupEnd();
+
+        /**
+         * 撤销后只要发生新的文档 action，旧的重做分支就失效。
+         */
+        futureRef.current = [];
+        setFuture([]);
       },
       []
     );
@@ -77,54 +118,87 @@ export function useHistory({
         "[useHistory] undoLastAction"
       );
 
-      setHistory(
-        (prevHistory) => {
-          console.log(
-            "history before undo:",
-            prevHistory
-          );
+      const previousHistory =
+        historyRef.current;
 
-          if (
-            prevHistory.length <= 1
-          ) {
-            console.log(
-              "undo skipped"
-            );
-
-            console.groupEnd();
-
-            return prevHistory;
-          }
-
-          /**
-           * history 保存的每一项都是“某次修改发生前”的快照。
-           * 因此撤销时应恢复当前栈顶，再把它移出历史。
-           *
-           * 旧逻辑先移除栈顶、再读取新的栈顶，会一次退回两步；
-           * 连续完成、编辑、恢复或复制模块后尤其明显。
-           */
-          const previousSections =
-            prevHistory[
-              prevHistory.length - 1
-            ];
-
-          const nextHistory =
-            prevHistory.slice(
-              0,
-              -1
-            );
-
-          setSections(
-            cloneSections(
-              previousSections
-            )
-          );
-
-          console.groupEnd();
-
-          return nextHistory;
-        }
+      console.log(
+        "history before undo:",
+        previousHistory
       );
+
+      if (previousHistory.length === 0) {
+        console.log("undo skipped");
+        console.groupEnd();
+        return;
+      }
+
+      const restoredSections =
+        cloneSections(
+          previousHistory[
+            previousHistory.length - 1
+          ]
+        );
+
+      const currentSections =
+        cloneSections(
+          sectionsRef.current
+        );
+
+      const nextHistory =
+        previousHistory.slice(0, -1);
+      const nextFuture = [
+        currentSections,
+        ...futureRef.current,
+      ];
+
+      historyRef.current = nextHistory;
+      futureRef.current = nextFuture;
+      sectionsRef.current = restoredSections;
+
+      setHistory(nextHistory);
+      setFuture(nextFuture);
+      setSections(restoredSections);
+
+      console.groupEnd();
+
+      clearInteractionState?.();
+    }, [
+      setSections,
+      clearInteractionState,
+    ]);
+
+  /**
+   * 恢复刚刚被撤销的一步。
+   */
+  const redoLastAction =
+    useCallback(() => {
+      const previousFuture =
+        futureRef.current;
+
+      if (previousFuture.length === 0) {
+        return;
+      }
+
+      const nextSections =
+        cloneSections(previousFuture[0]);
+      const currentSections =
+        cloneSections(
+          sectionsRef.current
+        );
+      const nextHistory = [
+        ...historyRef.current,
+        currentSections,
+      ];
+      const nextFuture =
+        previousFuture.slice(1);
+
+      historyRef.current = nextHistory;
+      futureRef.current = nextFuture;
+      sectionsRef.current = nextSections;
+
+      setHistory(nextHistory);
+      setFuture(nextFuture);
+      setSections(nextSections);
 
       clearInteractionState?.();
     }, [
@@ -139,19 +213,26 @@ export function useHistory({
   const resetHistory =
     useCallback(
       (sectionsSnapshot) => {
-        setHistory([
+        historyRef.current = [];
+        futureRef.current = [];
+        setHistory([]);
+        setFuture([]);
+        sectionsRef.current =
           cloneSections(
             sectionsSnapshot
-          ),
-        ]);
+          );
       },
       []
     );
 
   return {
     history,
+    future,
+    canUndo: history.length > 0,
+    canRedo: future.length > 0,
     pushHistorySnapshot,
     undoLastAction,
+    redoLastAction,
     resetHistory,
   };
 }

@@ -308,6 +308,10 @@ export default function App() {
     zoomOut,
     resetZoom,
     undoLastAction,
+    redoLastAction,
+    canUndo,
+    canRedo,
+    pushHistorySnapshot,
 
     /**
      * AI 初次生成。
@@ -693,6 +697,13 @@ export default function App() {
     let streamedText = "";
     let finalText = "";
     let textStarted = false;
+    let historyCaptured = false;
+
+    const captureRevisionHistory = () => {
+      if (historyCaptured) return;
+      historyCaptured = true;
+      pushHistorySnapshot(sections);
+    };
 
     setReviewState((state) => ({
       ...state,
@@ -717,6 +728,7 @@ export default function App() {
         contextBlocks: item.contextBlocks,
         onEvent: async (event) => {
           if (event.type === "text_start") {
+            captureRevisionHistory();
             textStarted = true;
             window.clearInterval(blinkTimer);
             setReviewState((state) => ({ ...state, blinkOn: false }));
@@ -724,6 +736,7 @@ export default function App() {
           }
 
           if (event.type === "delta") {
+            captureRevisionHistory();
             streamedText += String(event.delta || "");
             handleChangeText(targetBlockId, streamedText);
             return;
@@ -1150,6 +1163,13 @@ export default function App() {
   onUndo={
     undoLastAction
   }
+
+  onRedo={
+    redoLastAction
+  }
+
+  canUndo={canUndo}
+  canRedo={canRedo}
 
   onGenerate={
     handleToolbarGenerate

@@ -503,9 +503,14 @@ export function useEditor() {
   const {
     pushHistorySnapshot,
     undoLastAction,
+    redoLastAction,
+    canUndo,
+    canRedo,
   } = useHistory({
     initialSections:
       INITIAL_SECTIONS,
+
+    sections,
 
     setSections,
 
@@ -526,6 +531,8 @@ export function useEditor() {
   } = useStreamingGenerate({
     sections,
     setSections,
+
+    pushHistorySnapshot,
 
     selectedIds,
     setSelectedIds,
@@ -1824,6 +1831,7 @@ export function useEditor() {
     draggingBlockId,
 
     undoLastAction,
+    redoLastAction,
 
     zoomIn,
     zoomOut,
@@ -1997,6 +2005,10 @@ export function useEditor() {
     resetZoom,
 
     undoLastAction,
+    redoLastAction,
+    canUndo,
+    canRedo,
+    pushHistorySnapshot,
 
     /**
      * AI 生成。

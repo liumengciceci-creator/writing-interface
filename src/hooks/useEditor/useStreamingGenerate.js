@@ -328,6 +328,7 @@ function collectGenerationTargets(entries, selectedIds) {
 export function useStreamingGenerate({
   sections,
   setSections,
+  pushHistorySnapshot,
   selectedIds,
   setSelectedIds,
 }) {
@@ -817,6 +818,12 @@ export function useStreamingGenerate({
       targets.map((entry) => [String(entry.block.id), entry.block])
     );
 
+    /**
+     * 一次 AI 生成无论包含多少模块、多少流式分片，都只记为一个 action。
+     * 快照必须在任何 generationDirective、正文或错误状态写入之前保存。
+     */
+    pushHistorySnapshot?.(sections);
+
     setSelectedIds?.([]);
     cancelledRef.current = false;
     pendingDeltaMapRef.current = new Map();
@@ -1176,6 +1183,7 @@ export function useStreamingGenerate({
     sections,
     selectedIds,
     setSections,
+    pushHistorySnapshot,
     setSelectedIds,
     scheduleFlush,
     flushPendingDeltas,

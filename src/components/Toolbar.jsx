@@ -13,6 +13,9 @@ export default function Toolbar({
   onZoomOut,
   onResetZoom,
   onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
   onGenerate,
   onReview,
   onComplete,
@@ -142,10 +145,32 @@ export default function Toolbar({
         <button
           type="button"
           onClick={onUndo}
-          style={toolbarWideButton}
-          disabled={busy}
+          style={{
+            ...toolbarButton,
+            fontSize: 20,
+            lineHeight: 1,
+            opacity: busy || !canUndo ? 0.42 : 1,
+          }}
+          disabled={busy || !canUndo}
+          title={`${t("toolbar.undo")} · ⌘Z`}
+          aria-label={t("toolbar.undo")}
         >
-          {t("toolbar.undo")}
+          ↶
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          style={{
+            ...toolbarButton,
+            fontSize: 20,
+            lineHeight: 1,
+            opacity: busy || !canRedo ? 0.42 : 1,
+          }}
+          disabled={busy || !canRedo}
+          title={`${t("toolbar.redo")} · ⇧⌘Z`}
+          aria-label={t("toolbar.redo")}
+        >
+          ↷
         </button>
         <button
           type="button"

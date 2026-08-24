@@ -83,6 +83,7 @@ export function useEditorShortcuts({
   draggingBlockId,
 
   undoLastAction,
+  redoLastAction,
 
   zoomIn,
   zoomOut,
@@ -145,6 +146,14 @@ export function useEditorShortcuts({
           !event.shiftKey &&
           !event.altKey &&
           key === "z";
+
+        const isRedoShortcut =
+          hasCommandModifier &&
+          !event.altKey &&
+          (
+            (event.shiftKey && key === "z") ||
+            (!event.shiftKey && key === "y")
+          );
 
         const isCopyShortcut =
           hasCommandModifier &&
@@ -221,24 +230,34 @@ export function useEditorShortcuts({
           );
 
         /**
-         * 正在编辑文字时，
-         * Cmd/Ctrl + Z 交给浏览器原生 contentEditable。
-         *
-         * 光标不在编辑器内时，
-         * 才执行应用自己的历史记录撤销。
+         * 文档级撤销 / 重做：
+         * - 模块编辑器获得焦点时，先 blur 以提交本次文字 action，再操作历史；
+         * - 普通 input/textarea（例如指令框）仍使用浏览器自己的文字历史；
+         * - Cmd/Ctrl+Z、Cmd/Ctrl+Shift+Z 和 Ctrl+Y 与顶部箭头共用同一套历史。
          */
-        if (isUndoShortcut) {
-          if (
-            isTyping ||
-            hasFocusedTextEditor
-          ) {
-            return;
-          }
+        if (isUndoShortcut || isRedoShortcut) {
+          if (isTyping && !hasFocusedTextEditor) return;
 
           event.preventDefault();
           event.stopPropagation();
 
-          undoLastAction?.();
+          const applyHistoryAction = () => {
+            if (isRedoShortcut) {
+              redoLastAction?.();
+            } else {
+              undoLastAction?.();
+            }
+          };
+
+          if (
+            hasFocusedTextEditor &&
+            typeof activeElement?.blur === "function"
+          ) {
+            activeElement.blur();
+            window.setTimeout(applyHistoryAction, 0);
+          } else {
+            applyHistoryAction();
+          }
 
           return;
         }
@@ -447,6 +466,7 @@ export function useEditorShortcuts({
     isGenerating,
 
     undoLastAction,
+    redoLastAction,
 
     zoomIn,
     zoomOut,
