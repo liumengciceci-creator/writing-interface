@@ -2198,14 +2198,6 @@ const SingleSemanticEditor =
 
             {blocks.map(
               (block) => {
-                console.log(
-                  "[Render]",
-                  block.id,
-                  JSON.stringify(
-                    block.text
-                  )
-                );
-
                 const blockId =
                   normalizeId(
                     block.id
@@ -2477,17 +2469,6 @@ const SingleSemanticEditor =
                     !isEditing
                   );
 
-                console.log(
-                  "[Block Render]",
-                  block.id,
-                  {
-                    text:
-                      block.text,
-                    isEditing,
-                    isGenerating,
-                  }
-                );
-
                 const renderedBlockText =
                   shouldClipText
                     ? getLengthClippedText(
@@ -2501,14 +2482,6 @@ const SingleSemanticEditor =
                     : String(
                         block.text ?? ""
                       );
-
-                const showGeneratedEditPencil =
-                  block.isGenerated === true &&
-                  Boolean(
-                    String(block.text || "").trim()
-                  ) &&
-                  selectedIdSet.has(blockId) &&
-                  !generatingIdSet.has(blockId);
 
                 return (
                   <Fragment
@@ -2841,13 +2814,6 @@ const SingleSemanticEditor =
                         isTitleBlock
                           ? "1px 12px 3px"
                           : "2px 8px",
-
-                      paddingRight:
-                        showGeneratedEditPencil
-                          ? isTitleBlock
-                            ? 28
-                            : 24
-                          : undefined,
 
                       border:
                         "1px solid transparent",

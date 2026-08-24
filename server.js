@@ -2727,6 +2727,8 @@ app.post(
       }
     }, streamTimeoutMs);
 
+    let heartbeatId = null;
+
     try {
       console.log(
         "🔥 /api/generate-stream 被调用了"
@@ -2791,6 +2793,23 @@ app.post(
           instructionLength: String(block.instruction || "").length,
         })),
       });
+
+      /**
+       * Render may close an NDJSON response that stays silent while the model
+       * reasons. Keep the connection active without exposing synthetic text
+       * to the editor. The client intentionally ignores these heartbeat rows.
+       */
+      heartbeatId = setInterval(() => {
+        if (
+          !clientClosed &&
+          !requestFinished &&
+          canWriteResponse(res)
+        ) {
+          writeLine(res, {
+            type: "heartbeat",
+          });
+        }
+      }, 8000);
 
       const {
         textById,
@@ -2893,6 +2912,9 @@ app.post(
       }
     } finally {
       clearTimeout(timeoutId);
+      if (heartbeatId) {
+        clearInterval(heartbeatId);
+      }
       req.off("aborted", handleRequestAborted);
       res.off("close", handleResponseClose);
     }

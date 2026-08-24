@@ -854,6 +854,10 @@ export function useStreamingGenerate({
         onEvent: (event) => {
           if (cancelledRef.current) return;
 
+          if (event.type === "heartbeat") {
+            return;
+          }
+
           if (event.type !== "chunk") {
             aiDebug(`03 stream event: ${event.type}`, event);
           }
