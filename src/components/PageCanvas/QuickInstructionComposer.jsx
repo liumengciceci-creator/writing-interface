@@ -90,7 +90,6 @@ export default function QuickInstructionComposer({
   const [instructions, setInstructions] = useState(readInstructions);
   const [selectedInstructionId, setSelectedInstructionId] = useState(null);
   const [showCustomForm, setShowCustomForm] = useState(false);
-  const [customLabel, setCustomLabel] = useState("");
   const [customText, setCustomText] = useState("");
   const inputRef = useRef(null);
   const panelRef = useRef(null);
@@ -222,9 +221,12 @@ export default function QuickInstructionComposer({
   };
 
   const addCustomInstruction = () => {
-    const label = customLabel.trim();
-    const instruction = customText.trim() || label;
-    if (!label) return;
+    const instruction = customText.trim();
+    if (!instruction) return;
+    const label =
+      Array.from(instruction).length > 14
+        ? `${Array.from(instruction).slice(0, 14).join("")}…`
+        : instruction;
     const nextInstruction = {
       id: createInstructionId(),
       label,
@@ -236,7 +238,6 @@ export default function QuickInstructionComposer({
     setInstructions(next);
     saveInstructions(next);
     setShowCustomForm(false);
-    setCustomLabel("");
     setCustomText("");
     setSelectedInstructionId(nextInstruction.id);
     setValue(instruction);
@@ -393,7 +394,7 @@ export default function QuickInstructionComposer({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(92px, 0.8fr) minmax(130px, 1.4fr) auto",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
             gap: 6,
             alignItems: "center",
             marginTop: 8,
@@ -402,24 +403,8 @@ export default function QuickInstructionComposer({
           }}
         >
           <input
-            value={customLabel}
-            maxLength={20}
-            placeholder={t("instruction.name")}
-            onChange={(event) => setCustomLabel(event.target.value)}
-            style={{
-              minWidth: 0,
-              height: 29,
-              padding: "0 8px",
-              border: "1px solid #d7dbe2",
-              borderRadius: 7,
-              outline: 0,
-              fontFamily: "inherit",
-              fontSize: 11,
-            }}
-          />
-          <input
             value={customText}
-            placeholder={t("instruction.detail")}
+            placeholder={t("quickInstruction.customPlaceholder")}
             onChange={(event) => setCustomText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -440,7 +425,7 @@ export default function QuickInstructionComposer({
           />
           <button
             type="button"
-            disabled={!customLabel.trim()}
+            disabled={!customText.trim()}
             onClick={addCustomInstruction}
             style={{
               width: 29,
@@ -448,9 +433,9 @@ export default function QuickInstructionComposer({
               padding: 0,
               border: 0,
               borderRadius: "50%",
-              background: customLabel.trim() ? "#111827" : "#d1d5db",
+              background: customText.trim() ? "#111827" : "#d1d5db",
               color: "#fff",
-              cursor: customLabel.trim() ? "pointer" : "default",
+              cursor: customText.trim() ? "pointer" : "default",
             }}
           >
             ✓
