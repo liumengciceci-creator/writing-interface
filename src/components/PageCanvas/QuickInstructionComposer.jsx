@@ -11,14 +11,6 @@ import { useI18n } from "../../i18n.jsx";
 const INSTRUCTIONS_STORAGE_KEY = "writing-interface-block-instructions";
 const INSTRUCTIONS_UPDATED_EVENT = "writing-interface-instructions-updated";
 
-const INSTRUCTION_COLORS = [
-  { color: "#ef4444", fill: "#feecec" },
-  { color: "#f59e0b", fill: "#fff4dc" },
-  { color: "#0ea5a4", fill: "#e7f8f6" },
-  { color: "#8b5cf6", fill: "#f3eeff" },
-  { color: "#3b82f6", fill: "#eaf2ff" },
-];
-
 const FALLBACK_INSTRUCTIONS = [
   {
     id: "instruction-more-logical",
@@ -91,7 +83,6 @@ function createInstructionId() {
 
 export default function QuickInstructionComposer({
   anchorRect,
-  blockColor = "#7c83fd",
   onClose,
   onSubmit,
 }) {
@@ -101,7 +92,6 @@ export default function QuickInstructionComposer({
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
   const [customText, setCustomText] = useState("");
-  const [customColor, setCustomColor] = useState(INSTRUCTION_COLORS[3]);
   const inputRef = useRef(null);
   const panelRef = useRef(null);
   const dragRef = useRef(null);
@@ -228,8 +218,6 @@ export default function QuickInstructionComposer({
     onSubmit?.(instruction, {
       id: selected?.id || `quick-instruction-${Date.now()}`,
       label: selected ? instructionLabel(selected) : instruction,
-      color: selected?.color || blockColor,
-      fill: selected?.fill || "#f3f4f6",
     });
   };
 
@@ -241,8 +229,8 @@ export default function QuickInstructionComposer({
       id: createInstructionId(),
       label,
       instruction,
-      color: customColor.color,
-      fill: customColor.fill,
+      color: "#ef4444",
+      fill: "#feecec",
     };
     const next = [...instructions, nextInstruction];
     setInstructions(next);
@@ -363,28 +351,16 @@ export default function QuickInstructionComposer({
                 flex: "0 0 auto",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 5,
-                padding: "0 8px 0 5px",
-                border: `1px solid ${selected ? instruction.color : "rgba(55,65,81,0.38)"}`,
+                padding: "0 9px",
+                border: `1px solid ${selected ? "#6b7280" : "rgba(55,65,81,0.38)"}`,
                 borderRadius: 999,
-                background: selected ? instruction.fill : "#ffffff",
-                color: "#6b7280",
+                background: selected ? "#f1f3f5" : "#ffffff",
+                color: "#5f6670",
                 fontSize: 10,
                 whiteSpace: "nowrap",
                 cursor: "pointer",
               }}
             >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: `linear-gradient(100deg, ${instruction.color || blockColor} 15%, #ffffff 48%, ${instruction.color || blockColor} 80%)`,
-                  backgroundSize: "240% 100%",
-                  animation: "quick-instruction-color-flow 2.2s linear infinite",
-                }}
-              />
               {label}
             </button>
           );
@@ -472,40 +448,13 @@ export default function QuickInstructionComposer({
               padding: 0,
               border: 0,
               borderRadius: "50%",
-              background: customLabel.trim() ? customColor.color : "#d1d5db",
+              background: customLabel.trim() ? "#111827" : "#d1d5db",
               color: "#fff",
               cursor: customLabel.trim() ? "pointer" : "default",
             }}
           >
             ✓
           </button>
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            {INSTRUCTION_COLORS.map((option) => (
-              <button
-                key={option.color}
-                type="button"
-                aria-label={t("instruction.chooseColor", { color: option.color })}
-                onClick={() => setCustomColor(option)}
-                style={{
-                  width: 16,
-                  height: 16,
-                  padding: 0,
-                  border: `2px solid ${customColor.color === option.color ? "#111827" : "#fff"}`,
-                  borderRadius: "50%",
-                  background: option.color,
-                  boxShadow: `0 0 0 1px ${option.color}66`,
-                  cursor: "pointer",
-                }}
-              />
-            ))}
-          </div>
         </div>
       ) : null}
     </div>,

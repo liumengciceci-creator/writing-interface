@@ -951,6 +951,19 @@ const SingleSemanticEditor =
         },
       });
 
+      const visualFocusBlockId =
+        normalizeId(
+          quickInstructionTarget
+            ?.blockId ||
+          effectiveEditingBlockId
+        );
+
+      const hasVisualFocusedBlock =
+        Boolean(
+          quickInstructionTarget
+        ) ||
+        hasFocusedEditingBlock;
+
       const {
         lineExtensions,
         measureLineExtensions,
@@ -2023,7 +2036,6 @@ const SingleSemanticEditor =
           {quickInstructionTarget ? (
             <QuickInstructionComposer
               anchorRect={quickInstructionTarget.anchorRect}
-              blockColor={quickInstructionTarget.blockColor}
               onClose={() => setQuickInstructionTarget(null)}
               onSubmit={(instructionText, instructionStyle) => {
                 const target = quickInstructionTarget;
@@ -2037,16 +2049,10 @@ const SingleSemanticEditor =
                     instructionStyle?.label ||
                     instructionText,
                   instruction: instructionText,
-                  color:
-                    instructionStyle?.color ||
-                    target.blockColor,
-                  fill:
-                    instructionStyle?.fill ||
-                    targetBlock?.fill ||
-                    "#f3f4f6",
+                  color: "#ef4444",
+                  fill: "#feecec",
                 };
 
-                setQuickInstructionTarget(null);
                 setInstructionEffect({
                   blockId: target.blockId,
                   color: instruction.color,
@@ -2240,8 +2246,8 @@ const SingleSemanticEditor =
                 isDraggingSelectedGroup
               }
               instructionEffect={instructionEffect}
-              hasFocusedEditingBlock={hasFocusedEditingBlock}
-              effectiveEditingBlockId={effectiveEditingBlockId}
+              hasFocusedEditingBlock={hasVisualFocusedBlock}
+              effectiveEditingBlockId={visualFocusBlockId}
             />
 
             <LengthResizeControls
@@ -2252,8 +2258,8 @@ const SingleSemanticEditor =
               beginLengthResize={beginLengthResize}
               isGenerating={isGenerating}
               isAdjustingLength={isAdjustingLength}
-              hasFocusedEditingBlock={hasFocusedEditingBlock}
-              effectiveEditingBlockId={effectiveEditingBlockId}
+              hasFocusedEditingBlock={hasVisualFocusedBlock}
+              effectiveEditingBlockId={visualFocusBlockId}
             />
 
             {dropIndicator && (
@@ -2723,12 +2729,8 @@ const SingleSemanticEditor =
 
                       setInstructionEffect({
                         blockId,
-                        color:
-                          instruction?.color ||
-                          "#ef4444",
-                        fill:
-                          instruction?.fill ||
-                          "#feecec",
+                        color: "#ef4444",
+                        fill: "#feecec",
                         phase: "hover",
                       });
 
@@ -2784,10 +2786,8 @@ const SingleSemanticEditor =
 
                       setInstructionEffect({
                         blockId,
-                        color:
-                          instruction.color,
-                        fill:
-                          instruction.fill,
+                        color: "#ef4444",
+                        fill: "#feecec",
                         phase: "impact",
                         clientX:
                           event.clientX,
@@ -2948,9 +2948,9 @@ const SingleSemanticEditor =
                           )
                         )
                           ? 0
-                          : hasFocusedEditingBlock &&
+                          : hasVisualFocusedBlock &&
                             blockId !==
-                              effectiveEditingBlockId
+                              visualFocusBlockId
                           ? 0.24
                           : 1,
 

@@ -744,6 +744,7 @@ export function useStreamingGenerate({
     const generatedTextByRequestId = new Map();
     const startedRequestIds = new Set();
     const completedRequestIds = new Set();
+    const renderedRequestIds = new Set();
 
     const requestTargetBlocks = targets.map((entry, index) => {
       const directive = getBlockDirective(entry.block);
@@ -938,6 +939,29 @@ export function useStreamingGenerate({
               requestId,
               `${generatedTextByRequestId.get(requestId) || ""}${delta}`
             );
+
+            if (!renderedRequestIds.has(requestId)) {
+              renderedRequestIds.add(requestId);
+              setSections((previous) =>
+                patchBlocks(previous, (block) => {
+                  if (String(block.id) !== realBlockId) return block;
+
+                  return {
+                    ...block,
+                    text: delta,
+                    height: estimateBlockHeight(delta, block.width),
+                    isGenerated: true,
+                    generationError: null,
+                  };
+                })
+              );
+            } else {
+              pendingDeltaMapRef.current.set(
+                realBlockId,
+                `${pendingDeltaMapRef.current.get(realBlockId) || ""}${delta}`
+              );
+              scheduleFlush();
+            }
           }
 
           if (event.type === "block_done") {

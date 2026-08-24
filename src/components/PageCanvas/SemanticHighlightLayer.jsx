@@ -159,6 +159,11 @@ function SemanticHighlightLayer({
               blockId
             );
 
+          const pulseColor =
+            instructionGenerating
+              ? "#ef4444"
+              : color;
+
 
 
           /**
@@ -236,13 +241,15 @@ function SemanticHighlightLayer({
 
                 fill={
                   showingGenerationPulse
-                    ? `${color}22`
+                    ? `${pulseColor}22`
                     : fill
                 }
 
 
                 stroke={
-                  softStroke
+                  instructionGenerating
+                    ? "#fca5a5"
+                    : softStroke
                 }
 
 
@@ -273,7 +280,7 @@ function SemanticHighlightLayer({
                       `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
                       : showingGenerationPulse
                       ?
-                      `drop-shadow(0 0 2px ${color}33) drop-shadow(0 2px 3px rgba(31,41,55,0.12))`
+                      `drop-shadow(0 0 2px ${pulseColor}33) drop-shadow(0 2px 3px rgba(31,41,55,0.12))`
                       :
                       selected &&
                       !adjustingLength &&

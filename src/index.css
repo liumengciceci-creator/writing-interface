@@ -289,16 +289,6 @@ code {
   }
 }
 
-@keyframes quick-instruction-color-flow {
-  0% {
-    background-position: 220% 50%;
-  }
-
-  100% {
-    background-position: -20% 50%;
-  }
-}
-
 @keyframes semantic-review-stream-caret {
   0%,
   45% {
