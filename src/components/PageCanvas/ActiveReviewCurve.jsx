@@ -163,6 +163,10 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
   if (!issue || !curve) return null;
 
   const color = issue.sourceBlock?.color || "#d6a31a";
+  const curveDrawId = `review-curve-draw-${normalizeId(issue.id).replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-"
+  )}`;
 
   return (
     <svg
@@ -186,22 +190,41 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
         strokeWidth="2.2"
         strokeLinecap="round"
         pathLength="1"
-        style={{
-          strokeDasharray: 1,
-          strokeDashoffset: 0,
-          animation: "review-active-curve-draw 520ms linear both",
-        }}
-      />
+        strokeDasharray="1"
+        strokeDashoffset="1"
+      >
+        <animate
+          id={curveDrawId}
+          attributeName="stroke-dashoffset"
+          from="1"
+          to="0"
+          dur="520ms"
+          begin="0s"
+          fill="freeze"
+          calcMode="linear"
+        />
+      </path>
       <polygon
         key={`${issue.id}-arrowhead`}
         points="0,0 -10,-5 -10,5"
         fill={color}
+        opacity="0"
       >
         <animateMotion
           path={curve.path}
           dur="520ms"
+          begin={`${curveDrawId}.begin`}
           fill="freeze"
           rotate="auto"
+          calcMode="linear"
+        />
+        <animate
+          attributeName="opacity"
+          values="0;0;1;1"
+          keyTimes="0;0.025;0.04;1"
+          dur="520ms"
+          begin={`${curveDrawId}.begin`}
+          fill="freeze"
           calcMode="linear"
         />
       </polygon>
