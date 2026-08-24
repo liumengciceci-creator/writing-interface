@@ -251,7 +251,16 @@ export default function QuickInstructionComposer({
       ref={panelRef}
       role="dialog"
       aria-label={t("quickInstruction.dialog")}
-      onPointerDown={beginPanelDrag}
+      onPointerDown={(event) => {
+        if (
+          showCustomForm &&
+          !event.target.closest("[data-custom-instruction-form='true']") &&
+          !event.target.closest("[data-custom-instruction-toggle='true']")
+        ) {
+          setShowCustomForm(false);
+        }
+        beginPanelDrag(event);
+      }}
       style={{
         position: "fixed",
         left: position.left,
@@ -264,7 +273,7 @@ export default function QuickInstructionComposer({
         background: "rgba(255,255,255,0.98)",
         boxShadow: "0 10px 28px rgba(15,23,42,0.16)",
         boxSizing: "border-box",
-        cursor: "move",
+        cursor: "grab",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -369,6 +378,7 @@ export default function QuickInstructionComposer({
 
         <button
           type="button"
+          data-custom-instruction-toggle="true"
           aria-label={t("instruction.add")}
           title={t("instruction.add")}
           onClick={() => setShowCustomForm((current) => !current)}
@@ -392,6 +402,7 @@ export default function QuickInstructionComposer({
 
       {showCustomForm ? (
         <div
+          data-custom-instruction-form="true"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) auto",

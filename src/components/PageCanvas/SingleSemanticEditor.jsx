@@ -2049,8 +2049,13 @@ const SingleSemanticEditor =
                     instructionStyle?.label ||
                     instructionText,
                   instruction: instructionText,
-                  color: "#ef4444",
-                  fill: "#feecec",
+                  color:
+                    targetBlock?.color ||
+                    target.blockColor ||
+                    "#7c83fd",
+                  fill:
+                    targetBlock?.fill ||
+                    "rgba(124,131,253,0.08)",
                 };
 
                 setInstructionEffect({
@@ -2729,8 +2734,10 @@ const SingleSemanticEditor =
 
                       setInstructionEffect({
                         blockId,
-                        color: "#ef4444",
-                        fill: "#feecec",
+                        color,
+                        fill:
+                          block.fill ||
+                          "rgba(124,131,253,0.08)",
                         phase: "hover",
                       });
 
@@ -2786,8 +2793,10 @@ const SingleSemanticEditor =
 
                       setInstructionEffect({
                         blockId,
-                        color: "#ef4444",
-                        fill: "#feecec",
+                        color,
+                        fill:
+                          block.fill ||
+                          "rgba(124,131,253,0.08)",
                         phase: "impact",
                         clientX:
                           event.clientX,

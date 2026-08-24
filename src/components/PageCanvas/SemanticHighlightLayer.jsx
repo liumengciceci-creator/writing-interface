@@ -160,9 +160,7 @@ function SemanticHighlightLayer({
             );
 
           const pulseColor =
-            instructionGenerating
-              ? "#ef4444"
-              : color;
+            color;
 
 
 
@@ -247,9 +245,7 @@ function SemanticHighlightLayer({
 
 
                 stroke={
-                  instructionGenerating
-                    ? "#fca5a5"
-                    : softStroke
+                  softStroke
                 }
 
 
