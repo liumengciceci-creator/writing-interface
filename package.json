@@ -7,6 +7,7 @@
     "dev": "vite",
     "prebuild": "node scripts/prepare-vite-entry.mjs",
     "build": "vite build",
+    "check:generation-snapshot": "node scripts/check-generation-snapshot.mjs",
     "preview": "vite preview",
     "server": "node server.js"
   },

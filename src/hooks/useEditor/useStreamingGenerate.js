@@ -6,6 +6,10 @@ import {
 } from "react";
 
 import { generateBlocksStream } from "../../api/generateBlocksStream";
+import {
+  getGenerationSnapshotText,
+  inspectRenderedGenerationBlock,
+} from "./generationSnapshot";
 import { estimateBlockHeight } from "./layout";
 
 const DEBUG_AI_GENERATION = true;
@@ -39,105 +43,6 @@ function inspectGenerationText(value) {
     normalized: normalizeGenerationComparison(text),
     codePoints,
   };
-}
-
-function findRenderedGenerationBlock(blockId) {
-  if (
-    typeof document === "undefined"
-  ) {
-    return null;
-  }
-
-  const targetId =
-    String(blockId);
-
-  return (
-    Array.from(
-      document.querySelectorAll(
-        "[data-semantic-block-id]"
-      )
-    ).find(
-      (element) =>
-        String(
-          element.getAttribute(
-            "data-semantic-block-id"
-          ) || ""
-        ) === targetId
-    ) || null
-  );
-}
-
-function inspectRenderedGenerationBlock(blockId) {
-  const blockElement =
-    findRenderedGenerationBlock(
-      blockId
-    );
-
-  if (!blockElement) {
-    return {
-      found: false,
-      text: inspectGenerationText(""),
-      dataEditing: null,
-      contentEditable: null,
-      isActiveElement: false,
-    };
-  }
-
-  const contentElement =
-    blockElement.querySelector(
-      "[data-semantic-block-content='true']"
-    );
-
-  const textElement =
-    contentElement ||
-    blockElement;
-
-  return {
-    found: true,
-    text: inspectGenerationText(
-      textElement.textContent || ""
-    ),
-    dataEditing:
-      blockElement.getAttribute(
-        "data-editing"
-      ),
-    contentEditable:
-      blockElement.isContentEditable,
-    isActiveElement:
-      document.activeElement ===
-      blockElement,
-  };
-}
-
-function getLiveEditingText(block) {
-  const rendered =
-    inspectRenderedGenerationBlock(
-      block?.id
-    );
-
-  const isEditing =
-    rendered.found &&
-    (
-      rendered.dataEditing ===
-        "true" ||
-      rendered.contentEditable ||
-      rendered.isActiveElement
-    );
-
-  if (!isEditing) {
-    return String(
-      block?.text || ""
-    );
-  }
-
-  return String(
-    rendered.text.text || ""
-  )
-    .replace(
-      /[\u200B-\u200D\uFEFF]/g,
-      ""
-    )
-    .replace(/\r\n?/g, "\n");
 }
 
 const TARGET_FORM_GUIDES = {
@@ -733,19 +638,41 @@ export function useStreamingGenerate({
     const controller = new AbortController();
     controllerRef.current = controller;
     /**
-     * contentEditable 输入先存在于浏览器 DOM，blur 后才会提交到 sections。
-     * 如果用户在光标仍位于模块中时用快捷键生成，直接读取 sections 会把
-     * 旧文字发送给 AI。这里先把正在编辑的真实 DOM 文字覆盖到本次请求
-     * 快照中；非编辑模块仍以 React state 为唯一数据源。
+     * 在任何 selection/state 清理之前冻结本次生成快照。
+     * 画布内容节点存在时一律读取页面上真实可见的文字，避免 toolbar
+     * mousedown -> contentEditable blur -> onClick 的事件顺序让旧 state
+     * 混进请求。
      */
+    const snapshotDiagnostics = [];
     const entries =
       flattenBlockEntries(
         sections
       ).map((entry) => {
-        const liveText =
-          getLiveEditingText(
+        const snapshot =
+          getGenerationSnapshotText(
             entry.block
           );
+        const liveText =
+          snapshot.text;
+
+        snapshotDiagnostics.push({
+          blockId: String(
+            entry.block?.id || ""
+          ),
+          type:
+            entry.block?.type ||
+            "Unknown",
+          source: snapshot.source,
+          stateText:
+            inspectGenerationText(
+              entry.block?.text
+            ),
+          snapshotText:
+            inspectGenerationText(
+              liveText
+            ),
+          dom: snapshot.rendered,
+        });
 
         if (
           liveText ===
@@ -784,6 +711,13 @@ export function useStreamingGenerate({
       allDocumentBlockIds: entries.map((entry) =>
         String(entry.block.id)
       ),
+      snapshots:
+        snapshotDiagnostics.filter(
+          (item) =>
+            uniqueSelectedIds.includes(
+              item.blockId
+            )
+        ),
     });
 
     if (missingSelectedIds.length) {

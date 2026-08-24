@@ -184,6 +184,15 @@ export default function Toolbar({
       >
         <button
           type="button"
+          onMouseDown={(event) => {
+            /**
+             * 不把焦点从正在编辑的 contentEditable 抢到按钮上。
+             * onClick 仍会正常触发，键盘操作也不受影响。
+             */
+            if (!generationDisabled) {
+              event.preventDefault();
+            }
+          }}
           onClick={onGenerate}
           disabled={generationDisabled}
           style={{ ...toolbarWideButton, opacity: generationDisabled ? 0.5 : 1 }}
