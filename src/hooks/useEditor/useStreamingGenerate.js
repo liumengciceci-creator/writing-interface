@@ -243,7 +243,7 @@ function getSpecialIntentGuides(text) {
 
   if (/数据|比例|百分比|样本|统计/.test(normalized)) {
     guides.push(
-      "本次用户明确要求量化证据：结果必须包含与当前论点直接相关的数值信息；不得用笼统的‘研究表明’代替数据，也不得虚构无法确认的精确数字。"
+      "本次用户明确要求量化证据：先检索并核验与当前论点直接相关的研究或调查，再写出研究对象、样本或测量范围以及关键数值；不得用笼统的‘研究表明’代替数据，也不得虚构无法确认的精确数字。即使用户只输入‘数据’二字，也要把它当作生成命令执行，绝不能原样返回。"
     );
   }
 
@@ -446,6 +446,9 @@ export function useStreamingGenerate({
   const pendingDeltaMapRef = useRef(new Map());
   const rafIdRef = useRef(null);
   const expectedGeneratedTextRef = useRef(new Map());
+  const generationCommitGuardRef = useRef(false);
+  const generationCommitGuardTimerRef = useRef(null);
+  const repairedGeneratedTextIdsRef = useRef(new Set());
   const lastPostRenderDebugKeyRef = useRef("");
   const domVerificationFrameRef = useRef(null);
   const controllerRef = useRef(null);
@@ -507,12 +510,18 @@ export function useStreamingGenerate({
         domVerificationFrameRef.current
       );
     }
+    if (generationCommitGuardTimerRef.current != null) {
+      clearTimeout(generationCommitGuardTimerRef.current);
+    }
     controllerRef.current?.abort();
     controllerRef.current = null;
   }, []);
 
   useEffect(() => {
-    if (!expectedGeneratedTextRef.current.size) return;
+    if (
+      !generationCommitGuardRef.current ||
+      !expectedGeneratedTextRef.current.size
+    ) return;
 
     const actualTextById = new Map(
       flattenBlockEntries(sections).map((entry) => [
@@ -553,11 +562,54 @@ export function useStreamingGenerate({
       checks,
     });
 
-    if (checks.some((check) => !check.matches)) {
+    const mismatchedChecks = checks.filter((check) => !check.matches);
+
+    if (mismatchedChecks.length) {
       console.error(
         "[AI Debug] 生成文字写入后被其他状态覆盖",
-        checks.filter((check) => !check.matches)
+        mismatchedChecks
       );
+
+      const idsToRepair = new Set(
+        mismatchedChecks
+          .map((check) => check.blockId)
+          .filter(
+            (blockId) =>
+              !repairedGeneratedTextIdsRef.current.has(blockId)
+          )
+      );
+
+      if (idsToRepair.size) {
+        const repairTextById = new Map(
+          Array.from(idsToRepair).map((blockId) => [
+            blockId,
+            expectedGeneratedTextRef.current.get(blockId),
+          ])
+        );
+
+        idsToRepair.forEach((blockId) =>
+          repairedGeneratedTextIdsRef.current.add(blockId)
+        );
+
+        setSections((previous) =>
+          patchBlocks(previous, (block) => {
+            const blockId = String(block.id);
+            if (!idsToRepair.has(blockId)) return block;
+
+            const expectedText = repairTextById.get(blockId);
+            if (expectedText == null) return block;
+
+            return {
+              ...block,
+              text: expectedText,
+              height: estimateBlockHeight(expectedText, block.width),
+              isGenerated: true,
+              generationDirective: "",
+              generationError: null,
+            };
+          })
+        );
+      }
     }
 
     if (
@@ -633,7 +685,7 @@ export function useStreamingGenerate({
             }
           });
       });
-  }, [sections]);
+  }, [sections, setSections]);
 
   useEffect(() => {
     try {
@@ -661,6 +713,13 @@ export function useStreamingGenerate({
     stopBlinking();
     clearPendingFrame();
     pendingDeltaMapRef.current = new Map();
+    generationCommitGuardRef.current = false;
+    expectedGeneratedTextRef.current = new Map();
+    repairedGeneratedTextIdsRef.current = new Set();
+    if (generationCommitGuardTimerRef.current != null) {
+      clearTimeout(generationCommitGuardTimerRef.current);
+      generationCommitGuardTimerRef.current = null;
+    }
     setIsGenerating(false);
     setGeneratingBlockIds([]);
     setGenerationStatus("");
@@ -772,11 +831,15 @@ export function useStreamingGenerate({
           "本次会同时生成全部选中模块。必须结合其他目标模块的要求，先规划完整、连贯的段落，再为本模块输出新的正文。",
           "指令可能是命令、主题、半截句或已有草稿：都必须转化成新的最终正文，绝不能把指令本身原样返回。",
         ].join("\n"),
+        // 证据、数据、研究发现等内容没有检索就无法同时满足
+        // “给出可核验事实”和“不得编造”的要求，因此这是内容正确性约束，
+        // 不受普通网页检索开关影响。开关仅控制非必需检索。
         searchPolicy:
-          getSearchPolicy(entry.block, directive) === "required" &&
-          webSearchEnabled
+          getSearchPolicy(entry.block, directive) === "required"
             ? "required"
-            : "disabled",
+            : webSearchEnabled
+              ? "auto"
+              : "disabled",
       };
     });
 
@@ -823,6 +886,12 @@ export function useStreamingGenerate({
     cancelledRef.current = false;
     pendingDeltaMapRef.current = new Map();
     expectedGeneratedTextRef.current = new Map();
+    generationCommitGuardRef.current = false;
+    repairedGeneratedTextIdsRef.current = new Set();
+    if (generationCommitGuardTimerRef.current != null) {
+      clearTimeout(generationCommitGuardTimerRef.current);
+      generationCommitGuardTimerRef.current = null;
+    }
     lastPostRenderDebugKeyRef.current = "";
     setIsGenerating(true);
     setGeneratingBlockIds(targetIds);
@@ -999,6 +1068,17 @@ export function useStreamingGenerate({
       }
 
       expectedGeneratedTextRef.current = new Map(cleanedTextByRealId);
+      generationCommitGuardRef.current = true;
+      repairedGeneratedTextIdsRef.current = new Set();
+      if (generationCommitGuardTimerRef.current != null) {
+        clearTimeout(generationCommitGuardTimerRef.current);
+      }
+      generationCommitGuardTimerRef.current = setTimeout(() => {
+        generationCommitGuardRef.current = false;
+        expectedGeneratedTextRef.current = new Map();
+        repairedGeneratedTextIdsRef.current = new Set();
+        generationCommitGuardTimerRef.current = null;
+      }, 1600);
 
       aiDebug("06A committing generated text", {
         blocks: Array.from(cleanedTextByRealId.entries()).map(
@@ -1053,6 +1133,12 @@ export function useStreamingGenerate({
       clearPendingFrame();
       pendingDeltaMapRef.current = new Map();
       expectedGeneratedTextRef.current = new Map();
+      generationCommitGuardRef.current = false;
+      repairedGeneratedTextIdsRef.current = new Set();
+      if (generationCommitGuardTimerRef.current != null) {
+        clearTimeout(generationCommitGuardTimerRef.current);
+        generationCommitGuardTimerRef.current = null;
+      }
       const validTextByRealId = new Map();
       const failedTargetIds = [];
 

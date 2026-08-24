@@ -139,7 +139,6 @@ function countDocumentCharacters(
 
 export default function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
-  const reviewFocusTimerRef = useRef(null);
   const [reviewState, setReviewState] = useState({
     running: false,
     current: 0,
@@ -152,6 +151,8 @@ export default function App() {
     activeGraphId: null,
     activeIssue: null,
     results: [],
+    overallSummary: "",
+    summaryHighlights: [],
   });
   /**
    * 用户创建的自定义标签。
@@ -349,10 +350,6 @@ export default function App() {
     const blocks = getSelectedBlocksInDocumentOrder();
     if (blocks.length < 2 || reviewState.running) return;
 
-    if (reviewFocusTimerRef.current) {
-      window.clearInterval(reviewFocusTimerRef.current);
-      reviewFocusTimerRef.current = null;
-    }
     setReviewPanelOpen(false);
     setReviewState({
       running: true,
@@ -366,6 +363,8 @@ export default function App() {
       activeGraphId: "overall-review",
       activeIssue: null,
       results: [],
+      overallSummary: "",
+      summaryHighlights: [],
     });
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
@@ -526,6 +525,10 @@ export default function App() {
               activeIssue: null,
               blinkOn: false,
               results,
+              overallSummary: String(event.overallSummary || "").trim(),
+              summaryHighlights: Array.isArray(event.summaryHighlights)
+                ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
+                : [],
               status: "正在整理潜在增强点…",
             }));
           }
@@ -562,10 +565,6 @@ export default function App() {
   };
 
   const clearReviewIssueFocus = () => {
-    if (reviewFocusTimerRef.current) {
-      window.clearInterval(reviewFocusTimerRef.current);
-      reviewFocusTimerRef.current = null;
-    }
     setReviewState((state) => ({
       ...state,
       activeIds: [],
@@ -581,30 +580,15 @@ export default function App() {
       return;
     }
 
-    if (reviewFocusTimerRef.current) {
-      window.clearInterval(reviewFocusTimerRef.current);
-    }
-
-    const sourceId = String(item.relationSourceId);
-    const targetId = String(item.relationTargetId);
     setReviewState((state) => ({
       ...state,
-      activeIds: [sourceId, targetId],
-      activeGraphId: `issue-${item.id}`,
+      // 展开建议时只显示“来源模块 → 建议卡片”的曲线，
+      // 不再重新触发相关模块的闪烁。
+      activeIds: [],
+      activeGraphId: null,
       activeIssue: item,
-      blinkOn: true,
+      blinkOn: false,
     }));
-
-    let blinkCount = 0;
-    reviewFocusTimerRef.current = window.setInterval(() => {
-      blinkCount += 1;
-      setReviewState((state) => ({ ...state, blinkOn: !state.blinkOn }));
-      if (blinkCount >= 8) {
-        window.clearInterval(reviewFocusTimerRef.current);
-        reviewFocusTimerRef.current = null;
-        setReviewState((state) => ({ ...state, blinkOn: true }));
-      }
-    }, 340);
   };
 
   const handleReviewAccept = (item) => {
@@ -617,12 +601,6 @@ export default function App() {
     setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "rejected" } : result) }));
     clearReviewIssueFocus();
   };
-
-  useEffect(() => () => {
-    if (reviewFocusTimerRef.current) {
-      window.clearInterval(reviewFocusTimerRef.current);
-    }
-  }, []);
 
   /**
    * 保存自定义标签。
@@ -1299,6 +1277,8 @@ beginDuplicateDrag={
         <ReviewIssuesPanel
           open={reviewPanelOpen}
           results={reviewState.results}
+          overallSummary={reviewState.overallSummary}
+          summaryHighlights={reviewState.summaryHighlights}
           onFocusIssue={handleFocusReviewIssue}
           onAccept={handleReviewAccept}
           onReject={handleReviewReject}

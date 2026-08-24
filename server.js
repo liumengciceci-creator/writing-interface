@@ -565,8 +565,18 @@ function resolveTargetBlocks(body) {
     throw error;
   }
 
+  const normalizedTargetBlocks = targetBlocks.map((block) => ({
+    ...block,
+    // 旧版前端可能把证据/数据请求错误地标为 disabled。
+    // 后端再次兜底，避免模型在不能检索时既被要求给出精确数据、
+    // 又被要求不得编造，最终只能重复“数据”等用户指令。
+    searchPolicy: requiresVerifiedSearch(block)
+      ? "required"
+      : normalizeSearchPolicy(block?.searchPolicy),
+  }));
+
   return {
-    targetBlocks,
+    targetBlocks: normalizedTargetBlocks,
     contextBlocks:
       Array.isArray(contextBlocks)
         ? contextBlocks
@@ -582,6 +592,27 @@ function normalizeSearchPolicy(value) {
   }
 
   return "disabled";
+}
+
+function requiresVerifiedSearch(block) {
+  const type = String(block?.type || "");
+  const directive = String(
+    block?.directive || block?.userInput || ""
+  );
+
+  if (
+    type === "Title" ||
+    type === "Transition" ||
+    type === "Conclusion"
+  ) {
+    return false;
+  }
+
+  if (type === "Evidence") return true;
+
+  return /学者|专家|研究者|数据|统计|比例|百分比|样本|研究发现|研究表明|事实|案例|来源|文献|年份/.test(
+    directive
+  );
 }
 
 function getWebSearchMode(targetBlocks = []) {
@@ -1367,7 +1398,7 @@ async function generateValidatedBufferedBlocks({
     const retryInstruction = lastInvalid.length
       ? `\n\nCORRECTION REQUIRED: The previous answer failed for target ids ${lastInvalid
           .map((item) => item.id)
-          .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose.`
+          .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose. If a directive asks for 数据 or the target is Evidence, use the retrieved sources and write a complete, directly relevant quantitative evidence sentence containing the study population or sample and the key numerical finding. Never output the word 数据 as the answer.`
       : "";
 
     lastResponse = await openai.responses.create(
@@ -2127,7 +2158,8 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 - 是否存在逻辑跳跃、概念偷换、重复论点、缺少限定或过度概括。
 
 最后一行格式：
-{"type":"final","enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"可执行且不虚构事实的修改办法","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+{"type":"final","overallSummary":"一段连续的整体关系总结","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2","总结中需要加粗的短语3"],"enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"可执行且不虚构事实的修改办法","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+overallSummary 必须由你通读全部模块后生成，不能使用固定模板或只罗列模块类型。用“这里你提出了……基于这一点……根据这个……最后你……”一类连续自然的语言，具体说明各模块如何推进、支持、解释、限定或修正彼此，并在结尾简要判断整体衔接。控制在100至180个汉字。summaryHighlights 提取 overallSummary 中3至5个最关键的原文短语，每项4至14个汉字，必须能在 overallSummary 中逐字找到；前端会将这些短语加粗。
 增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系。只要存在实质改进空间，4个及以上模块通常给出2至5条互不重复的增强建议；不要只检查相邻模块，也不要为了凑数虚构问题或事实。`;
 
     let textBuffer = "";
@@ -2174,6 +2206,15 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
           emitEnhancementsPhase();
           writeLine(res, {
             type: "final",
+            overallSummary: String(item.overallSummary || item.frameworkSummary || "")
+              .replace(/\s+/g, " ")
+              .trim(),
+            summaryHighlights: Array.isArray(item.summaryHighlights)
+              ? item.summaryHighlights
+                  .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+                  .filter(Boolean)
+                  .slice(0, 5)
+              : [],
             enhancements: Array.isArray(item.enhancements) ? item.enhancements : [],
           });
         }

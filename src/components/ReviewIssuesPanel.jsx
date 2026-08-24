@@ -16,9 +16,46 @@ const panelButton = {
   cursor: "pointer",
 };
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderSummaryWithHighlights(summary, highlights = []) {
+  const text = String(summary || "").trim();
+  if (!text) return null;
+
+  const validHighlights = Array.from(
+    new Set(
+      (Array.isArray(highlights) ? highlights : [])
+        .map((value) => String(value || "").trim())
+        .filter((value) => value && text.includes(value))
+    )
+  ).sort((first, second) => second.length - first.length);
+
+  if (!validHighlights.length) return text;
+
+  const highlightSet = new Set(validHighlights);
+  const pattern = new RegExp(
+    `(${validHighlights.map(escapeRegExp).join("|")})`,
+    "g"
+  );
+
+  return text.split(pattern).map((part, index) =>
+    highlightSet.has(part) ? (
+      <strong key={`${part}-${index}`} style={{ color: "#1f2937", fontWeight: 800 }}>
+        {part}
+      </strong>
+    ) : (
+      part
+    )
+  );
+}
+
 export default function ReviewIssuesPanel({
   open,
   results = [],
+  overallSummary = "",
+  summaryHighlights = [],
   onFocusIssue,
   onAccept,
   onReject,
@@ -133,12 +170,7 @@ export default function ReviewIssuesPanel({
         >
           <div>
             <div style={{ color: "#1f2937", fontSize: 13, fontWeight: 800 }}>
-              {pendingResults.length > 0
-                ? `发现 ${pendingResults.length} 处潜在修改点`
-                : "本轮审阅已完成"}
-            </div>
-            <div style={{ marginTop: 4, color: "#7b8190", fontSize: 10.5, lineHeight: 1.45 }}>
-              选择圆点，查看对应模块关系
+              {overallSummary ? "整体关系判断" : "本轮审阅结果"}
             </div>
           </div>
           <button
@@ -163,6 +195,40 @@ export default function ReviewIssuesPanel({
             ×
           </button>
         </header>
+
+        {overallSummary ? (
+          <div
+            aria-label="整体论证关系总结"
+            style={{
+              margin: "12px 14px 0",
+              padding: "11px 12px",
+              borderRadius: 9,
+              background: "#f5f6f8",
+              color: "#596171",
+              fontSize: 11.2,
+              lineHeight: 1.72,
+            }}
+          >
+            {renderSummaryWithHighlights(overallSummary, summaryHighlights)}
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            padding: "13px 14px 0",
+          }}
+        >
+          <div style={{ color: "#1f2937", fontSize: 12, fontWeight: 800 }}>
+            {pendingResults.length > 0
+              ? `发现 ${pendingResults.length} 处潜在修改点`
+              : "本轮审阅已完成"}
+          </div>
+          {pendingResults.length > 0 ? (
+            <div style={{ marginTop: 4, color: "#7b8190", fontSize: 10.5, lineHeight: 1.45 }}>
+              选择圆点，查看对应模块关系
+            </div>
+          ) : null}
+        </div>
 
         {pendingResults.length === 0 ? (
           <div style={{ padding: "18px 14px", color: "#6b7280", fontSize: 11.5, lineHeight: 1.6 }}>
