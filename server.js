@@ -2116,7 +2116,9 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 
 关系图必须简洁：总共最多输出 ${maxRelations} 条最关键关系。优先保留“证据→核心论点、原因→核心论点、反论→它质疑或限定的论点、结论→它归纳的核心论点”等决定论证成立与否的联系。若 A→B、B→C 已足以说明推进过程，不要再输出仅可由这两条推导出的 A→C；不要输出重复、弱相关或装饰性关系。重要关系优先输出，importance=5 表示不可缺少，1 表示较弱。
 
-全部模块与关键关系完成后，做一次内容把关，再输出最后一行：
+全部模块与关键关系完成后，在开始整理修改建议之前，必须先单独输出这一行：
+{"type":"phase","phase":"enhancements"}
+这行表示关系检查已经结束，前端会停止模块闪烁。输出后再做一次内容把关，最后输出 final 行：
 - 论点是否清楚、可论证且范围适当；
 - 原因是否真正解释了论点中的因果或机制；
 - 证据是否相关、具体、可信且数量与力度足以支持观点，相关性不能被当成因果性；
@@ -2130,6 +2132,15 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 
     let textBuffer = "";
     const validIds = new Set(blocks.map((block) => block.id));
+    let enhancementsPhaseEmitted = false;
+    const emitEnhancementsPhase = () => {
+      if (enhancementsPhaseEmitted) return;
+      enhancementsPhaseEmitted = true;
+      writeLine(res, {
+        type: "phase",
+        phase: "enhancements",
+      });
+    };
     const emitParsedLine = (rawLine) => {
       const line = String(rawLine || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
       if (!line) return;
@@ -2157,7 +2168,10 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
             relation: String(item.relation || "关联").replace(/\s+/g, " ").trim().slice(0, 8),
             importance: Math.max(1, Math.min(5, Number(item.importance) || 3)),
           });
+        } else if (item.type === "phase" && item.phase === "enhancements") {
+          emitEnhancementsPhase();
         } else if (item.type === "final") {
+          emitEnhancementsPhase();
           writeLine(res, {
             type: "final",
             enhancements: Array.isArray(item.enhancements) ? item.enhancements : [],
@@ -2182,6 +2196,9 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
         const lines = textBuffer.split("\n");
         textBuffer = lines.pop() || "";
         lines.forEach(emitParsedLine);
+        if (!enhancementsPhaseEmitted && /"type"\s*:\s*"final"/.test(textBuffer)) {
+          emitEnhancementsPhase();
+        }
       }
       if (textBuffer.trim()) emitParsedLine(textBuffer);
       writeLine(res, { type: "done" });

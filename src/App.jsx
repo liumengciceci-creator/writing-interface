@@ -8,6 +8,7 @@ import {
 import Sidebar from "./components/Sidebar.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
+import ActiveReviewCurve from "./components/PageCanvas/ActiveReviewCurve.jsx";
 import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
 import { reviewArgumentFrameworkStream } from "./api/reviewBlockCompatibility.js";
 
@@ -357,12 +358,12 @@ export default function App() {
       running: true,
       current: 0,
       total: blocks.length,
-      activeIds: [],
-      blinkOn: false,
-      status: "正在识别所选模块之间的关系…",
+      activeIds: blocks.map((block) => String(block.id)),
+      blinkOn: true,
+      status: "正在整体判断所选模块之间的关系…",
       graph: [],
       notes: [],
-      activeGraphId: null,
+      activeGraphId: "overall-review",
       activeIssue: null,
       results: [],
     });
@@ -458,6 +459,18 @@ export default function App() {
             return;
           }
 
+          if (event.type === "phase" && event.phase === "enhancements") {
+            setReviewState((state) => ({
+              ...state,
+              activeIds: [],
+              activeGraphId: null,
+              activeIssue: null,
+              blinkOn: false,
+              status: "正在生成潜在修改建议…",
+            }));
+            return;
+          }
+
           if (event.type === "final") {
             const results = (Array.isArray(event.enhancements) ? event.enhancements : []).map((item, index) => {
               const sourceBlock = blockById.get(String(item.sourceId));
@@ -508,6 +521,10 @@ export default function App() {
             }).filter(Boolean);
             setReviewState((state) => ({
               ...state,
+              activeIds: [],
+              activeGraphId: null,
+              activeIssue: null,
+              blinkOn: false,
               results,
               status: "正在整理潜在增强点…",
             }));
@@ -1137,10 +1154,6 @@ export default function App() {
                   : generatingBlinkOn
               }
 
-              activeReviewIssue={
-                reviewState.activeIssue
-              }
-
               isAdjustingLength={
                 isAdjustingLength
               }
@@ -1293,6 +1306,11 @@ beginDuplicateDrag={
             clearReviewIssueFocus();
             setReviewPanelOpen(false);
           }}
+        />
+
+        <ActiveReviewCurve
+          stageRef={stageRef}
+          issue={reviewState.activeIssue}
         />
 
       </div>

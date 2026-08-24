@@ -16,7 +16,6 @@ import {
 import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
 
 import CompletedSection from "./CompletedSection";
-import ActiveReviewCurve from "./ActiveReviewCurve";
 import FloatingEditableBlock from "./FloatingEditableBlock";
 import SingleSemanticEditor from "./SingleSemanticEditor";
 
@@ -401,7 +400,6 @@ export default function PageCanvas(
     isGenerating = false,
     generatingBlockIds = [],
     generatingBlinkOn = false,
-    activeReviewIssue = null,
     isAdjustingLength = false,
     adjustingLengthBlockId = null,
 
@@ -1731,11 +1729,6 @@ export default function PageCanvas(
             />
           );
         })}
-
-      <ActiveReviewCurve
-        stageRef={stageRef}
-        issue={activeReviewIssue}
-      />
 
     </div>
   );
