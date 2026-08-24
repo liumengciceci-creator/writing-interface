@@ -147,6 +147,9 @@ export default function Toolbar({
           onClick={onUndo}
           style={{
             ...toolbarButton,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             fontSize: 20,
             lineHeight: 1,
             opacity: busy || !canUndo ? 0.42 : 1,
@@ -157,15 +160,16 @@ export default function Toolbar({
         >
           <svg
             aria-hidden="true"
-            width="21"
-            height="21"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
+            style={{ display: "block" }}
           >
             <path
-              d="M9 6.5H4m0 0 4-4m-4 4h9.2a6.3 6.3 0 0 1 0 12.6H8"
+              d="M8.6 7.2H4m0 0 3.4-3.4M4 7.2h8.4a6.3 6.3 0 1 1 0 12.6H8.6"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.35"
+              strokeWidth="1.65"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -176,6 +180,9 @@ export default function Toolbar({
           onClick={onRedo}
           style={{
             ...toolbarButton,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             fontSize: 20,
             lineHeight: 1,
             opacity: busy || !canRedo ? 0.42 : 1,
@@ -186,16 +193,16 @@ export default function Toolbar({
         >
           <svg
             aria-hidden="true"
-            width="21"
-            height="21"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
-            style={{ transform: "scaleX(-1)" }}
+            style={{ display: "block", transform: "scaleX(-1)" }}
           >
             <path
-              d="M9 6.5H4m0 0 4-4m-4 4h9.2a6.3 6.3 0 0 1 0 12.6H8"
+              d="M8.6 7.2H4m0 0 3.4-3.4M4 7.2h8.4a6.3 6.3 0 1 1 0 12.6H8.6"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.35"
+              strokeWidth="1.65"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
