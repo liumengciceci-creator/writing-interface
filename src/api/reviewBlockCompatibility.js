@@ -3,6 +3,7 @@ import { API_BASE_URL } from "../apiConfig";
 const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 const REVIEW_STREAM_URL = `${API_BASE_URL}/api/review-framework-stream`;
 const REVIEW_DETAIL_STREAM_URL = `${API_BASE_URL}/api/review-enhancement-detail-stream`;
+const APPLY_REVIEW_INSTRUCTION_URL = `${API_BASE_URL}/api/apply-review-instruction`;
 
 export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, signal }) {
   const response = await fetch(REVIEW_STREAM_URL, {
@@ -93,6 +94,30 @@ export async function streamReviewEnhancementDetail({
   } finally {
     reader.releaseLock();
   }
+}
+
+export async function applyReviewInstruction({
+  instruction,
+  sourceBlock,
+  targetBlock,
+  contextBlocks = [],
+  signal,
+}) {
+  const response = await fetch(APPLY_REVIEW_INSTRUCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction, sourceBlock, targetBlock, contextBlocks }),
+    signal,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `执行修改指令失败：${response.status}`);
+  }
+
+  const text = String(data.text || "").trim();
+  if (!text) throw new Error("模型没有返回修改后的模块内容");
+  return text;
 }
 
 function cleanOneSentence(value, fallback = "尚未填写内容") {

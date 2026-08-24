@@ -1,11 +1,8 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from "react";
-
-import { streamReviewEnhancementDetail } from "../api/reviewBlockCompatibility.js";
 
 const panelButton = {
   height: 30,
@@ -62,64 +59,27 @@ export default function ReviewIssuesPanel({
   onClose,
 }) {
   const [selectedIssueId, setSelectedIssueId] = useState(null);
-  const [detailText, setDetailText] = useState("");
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState("");
-  const detailAbortRef = useRef(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyError, setApplyError] = useState("");
 
   const closeIssue = useCallback(() => {
-    detailAbortRef.current?.abort();
-    detailAbortRef.current = null;
     setSelectedIssueId(null);
-    setDetailText("");
-    setDetailLoading(false);
-    setDetailError("");
+    setApplyLoading(false);
+    setApplyError("");
     onFocusIssue?.(null);
   }, [onFocusIssue]);
 
-  const handleSelectIssue = async (item) => {
+  const handleSelectIssue = (item) => {
     if (selectedIssueId === item.id) {
       closeIssue();
       return;
     }
 
-    detailAbortRef.current?.abort();
-    const controller = new AbortController();
-    detailAbortRef.current = controller;
     setSelectedIssueId(item.id);
-    setDetailText("");
-    setDetailLoading(true);
-    setDetailError("");
+    setApplyLoading(false);
+    setApplyError("");
     onFocusIssue?.(item);
-    let completedDetailText = "";
-
-    try {
-      await streamReviewEnhancementDetail({
-        issue: item,
-        sourceBlock: item.sourceBlock,
-        targetBlock: item.targetBlock,
-        contextBlocks: item.contextBlocks,
-        signal: controller.signal,
-        // 接口仍可分块传输以保证连接稳定，但界面等完整意见生成后
-        // 再一次性呈现，避免逐字流式输出干扰阅读。
-        onDelta: (delta) => {
-          completedDetailText += String(delta || "");
-        },
-      });
-      setDetailText(completedDetailText);
-      setDetailLoading(false);
-    } catch (error) {
-      if (error?.name === "AbortError") return;
-      setDetailLoading(false);
-      setDetailError(error?.message || "详细审阅失败，请重新打开此项");
-    } finally {
-      if (detailAbortRef.current === controller) {
-        detailAbortRef.current = null;
-      }
-    }
   };
-
-  useEffect(() => () => detailAbortRef.current?.abort(), []);
 
   useEffect(() => {
     if (!selectedIssueId) return;
@@ -133,9 +93,9 @@ export default function ReviewIssuesPanel({
   const selectedItem = pendingResults.find((item) => item.id === selectedIssueId) || null;
   const accentColor = selectedItem?.sourceBlock?.color || "#d6a31a";
   const accentFill = selectedItem?.sourceBlock?.fill || "#fff8e7";
-  const hasRevision = selectedItem
-    ? selectedItem.suggestedText !== selectedItem.originalText
-    : false;
+  const modificationInstruction = String(
+    selectedItem?.modificationInstruction || selectedItem?.suggestion || ""
+  ).trim();
 
   return (
     <aside
@@ -297,6 +257,7 @@ export default function ReviewIssuesPanel({
       {selectedItem ? (
         <article
           aria-live="polite"
+          aria-busy={applyLoading}
           data-review-suggestion-for={selectedItem.id}
           style={{
             position: "relative",
@@ -326,7 +287,7 @@ export default function ReviewIssuesPanel({
               boxShadow: "0 2px 5px rgba(15,23,42,0.10)",
             }}
           >
-            {selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type || "模块"}修改建议
+            {selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type || "模块"}修改指令
           </span>
 
           <div
@@ -337,68 +298,62 @@ export default function ReviewIssuesPanel({
               whiteSpace: "pre-wrap",
             }}
           >
-            {detailText || (detailLoading ? "正在生成完整修改意见…" : "")}
+            {modificationInstruction}
           </div>
 
-          {detailError ? (
+          {applyError ? (
             <div style={{ marginTop: 7, color: "#b42318", fontSize: 10.8, lineHeight: 1.5 }}>
-              {detailError}
+              {applyError}
             </div>
           ) : null}
 
-          {!detailLoading && !detailError && detailText ? (
-            <>
-              {hasRevision ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 9,
-                    border: `1px solid color-mix(in srgb, ${accentColor} 35%, transparent)`,
-                    borderRadius: 8,
-                    background: "rgba(255,255,255,0.66)",
-                    color: "#374151",
-                    fontSize: 11,
-                    lineHeight: 1.58,
-                  }}
-                >
-                  <div style={{ marginBottom: 4, color: accentColor, fontSize: 10, fontWeight: 800 }}>
-                    建议改写
-                  </div>
-                  {selectedItem.suggestedText}
-                </div>
-              ) : null}
-
-              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                {hasRevision ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onAccept(selectedItem);
-                      closeIssue();
-                    }}
-                    style={{ ...panelButton, flex: 1, border: 0, background: accentColor, color: "#fff" }}
-                  >
-                    应用修改
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onReject(selectedItem);
+          {modificationInstruction ? (
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <button
+                type="button"
+                disabled={applyLoading}
+                onClick={async () => {
+                  setApplyLoading(true);
+                  setApplyError("");
+                  try {
+                    await onAccept?.(selectedItem);
                     closeIssue();
-                  }}
-                  style={{
-                    ...panelButton,
-                    flex: hasRevision ? "0 0 auto" : 1,
-                    border: "1px solid rgba(17,24,39,0.14)",
-                    background: "rgba(255,255,255,0.76)",
-                    color: "#4b5563",
-                  }}
-                >
-                  {hasRevision ? "暂不修改" : "知道了"}
-                </button>
-              </div>
-            </>
+                  } catch (error) {
+                    setApplyLoading(false);
+                    setApplyError(error?.message || "按照指令修改失败，请重试");
+                  }
+                }}
+                style={{
+                  ...panelButton,
+                  flex: 1,
+                  border: 0,
+                  background: accentColor,
+                  color: "#fff",
+                  cursor: applyLoading ? "wait" : "pointer",
+                  opacity: applyLoading ? 0.7 : 1,
+                }}
+              >
+                {applyLoading ? "正在按指令修改…" : "按此指令修改"}
+              </button>
+              <button
+                type="button"
+                disabled={applyLoading}
+                onClick={() => {
+                  onReject(selectedItem);
+                  closeIssue();
+                }}
+                style={{
+                  ...panelButton,
+                  flex: "0 0 auto",
+                  border: "1px solid rgba(17,24,39,0.14)",
+                  background: "rgba(255,255,255,0.76)",
+                  color: "#4b5563",
+                  opacity: applyLoading ? 0.55 : 1,
+                }}
+              >
+                暂不修改
+              </button>
+            </div>
           ) : null}
         </article>
       ) : null}

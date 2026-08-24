@@ -10,7 +10,10 @@ import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ActiveReviewCurve from "./components/PageCanvas/ActiveReviewCurve.jsx";
 import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
-import { reviewArgumentFrameworkStream } from "./api/reviewBlockCompatibility.js";
+import {
+  applyReviewInstruction,
+  reviewArgumentFrameworkStream,
+} from "./api/reviewBlockCompatibility.js";
 
 import {
   useEditor,
@@ -479,8 +482,8 @@ export default function App() {
               const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
               const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
               const originalText = String(sourceBlock.text || "").trim();
-              const suggestedText = String(item.suggestedText || "").trim();
-              if (!suggestedText || suggestedText === originalText) return null;
+              const modificationInstruction = String(item.suggestion || "").trim();
+              if (!modificationInstruction) return null;
               return {
                 id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
@@ -511,10 +514,10 @@ export default function App() {
                   text: String(block.text || ""),
                 })),
                 originalText,
-                suggestedText,
                 summary: String(item.summary || "这条关系可以进一步加强。"),
                 comment: String(item.summary || "这条关系可以进一步加强。"),
-                suggestion: String(item.suggestion || "可以进一步补足这条关系中的关键逻辑。"),
+                suggestion: modificationInstruction,
+                modificationInstruction,
                 decision: null,
               };
             }).filter(Boolean);
@@ -591,8 +594,17 @@ export default function App() {
     }));
   };
 
-  const handleReviewAccept = (item) => {
-    handleChangeText(item.targetBlockId, item.suggestedText);
+  const handleReviewAccept = async (item) => {
+    const liveSourceBlock = getBlockById(item.targetBlockId) || item.sourceBlock;
+    const liveTargetBlock = getBlockById(item.relationTargetId) || item.targetBlock;
+    const revisedText = await applyReviewInstruction({
+      instruction: item.modificationInstruction || item.suggestion,
+      sourceBlock: liveSourceBlock,
+      targetBlock: liveTargetBlock,
+      contextBlocks: item.contextBlocks,
+    });
+
+    handleChangeText(item.targetBlockId, revisedText);
     setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "accepted" } : result) }));
     clearReviewIssueFocus();
   };

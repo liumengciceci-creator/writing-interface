@@ -2138,8 +2138,9 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 - 是否存在逻辑跳跃、概念偷换、重复论点、缺少限定或过度概括。
 
 最后一行格式：
-{"type":"final","overallSummary":"一段连续的整体关系总结","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2","总结中需要加粗的短语3"],"enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"可执行且不虚构事实的修改办法","suggestedText":"不虚构事实的加强后来源模块全文"}]}
+{"type":"final","overallSummary":"一段连续的整体关系总结","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2","总结中需要加粗的短语3"],"enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"一条具体、可直接交给大模型执行的修改指令"}]}
 overallSummary 必须由你通读全部模块后生成，不能使用固定模板或只罗列模块类型。用“这里你提出了……基于这一点……根据这个……最后你……”一类连续自然的语言，具体说明各模块如何推进、支持、解释、限定或修正彼此，并在结尾简要判断整体衔接。控制在100至180个汉字。summaryHighlights 提取 overallSummary 中3至5个最关键的原文短语，每项4至14个汉字，必须能在 overallSummary 中逐字找到；前端会将这些短语加粗。
+每条 suggestion 是“修改指令”，不是替作者写好的修订文本。先具体指出当前模块实际能够说明什么、尚不足以支持目标模块中的哪一项判断，再明确要求从哪些内容维度补充、限定、比较或重新组织，以及补充内容应如何与目标论点建立联系。优先要求有论证作用的信息，例如研究对象、测量指标、对照关系、作用机制、适用条件、反例回应或结论覆盖范围；不要只说“增强解释、更加具体、润色语言”，不要输出“可改为……”，也不要直接给出修订后的完整模块。suggestion 控制在70至150个汉字，并使用“请……”形成可执行指令。例如：当前证据只呈现了使用AI后的负面影响，不足以说明学生会形成特定的认知惰性；请补充能够直接衡量主动查证、持续推理或任务投入下降的研究结果，并说明这些指标为何可以支持“懒惰”这一判断。
 增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系。只要存在实质改进空间，4个及以上模块通常给出2至5条互不重复的增强建议；不要只检查相邻模块，也不要为了凑数虚构问题或事实。`;
 
     let textBuffer = "";
@@ -2330,6 +2331,110 @@ ${JSON.stringify(issue, null, 2)}
         writeLine(res, { type: "error", message: error.message || "详细审阅失败" });
         res.end();
       }
+    }
+  }
+);
+
+/**
+ * 用户接受一条论证修改指令后，才根据指令重写对应模块。
+ * 审阅阶段只负责诊断和给指令，不提前生成替换文本。
+ */
+app.post(
+  "/api/apply-review-instruction",
+  async (req, res) => {
+    try {
+      const body = req.body || {};
+      const sourceBlock = body.sourceBlock && typeof body.sourceBlock === "object"
+        ? {
+            id: String(body.sourceBlock.id || "source"),
+            type: String(body.sourceBlock.type || "Unknown"),
+            text: String(body.sourceBlock.text || "").trim(),
+          }
+        : null;
+      const targetBlock = body.targetBlock && typeof body.targetBlock === "object"
+        ? {
+            id: String(body.targetBlock.id || "target"),
+            type: String(body.targetBlock.type || "Unknown"),
+            text: String(body.targetBlock.text || "").trim(),
+          }
+        : null;
+      const instruction = String(body.instruction || "").trim();
+      const contextBlocks = Array.isArray(body.contextBlocks)
+        ? body.contextBlocks
+            .filter((block) => block && String(block.text || "").trim())
+            .slice(0, 18)
+            .map((block) => ({
+              id: String(block.id || ""),
+              type: String(block.type || "Unknown"),
+              text: String(block.text || "").trim(),
+            }))
+        : [];
+
+      if (!sourceBlock?.text || !targetBlock?.text || !instruction) {
+        return res.status(400).json({ error: "缺少执行修改指令所需的模块或指令" });
+      }
+
+      const basePrompt = `你是一名严谨的中文论证写作编辑。现在作者已经接受了一条修改指令，请按照该指令重写“需要修改的模块”。
+
+需要修改的模块：
+${JSON.stringify(sourceBlock, null, 2)}
+
+与它直接相关的模块：
+${JSON.stringify(targetBlock, null, 2)}
+
+所选内容上下文：
+${JSON.stringify(contextBlocks, null, 2)}
+
+作者接受的修改指令：
+${instruction}
+
+执行要求：
+1. 输出修改后的来源模块全文，只输出可直接写回模块的正文，不输出标题、解释、修改说明、Markdown或引号。
+2. 真正执行指令指出的论证改动，不要只做措辞润色，也不要把修改指令复述进正文。
+3. 保留原模块中仍然成立的核心信息，同时使它能够更充分、准确地支持或回应相关模块。
+4. 只能使用上下文已经提供的信息和你有较高把握的知识；不得虚构论文名称、研究数据、来源或事实。若指令要求的精确信息在上下文中不存在，用审慎限定替代编造。
+5. 保持原文语言和模块类型，篇幅以完成该论证功能为准。`;
+
+      let revisedText = "";
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const response = await openai.responses.create({
+          model: WRITING_MODEL,
+          input: attempt === 1
+            ? basePrompt
+            : `${basePrompt}\n\n上一次输出没有产生实质修改。请重新执行指令，确保结果与原模块明显不同并补足指定的论证内容。`,
+          reasoning: { effort: "low" },
+          max_output_tokens: 1800,
+        });
+
+        revisedText = sanitizeServerGeneratedText(getCompletedResponseText(response))
+          .replace(/^(?:修改后|改写后|修订后|建议文本)\s*[:：]\s*/i, "")
+          .trim();
+
+        if (
+          revisedText &&
+          normalizeGeneratedComparison(revisedText) !==
+            normalizeGeneratedComparison(sourceBlock.text)
+        ) {
+          break;
+        }
+      }
+
+      if (
+        !revisedText ||
+        normalizeGeneratedComparison(revisedText) ===
+          normalizeGeneratedComparison(sourceBlock.text)
+      ) {
+        const error = new Error("模型未能按照修改指令产生有效新内容");
+        error.statusCode = 502;
+        throw error;
+      }
+
+      return res.json({ text: revisedText });
+    } catch (error) {
+      console.error("❌ apply-review-instruction error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "执行修改指令失败",
+      });
     }
   }
 );
