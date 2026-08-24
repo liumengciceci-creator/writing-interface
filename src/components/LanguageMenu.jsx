@@ -31,7 +31,7 @@ export default function LanguageMenu() {
       style={{
         position: "fixed",
         top: 5,
-        left: 6,
+        left: 18,
         zIndex: 5200,
       }}
     >
@@ -44,20 +44,29 @@ export default function LanguageMenu() {
         style={{
           width: 28,
           height: 24,
-          padding: "0 0 5px",
-          border: "1px solid rgba(17,24,39,0.12)",
-          borderRadius: 8,
-          background: "rgba(248,248,248,0.96)",
-          boxShadow: "0 2px 8px rgba(15,23,42,0.10)",
-          color: "#4b5563",
-          fontSize: 20,
-          fontWeight: 700,
-          lineHeight: 1,
-          letterSpacing: 1.5,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          padding: 0,
+          border: 0,
+          borderRadius: 6,
+          background: "transparent",
+          boxShadow: "none",
+          color: "#111827",
           cursor: "pointer",
         }}
       >
-        ···
+        <svg
+          aria-hidden="true"
+          width="24"
+          height="12"
+          viewBox="0 0 24 12"
+          style={{ display: "block" }}
+        >
+          <circle cx="4" cy="6" r="2.15" fill="currentColor" />
+          <circle cx="12" cy="6" r="2.15" fill="currentColor" />
+          <circle cx="20" cy="6" r="2.15" fill="currentColor" />
+        </svg>
       </button>
 
       {open ? (
