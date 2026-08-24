@@ -124,6 +124,11 @@ function LengthResizeControls({
               hoveredBlockId
             ) === blockId;
 
+          const isQuickAction =
+            normalizeId(
+              quickActionBlockId
+            ) === blockId;
+
           /**
            * 小圆点显示条件：
            *
@@ -134,7 +139,7 @@ function LengthResizeControls({
           const showHandleDot =
             isHovered ||
             isCurrentDraft ||
-            normalizeId(quickActionBlockId) === blockId;
+            isQuickAction;
 
           /**
            * 长度提示只在按住鼠标拖动时显示。
@@ -206,8 +211,16 @@ function LengthResizeControls({
             >
               <button
                 type="button"
-                aria-label={t("canvas.adjustLength")}
-                title={t("canvas.dragAdjustLength")}
+                aria-label={t(
+                  isQuickAction
+                    ? "quickInstruction.open"
+                    : "canvas.adjustLength"
+                )}
+                title={t(
+                  isQuickAction
+                    ? "quickInstruction.open"
+                    : "canvas.dragAdjustLength"
+                )}
 
                 data-length-resize-handle="true"
 
@@ -234,6 +247,12 @@ function LengthResizeControls({
                 onPointerDown={(
                   event
                 ) => {
+                  if (isQuickAction) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                  }
+
                   if (
                     isSubmitting
                   ) {
@@ -271,6 +290,44 @@ function LengthResizeControls({
                   setQuickActionBlockId(blockId);
                 }}
 
+                onClick={(event) => {
+                  if (!isQuickAction) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+
+                  const blockElement = Array.from(
+                    document.querySelectorAll(
+                      "[data-semantic-block-id][data-semantic-text='true']"
+                    )
+                  ).find(
+                    (element) =>
+                      normalizeId(
+                        element.getAttribute(
+                          "data-semantic-block-id"
+                        )
+                      ) === blockId
+                  );
+
+                  const rect = (
+                    blockElement || event.currentTarget
+                  ).getBoundingClientRect();
+
+                  setComposer({
+                    block: handle.block,
+                    blockId,
+                    blockColor,
+                    anchorRect: {
+                      left: rect.left,
+                      right: rect.right,
+                      top: rect.top,
+                      bottom: rect.bottom,
+                    },
+                  });
+                }}
+
                 style={{
                   position:
                     "absolute",
@@ -306,6 +363,8 @@ function LengthResizeControls({
                   cursor:
                     isSubmitting
                       ? "default"
+                      : isQuickAction
+                        ? "pointer"
                       : "ew-resize",
 
                   pointerEvents:
@@ -330,28 +389,60 @@ function LengthResizeControls({
                   aria-hidden="true"
                   style={{
                     display:
-                      "block",
+                      "inline-flex",
+
+                    alignItems:
+                      "center",
+
+                    justifyContent:
+                      "center",
 
                     /**
                      * 实际可见的小圆点尺寸。
                      */
-                    width: 8,
-                    height: 8,
+                    width:
+                      isQuickAction
+                        ? 24
+                        : 8,
+                    height:
+                      isQuickAction
+                        ? 24
+                        : 8,
 
                     borderRadius:
                       "50%",
 
                     background:
-                      blockColor,
+                      isQuickAction
+                        ? blockColor
+                        : blockColor,
 
                     border:
-                      "1.5px solid rgba(255,255,255,0.96)",
+                      isQuickAction
+                        ? "2px solid rgba(255,255,255,0.98)"
+                        : "1.5px solid rgba(255,255,255,0.96)",
 
                     boxShadow:
                       [
-                        `0 0 0 1px ${blockColor}55`,
-                        "0 2px 6px rgba(15,23,42,0.2)",
+                        `0 0 0 ${isQuickAction ? 2 : 1}px ${blockColor}55`,
+                        isQuickAction
+                          ? "0 3px 8px rgba(15,23,42,0.18)"
+                          : "0 2px 6px rgba(15,23,42,0.2)",
                       ].join(", "),
+
+                    color:
+                      "#ffffff",
+
+                    fontSize:
+                      isQuickAction
+                        ? 18
+                        : 0,
+
+                    fontWeight:
+                      400,
+
+                    lineHeight:
+                      1,
 
                     opacity:
                       showHandleDot
@@ -376,61 +467,10 @@ function LengthResizeControls({
                     pointerEvents:
                       "none",
                   }}
-                />
-              </button>
-
-              {normalizeId(quickActionBlockId) === blockId ? (
-                <button
-                  type="button"
-                  aria-label={t("quickInstruction.open")}
-                  title={t("quickInstruction.open")}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    setComposer({
-                      block: handle.block,
-                      blockId,
-                      blockColor,
-                      anchorRect: {
-                        left: rect.left,
-                        right: rect.right,
-                        top: rect.top,
-                        bottom: rect.bottom,
-                      },
-                    });
-                  }}
-                  style={{
-                    position: "absolute",
-                    left: 27,
-                    top: "50%",
-                    width: 29,
-                    height: 29,
-                    zIndex: 24,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 0,
-                    border: `1.5px solid ${blockColor}55`,
-                    borderRadius: "50%",
-                    background: handle.block?.fill || "#ffffff",
-                    boxShadow: "0 3px 9px rgba(15,23,42,0.14)",
-                    color: "#374151",
-                    fontSize: 23,
-                    fontWeight: 500,
-                    lineHeight: 1,
-                    cursor: "pointer",
-                    pointerEvents: "auto",
-                    transform: "translateY(-50%)",
-                  }}
                 >
-                  +
-                </button>
-              ) : null}
+                  {isQuickAction ? "+" : null}
+                </span>
+              </button>
 
               {showStatus && (
                 <LengthResizeStatus

@@ -89,16 +89,16 @@ export default function QuickInstructionComposer({
   const panelPosition = useMemo(() => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const width = Math.min(660, Math.max(320, viewportWidth - 32));
-    const estimatedHeight = 112;
+    const width = Math.min(460, Math.max(286, viewportWidth - 24));
+    const estimatedHeight = 88;
     const anchorCenterX = anchorRect
       ? (anchorRect.left + anchorRect.right) / 2
       : viewportWidth / 2;
-    const left = clamp(anchorCenterX - width / 2, 16, viewportWidth - width - 16);
-    const above = (anchorRect?.top ?? viewportHeight / 2) - estimatedHeight - 14;
-    const top = above >= 16
+    const left = clamp(anchorCenterX - width / 2, 12, viewportWidth - width - 12);
+    const above = (anchorRect?.top ?? viewportHeight / 2) - estimatedHeight - 10;
+    const top = above >= 12
       ? above
-      : Math.min(viewportHeight - estimatedHeight - 16, (anchorRect?.bottom ?? 30) + 14);
+      : Math.min(viewportHeight - estimatedHeight - 12, (anchorRect?.bottom ?? 30) + 10);
     return { left, top, width };
   }, [anchorRect]);
 
@@ -121,15 +121,15 @@ export default function QuickInstructionComposer({
         top: panelPosition.top,
         width: panelPosition.width,
         zIndex: 5100,
-        padding: "13px 14px 11px",
+        padding: "9px 11px 8px",
         border: "1px solid rgba(17,24,39,0.08)",
-        borderRadius: 22,
+        borderRadius: 16,
         background: "rgba(255,255,255,0.98)",
-        boxShadow: "0 16px 42px rgba(15,23,42,0.18)",
+        boxShadow: "0 10px 28px rgba(15,23,42,0.16)",
         boxSizing: "border-box",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <input
           ref={inputRef}
           value={value}
@@ -144,15 +144,15 @@ export default function QuickInstructionComposer({
           style={{
             minWidth: 0,
             flex: 1,
-            height: 42,
-            padding: "0 4px",
+            height: 32,
+            padding: "0 3px",
             border: 0,
             borderBottom: `1.5px solid ${blockColor}55`,
             outline: 0,
             background: "transparent",
             color: "#1f2937",
             fontFamily: "inherit",
-            fontSize: 16,
+            fontSize: 13.5,
           }}
         />
         <button
@@ -162,9 +162,9 @@ export default function QuickInstructionComposer({
           disabled={!value.trim()}
           onClick={submit}
           style={{
-            width: 38,
-            height: 38,
-            flex: "0 0 38px",
+            width: 31,
+            height: 31,
+            flex: "0 0 31px",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -176,7 +176,7 @@ export default function QuickInstructionComposer({
             cursor: value.trim() ? "pointer" : "default",
           }}
         >
-          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24">
             <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
@@ -187,8 +187,8 @@ export default function QuickInstructionComposer({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 7,
-          marginTop: 9,
+          gap: 5,
+          marginTop: 7,
           overflowX: "auto",
           scrollbarWidth: "none",
         }}
@@ -206,17 +206,17 @@ export default function QuickInstructionComposer({
                 inputRef.current?.focus();
               }}
               style={{
-                height: 27,
+                height: 23,
                 flex: "0 0 auto",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "0 10px 0 7px",
+                gap: 5,
+                padding: "0 8px 0 5px",
                 border: "1px solid rgba(55,65,81,0.42)",
                 borderRadius: 999,
                 background: "#ffffff",
                 color: "#6b7280",
-                fontSize: 11,
+                fontSize: 10,
                 whiteSpace: "nowrap",
                 cursor: "pointer",
               }}
@@ -224,8 +224,8 @@ export default function QuickInstructionComposer({
               <span
                 aria-hidden="true"
                 style={{
-                  width: 13,
-                  height: 13,
+                  width: 10,
+                  height: 10,
                   borderRadius: "50%",
                   background: instruction.color || blockColor,
                 }}
