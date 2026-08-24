@@ -136,11 +136,6 @@ export default function QuickInstructionComposer({
   }));
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => window.cancelAnimationFrame(frameId);
-  }, []);
-
-  useEffect(() => {
     const syncInstructions = (event) => {
       const next = Array.isArray(event?.detail) ? event.detail : readInstructions();
       setInstructions(next);

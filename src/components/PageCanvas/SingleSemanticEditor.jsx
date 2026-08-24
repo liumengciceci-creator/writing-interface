@@ -2674,6 +2674,13 @@ const SingleSemanticEditor =
                         return;
                       }
 
+                      if (
+                        block.isGenerated !==
+                        true
+                      ) {
+                        return;
+                      }
+
                       const rect =
                         event.currentTarget.getBoundingClientRect();
 
