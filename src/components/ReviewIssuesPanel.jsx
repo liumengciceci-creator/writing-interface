@@ -99,15 +99,11 @@ export default function ReviewIssuesPanel({
 
   return (
     <aside
+      className="review-issues-panel"
       aria-label="潜在修改点"
       style={{
-        position: "absolute",
-        top: 104,
-        right: 18,
         zIndex: 2000,
-        width: 340,
         height: "auto",
-        maxHeight: "calc(100dvh - 124px)",
         minHeight: 0,
         overflowY: "auto",
         padding: "0 0 20px",

@@ -1006,7 +1006,14 @@ export default function App() {
 
         {/* 中间编辑区 */}
         <main
+          className="editor-main"
           style={{
+            "--review-zoom-clearance":
+              `${Math.max(
+                0,
+                (Number(zoom) - 1) * 900
+              )}px`,
+
             minWidth:
               0,
 
@@ -1160,6 +1167,11 @@ export default function App() {
 
           {/* 页面画布 */}
           <div
+            className={`page-canvas-shell${
+              reviewPanelOpen
+                ? " review-panel-open"
+                : ""
+            }`}
             style={{
               width:
                 "100%",

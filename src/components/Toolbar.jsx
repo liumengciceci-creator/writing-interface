@@ -143,8 +143,8 @@ export default function Toolbar({
           top: 0,
           right: 0,
           zIndex: 2,
-          border: "1px solid rgba(79,127,216,0.18)",
-          background: "rgba(248,250,255,0.98)",
+          border: "none",
+          background: "#f8f8f8",
         }}
         aria-label="主要写作操作"
       >
@@ -207,6 +207,11 @@ export default function Toolbar({
             transform: "translateX(-50%)",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            padding: "5px 12px",
+            border: "1px solid rgba(17,24,39,0.08)",
+            borderRadius: 9,
+            background: "#f8f8f8",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
             color: statusIsError
               ? "#b91c1c"
               : "#526078",

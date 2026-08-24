@@ -89,6 +89,51 @@ body {
   scrollbar-gutter: stable;
 }
 
+/* ---------- 顶部审阅区域的响应式布局 ---------- */
+
+.editor-main {
+  --review-panel-width: clamp(248px, 19vw, 340px);
+}
+
+.page-canvas-shell {
+  padding-right: 0;
+  box-sizing: border-box;
+  transition: padding-right 180ms ease;
+}
+
+.page-canvas-shell.review-panel-open {
+  padding-right: calc(
+    var(--review-panel-width) +
+    var(--review-zoom-clearance, 0px) +
+    18px
+  );
+}
+
+.review-issues-panel {
+  position: absolute;
+  top: 104px;
+  right: 18px;
+  width: var(--review-panel-width);
+  max-height: calc(100dvh - 124px);
+}
+
+@media (max-width: 1180px) {
+  .page-canvas-shell.review-panel-open {
+    padding-right: 0;
+  }
+
+  .review-issues-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    align-self: flex-end;
+    width: min(340px, 100%);
+    max-height: 58dvh;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+}
+
 /* ---------- Typography ---------- */
 
 h1,
