@@ -1648,6 +1648,85 @@ export function useEditor() {
     );
 
   /**
+   * 审阅前一次性恢复文档中的所有完成段落/完成 section。
+   * 返回恢复后的快照，让调用方无需等待下一次 React 渲染即可开始审阅。
+   */
+  const handleRestoreAllCompletedForReview =
+    useCallback(() => {
+      let restoredAny = false;
+
+      const restoredSections =
+        cloneSections(sections).map((section) => {
+          const restoredSection =
+            section.mode === "completed"
+              ? {
+                  ...section,
+                  mode: "editing",
+                  completedText: undefined,
+                }
+              : section;
+
+          if (section.mode === "completed") {
+            restoredAny = true;
+          }
+
+          if (!Array.isArray(restoredSection.blocks)) {
+            return restoredSection;
+          }
+
+          const restoredBlocks = restoredSection.blocks.flatMap((block) => {
+            if (!block?.isCompletedParagraph) {
+              return [{
+                ...block,
+                isModuleHidden: false,
+              }];
+            }
+
+            let sourceBlocks = cloneBlocks(block.completedBlocks || []);
+            if (!sourceBlocks.length) {
+              return [];
+            }
+
+            const completedText = String(block.text || "");
+            const originalText = makeCompletedText(sourceBlocks);
+            if (completedText.trim() !== originalText.trim()) {
+              sourceBlocks = distributeCompletedText(completedText, sourceBlocks);
+            }
+
+            restoredAny = true;
+            return sourceBlocks.map((sourceBlock) => ({
+              ...sourceBlock,
+              isModuleHidden: false,
+            }));
+          });
+
+          return {
+            ...restoredSection,
+            blocks: restoredBlocks,
+          };
+        });
+
+      const normalized = normalizeSections(
+        restoredSections,
+        createEditingSectionFn
+      );
+
+      if (restoredAny) {
+        pushHistorySnapshot(sections);
+        setSections(normalized);
+        clearInteractionState();
+      }
+
+      return normalized;
+    }, [
+      clearInteractionState,
+      createEditingSectionFn,
+      pushHistorySnapshot,
+      sections,
+      setSections,
+    ]);
+
+  /**
    * 更新 completed section 的完整文本。
    */
   const handleUpdateCompletedSectionText =
@@ -1890,6 +1969,7 @@ export function useEditor() {
     handleToggleModuleVisibility,
     handleRestoreCompletedParagraph,
     handleRestoreCompletedSection,
+    handleRestoreAllCompletedForReview,
     handleUpdateCompletedSectionText,
 
     /**

@@ -140,6 +140,34 @@ function countDocumentCharacters(
     .length;
 }
 
+function getReviewableBlocksFromSections(sourceSections) {
+  const blocks = [];
+
+  (Array.isArray(sourceSections) ? sourceSections : []).forEach((section) => {
+    (Array.isArray(section?.blocks) ? section.blocks : []).forEach((block) => {
+      if (block?.isCompletedParagraph) {
+        (Array.isArray(block.completedBlocks) ? block.completedBlocks : [])
+          .filter(
+            (sourceBlock) =>
+              sourceBlock?.placement !== "floating" &&
+              String(sourceBlock?.text || "").trim()
+          )
+          .forEach((sourceBlock) => blocks.push(sourceBlock));
+        return;
+      }
+
+      if (
+        block?.placement !== "floating" &&
+        String(block?.text || "").trim()
+      ) {
+        blocks.push(block);
+      }
+    });
+  });
+
+  return blocks;
+}
+
 export default function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
@@ -208,7 +236,6 @@ export default function App() {
     endBlockDrag,
 
     editableBlockCount,
-    activeParagraphModulesHidden,
     sectionLayouts,
     totalContentHeight,
 
@@ -259,9 +286,9 @@ export default function App() {
      * Section 操作。
      */
     handleComplete,
-    handleToggleModuleVisibility,
     handleRestoreCompletedParagraph,
     handleRestoreCompletedSection,
+    handleRestoreAllCompletedForReview,
     handleUpdateCompletedSectionText,
 
     /**
@@ -295,21 +322,15 @@ export default function App() {
       [sections]
     );
 
+  const reviewableBlockCount = useMemo(
+    () => getReviewableBlocksFromSections(sections).length,
+    [sections]
+  );
+
   const handleExportWord = () => {
     exportDocumentToWord(
       sections
     );
-  };
-
-  const getSelectedBlocksInDocumentOrder = () => {
-    const selectedSet = new Set(selectedIds.map(String));
-    const ordered = [];
-    sections.forEach((section) => {
-      (section?.blocks || []).forEach((block) => {
-        if (selectedSet.has(String(block.id))) ordered.push(block);
-      });
-    });
-    return ordered;
   };
 
   const buildReviewRelations = (blocks) => {
@@ -350,8 +371,22 @@ export default function App() {
   };
 
   const handleReview = async () => {
-    const blocks = getSelectedBlocksInDocumentOrder();
-    if (blocks.length < 2 || reviewState.running) return;
+    if (reviewState.running) return;
+
+    const selectedBeforeRestore = selectedIds.map(String);
+    const reviewSections = handleRestoreAllCompletedForReview();
+    const allReviewableBlocks = getReviewableBlocksFromSections(reviewSections);
+    const selectedSet = new Set(selectedBeforeRestore);
+    const selectedBlocks = allReviewableBlocks.filter((block) =>
+      selectedSet.has(String(block.id))
+    );
+    const blocks = selectedBeforeRestore.length === 0
+      ? allReviewableBlocks
+      : selectedBlocks.length >= 2
+        ? selectedBlocks
+        : allReviewableBlocks;
+
+    if (blocks.length < 2) return;
 
     setReviewPanelOpen(false);
     setReviewState({
@@ -997,10 +1032,6 @@ export default function App() {
     handleComplete
   }
 
-  onToggleModuleVisibility={
-    handleToggleModuleVisibility
-  }
-
   selectedIds={
     selectedIds
   }
@@ -1049,8 +1080,8 @@ export default function App() {
     editableBlockCount
   }
 
-  modulesHidden={
-    activeParagraphModulesHidden
+  reviewableBlockCount={
+    reviewableBlockCount
   }
 />
           </div>
