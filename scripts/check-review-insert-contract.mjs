@@ -14,38 +14,53 @@ const [server, app, reviewApi, reviewCurve, reviewPanel, i18n] = await Promise.a
 const checks = [
   [
     server.includes('"action":"revise或insert"') &&
-      server.includes("增强建议没有固定数量") &&
-      server.includes("不要设置或追求固定字数"),
+      server.includes("建议数量没有上下限") &&
+      server.includes("suggestion 不设字数限制"),
     "review prompt must allow revise/insert without fixed suggestion or word counts",
   ],
   [
     server.includes("你先写了……，提出……") &&
-      server.includes("只概括现有内容及其关系") &&
-      server.includes("不在 overallSummary 中评价哪里不足"),
+      server.includes("这里只概括现有内容及关系") &&
+      server.includes("不评价不足、不提出建议"),
     "overall review must remain a concise narrative of the author's argument",
   ],
   [
-    server.includes("不要把材料和命令堆成密集清单") &&
-      server.includes("不得为了让意见显得具体而自行发明原文没有建立的阅读情境"),
-    "revision advice must be readable and must not invent unsupported scenarios",
+    server.includes("2—4 个以“• ”开头的完整要点") &&
+      server.includes("不要虚构原文没有的理论、数据、研究、来源或事实"),
+    "revision advice must use readable bullet points without fabricating support",
   ],
   [
-    server.includes('"rewriteScope":"local或full') &&
-      server.includes('证据方向错误并使用 rewriteScope="full"') &&
+    server.includes('"rewriteScope":"local、full或空字符串"') &&
+      server.includes('action="revise", rewriteScope="full"：证据、理由或反论方向错误') &&
       app.includes("rewriteScope: item.rewriteScope") &&
       reviewApi.includes('rewriteScope === "full" ? "full" : "local"'),
     "evidence-direction errors must trigger a full rewrite through the complete request path",
   ],
   [
-    server.includes("理论依据、实证或数据支持、中间机制分析") &&
-      server.includes("主张没有可验证依据时选择 Evidence") &&
+    server.includes("它不要求每个主张都配实证数据") &&
+      server.includes("不得建议新增 Evidence/数据模块") &&
       reviewApi.includes("方括号材料槽"),
-    "review must detect missing theory/evidence modules without fabricating external material",
+    "review must avoid evidence bias while preserving safe external-material handling",
   ],
   [
-    server.includes("insertType 必须严格选用上方标签栏中的一个 type") &&
-      server.includes("targetIndex !== sourceIndex + 1"),
-    "server must validate the inserted type and the adjacent insertion gap",
+    server.includes("当前已有标签（可以复用，但不是白名单）") &&
+      server.includes("新增模块采用开放类型") &&
+      server.includes("targetIndex !== sourceIndex + 1") &&
+      !server.includes("typeAllowed = templates.some"),
+    "server must allow new review-defined labels while validating the adjacent insertion gap",
+  ],
+  [
+    server.includes("relationshipPrompt") &&
+      server.includes("diagnosticPrompt") &&
+      server.includes('reasoning: { effort: "low" }') &&
+      server.includes('collectResponseText(diagnosticPrompt, "medium")'),
+    "review must separate fast relationship feedback from deeper diagnosis",
+  ],
+  [
+    app.includes("createReviewTemplateStyle") &&
+      app.includes("isReviewGenerated") &&
+      app.includes("setCustomTemplates((currentTemplates)"),
+    "accepted review inserts must persist newly defined labels",
   ],
   [
     app.includes("generateReviewInsertedBlockStream") &&

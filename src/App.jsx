@@ -32,6 +32,33 @@ const CUSTOM_TEMPLATES_STORAGE_KEY =
 const waitForReviewBeat = (duration) =>
   new Promise((resolve) => window.setTimeout(resolve, duration));
 
+const REVIEW_GENERATED_COLORS = [
+  "#2aa876",
+  "#19b5c5",
+  "#5b7cfa",
+  "#b76cf0",
+  "#ef6b6b",
+  "#f59a45",
+  "#d4a72c",
+];
+
+function createReviewTemplateStyle(label = "") {
+  const hash = Array.from(String(label)).reduce(
+    (value, character) => (value * 31 + character.codePointAt(0)) >>> 0,
+    7
+  );
+  const color = REVIEW_GENERATED_COLORS[hash % REVIEW_GENERATED_COLORS.length];
+  const normalized = color.replace("#", "");
+  const mix = (offset) => Math.round(
+    Number.parseInt(normalized.slice(offset, offset + 2), 16) * 0.14 + 255 * 0.86
+  ).toString(16).padStart(2, "0");
+
+  return {
+    color,
+    fill: `#${mix(0)}${mix(2)}${mix(4)}`,
+  };
+}
+
 /**
  * 从 localStorage 读取用户创建的自定义模块模板。
  */
@@ -590,8 +617,28 @@ export default function App() {
               const sourceBlock = blockById.get(String(item.sourceId));
               const targetBlock = blockById.get(String(item.targetId));
               if (!sourceBlock || !targetBlock) return null;
+              const requestedInsertType = String(item.insertType || item.insertLabel || "").trim();
+              const requestedInsertLabel = String(item.insertLabel || item.insertType || "").trim();
+              const existingSuggestedTemplate = action === "insert"
+                ? reviewTemplates.find((template) =>
+                    String(template.type || "").toLocaleLowerCase() === requestedInsertType.toLocaleLowerCase() ||
+                    String(template.label || "").toLocaleLowerCase() === requestedInsertLabel.toLocaleLowerCase()
+                  )
+                : null;
+              const dynamicStyle = createReviewTemplateStyle(
+                requestedInsertLabel || requestedInsertType
+              );
               const suggestedTemplate = action === "insert"
-                ? reviewTemplates.find((template) => template.type === String(item.insertType || ""))
+                ? existingSuggestedTemplate || (requestedInsertType && requestedInsertLabel
+                    ? {
+                        type: requestedInsertType,
+                        label: requestedInsertLabel,
+                        ...dynamicStyle,
+                        width: 160,
+                        isCustom: true,
+                        isReviewGenerated: true,
+                      }
+                    : null)
                 : null;
               if (action === "insert" && !suggestedTemplate) return null;
               const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
@@ -626,6 +673,7 @@ export default function App() {
                       ),
                       color: suggestedTemplate.color || "#64748b",
                       fill: suggestedTemplate.fill || "#f8fafc",
+                      isReviewGenerated: suggestedTemplate.isReviewGenerated === true,
                     }
                   : null,
                 sourceBlock: {
@@ -815,6 +863,32 @@ export default function App() {
         });
 
         if (!streamedText.trim()) throw new Error(t("review.insertFailed"));
+        if (moduleTemplate.isReviewGenerated) {
+          setCustomTemplates((currentTemplates) => {
+            const alreadyExists = [...BLOCK_TYPES, ...currentTemplates].some(
+              (template) =>
+                String(template?.type || "").toLocaleLowerCase() ===
+                  String(moduleTemplate.type).toLocaleLowerCase() ||
+                String(template?.label || "").toLocaleLowerCase() ===
+                  String(moduleTemplate.label || moduleTemplate.type).toLocaleLowerCase()
+            );
+            if (alreadyExists) return currentTemplates;
+
+            return [
+              ...currentTemplates,
+              {
+                id: createTemplateId(),
+                type: moduleTemplate.type,
+                label: moduleTemplate.label || moduleTemplate.type,
+                color: moduleTemplate.color,
+                fill: moduleTemplate.fill,
+                width: 160,
+                text: "",
+                isCustom: true,
+              },
+            ];
+          });
+        }
         setReviewState((state) => ({
           ...state,
           results: state.results.map((result) =>

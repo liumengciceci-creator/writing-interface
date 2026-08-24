@@ -2236,180 +2236,244 @@ app.post(
     writeLine(res, { type: "ready", blockIds: blocks.map((block) => block.id) });
 
     const maxRelations = Math.min(5, Math.max(1, blocks.length));
+    const validIds = new Set(blocks.map((block) => block.id));
+    const emittedModuleIds = new Set();
+    const emittedRelationKeys = new Set();
+    const confirmedRelations = [];
+    let overallSummary = "";
+    let summaryHighlights = [];
 
-    const prompt = `你是一名严谨的多语言论证写作编辑。请实时审阅以下模块，并严格按审阅进度逐行输出 NDJSON。每完成一个判断就立刻输出一行，禁止等待全部分析完成后再统一输出，禁止代码块和额外文字。
+    const relationshipPrompt = `你是一名严谨的多语言论证写作编辑。现在只完成第一遍审阅：识别模块作用、关键关系，并简洁概括整体论证。严格按进度逐行输出 NDJSON；每确认一个模块或关系就立刻输出一行，不要等待全部分析完成，不要输出代码块或额外文字。
 
-语言规则：先判断模块正文的主要语言。所有面向作者的 focus、relation、overallSummary、summaryHighlights、category、criterion、summary 和 suggestion 字段都必须使用与模块正文相同的主要语言。界面语言不影响输出语言，不要翻译作者的正文。
+语言规则：先判断模块正文的主要语言。focus、relation、overallSummary 和 summaryHighlights 必须使用与正文相同的主要语言，界面语言不影响输出语言。
 
 模块（数组顺序即写作顺序）：
 ${JSON.stringify(blocks, null, 2)}
 
-当前标签栏中允许使用的模块类型：
-${JSON.stringify(templates, null, 2)}
+这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按顺序阅读，但同时检查相邻与非相邻模块的真实语义联系。
 
-输出顺序与格式：
-这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按照写作顺序理解模块，但必须同时检查当前模块与全部其他模块的真实语义联系，不能只比较相邻模块。
+先按顺序逐一输出：
+{"type":"module","id":"模块id","focus":"一句简短文字，说明正在检查的内容作用"}
+focus 只用于实时反馈，必须简短，不要复述整段原文。
 
-先按写作顺序输出模块。每输出一个模块后，立即将它与所有已经输出的模块比较，并只输出你确认的关键直接关系；只有两个端点的模块行都已输出后才能输出关系行。全部模块输出后，再快速复查一次并补充此前遗漏的必要关系。每完成一个判断就立即换行输出，不能等到最后统一输出。
+确认一条关键直接关系时立即输出：
+{"type":"relation","sourceId":"主动提供解释、支持、质疑、限定或推进的模块id","targetId":"被作用的模块id","relation":"具体而简短的关系词","importance":1到5的整数}
+语义方向不能由位置先后决定。只保留决定论证成立的直接关系，总数最多 ${maxRelations} 条；不要因为相邻而连线，不要输出能够由其他关系间接推出的冗余连线。
 
-模块行格式：
-{"type":"module","id":"模块id","focus":"一句简短文字，说明当前正在检查这个模块的哪项内容作用"}
-模块行只用于驱动画布上的实时闪烁反馈，因此必须简短，不要输出概括段落、narrative 或原文复述。
+最后输出且只输出一行整体概括：
+{"type":"framework","overallSummary":"简洁的整体论证叙述","summaryHighlights":["可在概括中逐字找到的关键短语"]}
+overallSummary 必须说明作者实际写了什么、各部分怎样推进。语言可参考“你先写了……，提出……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”，但不要机械套用。必须写出具体观点和证明角度，不能只说模块名称。这里只概括现有内容及关系，不评价不足、不提出建议、不列审阅标准、不使用箭头链或分点，保持简洁。`;
 
-关系行格式：
-{"type":"relation","sourceId":"主动提供证据、解释、质疑、限定或推进的模块id","targetId":"被支持、解释、质疑、限定或推进的模块id","relation":"由两段具体内容决定的简短关系词","importance":1到5的整数}
-sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如证据指向它支持的论点，原因指向它解释的论点，反论指向它质疑或限定的论点。不要强迫相邻模块连线，也不要遗漏有直接语义联系的非相邻模块。不要生成仅因位置相邻而成立的关系，也不要让所有模块彼此互连。关系词应具体，例如提供数据、解释机制、质疑前提、限定结论、转向实践。同一对模块的同一关系只输出一次。
-
-关系图必须简洁：总共最多输出 ${maxRelations} 条最关键关系。优先保留“证据→核心论点、原因→核心论点、反论→它质疑或限定的论点、结论→它归纳的核心论点”等决定论证成立与否的联系。若 A→B、B→C 已足以说明推进过程，不要再输出仅可由这两条推导出的 A→C；不要输出重复、弱相关或装饰性关系。重要关系优先输出，importance=5 表示不可缺少，1 表示较弱。
-
-全部模块与关键关系完成后，在开始整理修改建议之前，必须先单独输出这一行：
-{"type":"phase","phase":"enhancements"}
-这行表示关系检查已经结束，前端会停止模块闪烁。输出后再按 GRE 分析性写作的核心论证标准做一次内容把关，最后输出 final 行。检查必须按以下优先级进行：
-1. 核心主张是否明确，后续理由、证据和结论是否真正围绕同一主张展开；
-2. 理由能否推出主张，是否缺少关键的中间推理、因果机制、前提说明或从个别现象推广到一般结论的依据；
-3. 已有证据或例子是否与主张直接相关、是否足以承担作者赋予它的证明作用，以及作者是否解释了“这项证据为什么支持这个结论”；
-4. 多个理由之间是递进、并列还是重复，是否共同构成完整分析，而非仅重复结论或罗列现象；
-5. 反论是否击中原论点的关键前提，回应是否真正化解质疑，而不是绕开问题；
-6. 结论是否由前述分析推出并覆盖主要论证链，是否出现前文未建立的新判断；
-7. 现有模块是否已经具备完成论证所必需的理论依据、实证或数据支持、中间机制分析、反论和结构过渡；若缺失内容需要承担独立的论证功能，而不是在原模块里补一句就能解决，必须判断应新增哪一种模块。理论名称已经出现但没有被用于解释机制，仍然属于分析深度不足；只有主张缺少可验证依据时才判断缺少证据或数据模块。
-只有在措辞或限定直接造成上述逻辑错误时才可以提及语言问题。不得把“加入可能、也许、一定程度上等缓和词”“补充限定语”“让语气更谨慎”“表达更学术”单独视为增强点；也不得以换词、删重复、调整语气等细枝末节占用增强建议。若结论强于现有理由或证据，必须指出具体缺失的推理或支撑关系，并要求重新对齐主张与依据，不能只建议加上“可能”。
-
-最后一行格式：
-{"type":"final","overallSummary":"整体论证链判断与必要要点","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2"],"enhancements":[{"action":"revise或insert","rewriteScope":"local或full；insert时为空字符串","sourceId":"需要修改的模块id；insert时为缺口前一个模块id","targetId":"与问题相关的模块id；insert时为缺口后一个模块id","insertType":"insert时填写标签栏中准确的type；revise时为空字符串","category":"主张与理由匹配/证据方向/推理链完整性/理论与分析深度/因果机制/证据解释与充分性/反论回应/结论推导/结构连贯/缺失模块之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"完整、可直接执行的修改或新增模块指令"}]}
-overallSummary 必须由你通读全部模块后生成，并用简洁、连续、面向作者的语言说明作者实际写了什么以及各部分怎样推进。参考这种叙述方式，但不要机械套用固定句式：“你先写了……，提出……；随后从……角度说明……，这支持了……；你又提出……；最后总结……。”必须写出模块中的具体观点和证明角度，不能只说“写了论点、补充了原因、给了证据”。只概括现有内容及其关系，不在 overallSummary 中评价哪里不足、提出修改建议、罗列审阅标准、使用箭头链或分点展开。根据真实结构自然省略不存在的步骤，保持简洁。summaryHighlights 提取 overallSummary 中最关键且能够逐字找到的少量短语，前端会将这些短语加粗。
-
-enhancements 同时允许两种动作：
-- action="revise"：现有模块承担的论证功能正确，但内容本身存在实质逻辑缺口，或者模块方向错误而需要重构。sourceId 是需要修改的模块，targetId 是与该问题直接相关的模块，insertType 必须为空。通常 rewriteScope="local"；只有当证据并不支持当前主张、理由实际导向另一结论、反论没有针对当前论点，或整个模块承担了错误的论证方向时，才使用 rewriteScope="full"，表示接受后必须重构整个来源模块，不能只补一句。
-- action="insert"：两个相邻模块之间缺少一个独立的论证功能，修改任何一个现有模块都无法清楚承担该功能。此时 rewriteScope 必须为空字符串，sourceId 必须是文档顺序中缺口前一个模块，targetId 必须是紧邻其后的模块，insertType 必须严格选用上方标签栏中的一个 type。suggestion 必须明确写出“这里应添加一个什么模块”、该模块需要建立哪项理论解释、提供哪类证据或数据、补足哪一步机制分析或完成什么过渡，以及加入后补上哪一步论证链。过渡缺失时选择 Transition；缺少解释“为什么”的独立分析时选择 Reason；主张没有可验证依据时选择 Evidence；若标签栏存在更准确的自定义理论标签则优先使用该标签。不能随意用 Generated。
-
-每条 revise suggestion 是一段基于 GRE 分析性写作核心标准的、清楚易读的“论证加强指令”，不是语言润色意见，也不是替作者另写一个模块。用几句长度适中的自然语言依次说清：当前哪一步推理没有成立、作者应利用现有材料完成什么修改、修改后哪条具体推导会变得成立。句子之间要自然承接，让作者一遍就能看懂，不要把“保留、补足、区分、重组、说明、再把”等多个操作压进一个长句，也不要把材料和命令堆成密集清单。可以参考“当前材料能够说明 X，但还没有解释 X 为什么支持 Y，因此这一步推导仍然缺失。建议明确……。这样读者才能从 X 推到 Y。”的清晰程度，但不得机械套用这组句式。复杂问题可以分成少量完整要点；简单问题直接使用连贯短段落。不要设置或追求固定字数，以把“逻辑缺口—修改动作—推理改善”说明清楚为准。
-rewriteScope="local" 时保留原观点和可用材料，只处理真正影响论证成立或分析深度的内容。rewriteScope="full" 时必须明确指出当前模块的论证方向为什么错误，并要求围绕 targetId 所代表的真实主张重新构造整个来源模块；不要把方向错误的证据硬解释成“支持另一个子判断”，也不要仅靠补一句连接语来挽救。不得把增加“可能”“也许”“一定程度上”等词、补充泛泛限定、调整语气、替换词语、删减个别重复或“让表达更学术”作为独立建议。revise 不得要求新增数据、研究、文献、来源、案例、外部事实、新论点或额外模块。不要输出“可改为……”或完整替换文本。
-对于 insert，只建议添加当前这一处真正缺失的独立模块。可以指出需要补充哪一种理论依据、研究结果、数据证据或分析机制，但不得虚构具体理论名称、统计值、文献和研究结论。若所需材料不在现有文本中，suggestion 必须清楚说明作者需要提供什么材料以及它应当证明什么；不得假装这些材料已经存在。所有 suggestion 均不设置字数限制，以完整说明实际问题和执行动作所需的长度为准。
-不得为了让意见显得具体而自行发明原文没有建立的阅读情境、使用条件、行为后果或中间事实；如果某一步只能依靠新增假设才能成立，就应直接指出该推导尚未建立，而不是替作者虚构假设。只有当不同证据本来就在支持同一主张的不同必要环节时，才说明它们各自的证明分工；如果某项证据的方向与当前主张不一致，必须判定为证据方向错误并使用 rewriteScope="full"，不能替它另找一个子主张。
-revise 增强点可以位于任意两个相关模块之间；insert 增强点只能定位在两个相邻模块形成的真实缺口。增强建议没有固定数量：可以没有、只有一条，也可以有多条，只输出你认为最影响论证成立、分析深度或结构连贯的实际问题。不得为了达到数量而虚构问题，也不要让次要措辞问题挤占重要逻辑问题。`;
-
-    let textBuffer = "";
-    const validIds = new Set(blocks.map((block) => block.id));
-    let enhancementsPhaseEmitted = false;
-    const emitEnhancementsPhase = () => {
-      if (enhancementsPhaseEmitted) return;
-      enhancementsPhaseEmitted = true;
-      writeLine(res, {
-        type: "phase",
-        phase: "enhancements",
-      });
-    };
-    const emitParsedLine = (rawLine) => {
-      const line = String(rawLine || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    const emitRelationshipLine = (rawLine) => {
+      const line = String(rawLine || "")
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/```$/, "")
+        .trim();
       if (!line) return;
+
       try {
         const item = JSON.parse(line);
         if (item.type === "module" && validIds.has(String(item.id))) {
+          const id = String(item.id);
+          if (emittedModuleIds.has(id)) return;
+          emittedModuleIds.add(id);
           writeLine(res, {
             type: "module",
-            id: String(item.id),
-            focus: String(item.focus || item.summary || "检查模块在论证中的作用")
+            id,
+            focus: String(item.focus || "检查模块在论证中的作用")
               .replace(/\s+/g, " ")
               .trim(),
           });
-        } else if (
+          return;
+        }
+
+        if (
           item.type === "relation" &&
           validIds.has(String(item.sourceId)) &&
           validIds.has(String(item.targetId)) &&
           String(item.sourceId) !== String(item.targetId)
         ) {
-          writeLine(res, {
-            type: "relation",
+          const relation = {
             sourceId: String(item.sourceId),
             targetId: String(item.targetId),
             relation: String(item.relation || "关联").replace(/\s+/g, " ").trim(),
             importance: Math.max(1, Math.min(5, Number(item.importance) || 3)),
-          });
-        } else if (item.type === "phase" && item.phase === "enhancements") {
-          emitEnhancementsPhase();
-        } else if (item.type === "final") {
-          emitEnhancementsPhase();
-          writeLine(res, {
-            type: "final",
-            overallSummary: String(item.overallSummary || item.frameworkSummary || "")
-              .replace(/[ \t]+/g, " ")
-              .replace(/\n{3,}/g, "\n\n")
-              .trim(),
-            summaryHighlights: Array.isArray(item.summaryHighlights)
-              ? item.summaryHighlights
-                  .map((value) => String(value || "").replace(/\s+/g, " ").trim())
-                  .filter(Boolean)
-                  .slice(0, 5)
-              : [],
-            enhancements: Array.isArray(item.enhancements)
-              ? item.enhancements
-                  .map((enhancement) => {
-                    const action = enhancement?.action === "insert" ? "insert" : "revise";
-                    const rewriteScope =
-                      action === "revise" && enhancement?.rewriteScope === "full"
-                        ? "full"
-                        : action === "revise"
-                          ? "local"
-                          : "";
-                    const sourceId = String(enhancement?.sourceId || "");
-                    const targetId = String(enhancement?.targetId || "");
-                    if (
-                      !validIds.has(sourceId) ||
-                      !validIds.has(targetId) ||
-                      sourceId === targetId
-                    ) {
-                      return null;
-                    }
+          };
+          const key = `${relation.sourceId}::${relation.targetId}::${relation.relation}`;
+          if (emittedRelationKeys.has(key) || confirmedRelations.length >= maxRelations) return;
+          emittedRelationKeys.add(key);
+          confirmedRelations.push(relation);
+          writeLine(res, { type: "relation", ...relation });
+          return;
+        }
 
-                    const insertType = String(enhancement?.insertType || "").trim();
-                    if (action === "insert") {
-                      const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
-                      const targetIndex = blocks.findIndex((block) => block.id === targetId);
-                      const typeAllowed = templates.some((template) => template.type === insertType);
-                      if (targetIndex !== sourceIndex + 1 || !typeAllowed) return null;
-                    }
-
-                    return {
-                      ...enhancement,
-                      action,
-                      rewriteScope,
-                      sourceId,
-                      targetId,
-                      insertType: action === "insert" ? insertType : "",
-                      suggestion: String(enhancement?.suggestion || "")
-                        .replace(/[ \t]+/g, " ")
-                        .replace(/\n{3,}/g, "\n\n")
-                        .trim(),
-                    };
-                  })
-                  .filter((enhancement) => enhancement?.suggestion)
-              : [],
-          });
+        if (item.type === "framework") {
+          overallSummary = String(item.overallSummary || "")
+            .replace(/[ \t]+/g, " ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+          summaryHighlights = Array.isArray(item.summaryHighlights)
+            ? item.summaryHighlights
+                .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+                .filter((value) => value && overallSummary.includes(value))
+                .slice(0, 5)
+            : [];
         }
       } catch (error) {
-        console.warn("跳过无法解析的审阅流行：", line, error.message);
+        console.warn("跳过无法解析的关系审阅流行：", line, error.message);
       }
     };
 
-    try {
+    const collectResponseText = async (input, effort) => {
+      let output = "";
       const stream = await openai.responses.create({
         model: WRITING_MODEL,
-        input: prompt,
+        input,
+        reasoning: { effort },
+        stream: true,
+      });
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta") {
+          output += String(event.delta || "");
+        }
+      }
+      return output;
+    };
+
+    try {
+      let relationshipBuffer = "";
+      const relationshipStream = await openai.responses.create({
+        model: WRITING_MODEL,
+        input: relationshipPrompt,
         reasoning: { effort: "low" },
         stream: true,
       });
 
-      for await (const event of stream) {
+      for await (const event of relationshipStream) {
         if (event.type !== "response.output_text.delta") continue;
-        textBuffer += String(event.delta || "");
-        const lines = textBuffer.split("\n");
-        textBuffer = lines.pop() || "";
-        lines.forEach(emitParsedLine);
-        if (!enhancementsPhaseEmitted && /"type"\s*:\s*"final"/.test(textBuffer)) {
-          emitEnhancementsPhase();
-        }
+        relationshipBuffer += String(event.delta || "");
+        const lines = relationshipBuffer.split("\n");
+        relationshipBuffer = lines.pop() || "";
+        lines.forEach(emitRelationshipLine);
       }
-      if (textBuffer.trim()) emitParsedLine(textBuffer);
+      if (relationshipBuffer.trim()) emitRelationshipLine(relationshipBuffer);
+
+      writeLine(res, { type: "phase", phase: "enhancements" });
+
+      const diagnosticPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在进行独立的第二遍诊断。不要重复概括全文；先诊断论证缺口，再选择最小但足够的干预方式。最终只输出一个合法 JSON 对象，不要代码块或额外文字。
+
+语言规则：所有 category、criterion、summary、suggestion 和 insertLabel 必须使用模块正文的主要语言。
+
+模块：
+${JSON.stringify(blocks, null, 2)}
+
+第一遍确认的关键关系：
+${JSON.stringify(confirmedRelations, null, 2)}
+
+当前已有标签（可以复用，但不是白名单）：
+${JSON.stringify(templates, null, 2)}
+
+请全面检查以下维度，而不是优先寻找数据或实证：
+1. 核心主张与任务焦点是否明确并保持一致；
+2. 理由能否推出主张，是否缺少必要前提、中间推理、因果机制或一般化依据；
+3. 分析是否真正解释“为什么”和“如何”，还是只重复结论、罗列现象；
+4. 理论是否被准确用于解释材料，而不是只出现名称；
+5. 理由、例子、理论与证据是否相关且足以承担作者赋予的证明作用，作者是否解释支持关系；
+6. 多个理由是递进、并列还是重复，是否构成有深度的分析；
+7. 替代解释、关键假设和反论是否得到有效处理；
+8. 段落之间是否缺少独立过渡或逻辑桥梁；
+9. 结论是否由前文推出并覆盖主要论证链，是否引入未建立的新判断。
+
+GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且有说服力的理由和例子；它不要求每个主张都配实证数据。必须遵守：
+- 能靠补足推理、机制、理论运用或解释支持关系解决的问题，不得建议新增 Evidence/数据模块。
+- 原文已有材料但没有解释它为什么支持主张时，应加强分析或推理，不得再添加一份证据。
+- 只有涉及事实、因果、范围推广或效果判断，并且确实需要外部可验证材料才能成立时，才可建议新增证据或数据；此时 supportNeeded 必须为 "empirical"。
+- 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
+- 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
+
+每个问题只能选择一种动作：
+- action="revise", rewriteScope="local"：模块方向正确，但关键分析、推理、机制或支持关系不充分。保留核心内容，只加强现有模块。
+- action="revise", rewriteScope="full"：证据、理由或反论方向错误，实际不能承担当前论证功能。接受后重写整个 sourceId 模块。
+- action="insert"：两个相邻模块之间缺少一个真正独立的论证功能，局部修改任何一个模块都无法清楚承担。接受后在两者之间新增模块。
+
+新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。
+
+先在内部识别全部问题，再只保留最重要且互不重复的根本问题。一个根本缺口只输出一条建议；如果补足一段机制或推理可以解决多个表面症状，只输出这一个机制或推理建议。建议数量没有上下限，也不得为了凑数输出次要问题。
+
+输出格式：
+{"enhancements":[{"action":"revise或insert","rewriteScope":"local、full或空字符串","sourceId":"模块id","targetId":"相关模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","gapDimension":"taskFocus/development/warrant/assumption/causality/theoryUse/support/counterargument/organization/conclusion","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"同一根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","criterion":"本条判断标准","summary":"一句清楚判断","suggestion":"分点的可执行修改指令"}]}
+
+suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的完整要点，并根据具体内容依次讲清：
+- 现在哪里不充分或方向为何错误；
+- 应怎样修改现有模块，或新增模块需要完成什么独立论证任务；
+- 修改后哪一步推理、解释或整体论证链会变得成立或更有说服力。
+不要机械复制固定句式，但每个要点必须是能独立读懂的完整句子。不要给出“修正为……”后的完整替换正文，也不要虚构原文没有的理论、数据、研究、来源或事实。若确需外部材料，清楚说明作者需要提供哪类材料以及它必须验证什么。`;
+
+      const diagnosticText = await collectResponseText(diagnosticPrompt, "medium");
+      const parsedDiagnostic = JSON.parse(cleanModelJsonText(diagnosticText));
+      const seenRootIssues = new Set();
+      const enhancements = (Array.isArray(parsedDiagnostic?.enhancements)
+        ? parsedDiagnostic.enhancements
+        : [])
+        .map((enhancement) => {
+          const action = enhancement?.action === "insert" ? "insert" : "revise";
+          const rewriteScope = action === "revise"
+            ? enhancement?.rewriteScope === "full" ? "full" : "local"
+            : "";
+          const sourceId = String(enhancement?.sourceId || "");
+          const targetId = String(enhancement?.targetId || "");
+          if (!validIds.has(sourceId) || !validIds.has(targetId) || sourceId === targetId) {
+            return null;
+          }
+
+          const insertType = String(enhancement?.insertType || enhancement?.insertLabel || "").trim();
+          const insertLabel = String(enhancement?.insertLabel || enhancement?.insertType || "").trim();
+          const supportNeeded = String(enhancement?.supportNeeded || "none").trim();
+          if (action === "insert") {
+            const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
+            const targetIndex = blocks.findIndex((block) => block.id === targetId);
+            if (targetIndex !== sourceIndex + 1 || !insertType || !insertLabel) return null;
+
+            const evidenceLike = /evidence|empirical|data|证据|数据|实证/i.test(
+              `${insertType} ${insertLabel}`
+            );
+            if (evidenceLike && supportNeeded !== "empirical") return null;
+          }
+
+          const rootIssueKey = String(
+            enhancement?.rootIssueKey ||
+              `${sourceId}:${targetId}:${enhancement?.gapDimension || action}`
+          ).trim();
+          if (seenRootIssues.has(rootIssueKey)) return null;
+          seenRootIssues.add(rootIssueKey);
+
+          return {
+            ...enhancement,
+            action,
+            rewriteScope,
+            sourceId,
+            targetId,
+            insertType: action === "insert" ? insertType : "",
+            insertLabel: action === "insert" ? insertLabel : "",
+            supportNeeded,
+            rootIssueKey,
+            priority: Math.max(1, Math.min(5, Number(enhancement?.priority) || 3)),
+            suggestion: String(enhancement?.suggestion || "")
+              .replace(/[ \t]+/g, " ")
+              .replace(/\n{3,}/g, "\n\n")
+              .trim(),
+          };
+        })
+        .filter((enhancement) => enhancement?.suggestion)
+        .sort((first, second) => second.priority - first.priority);
+
+      writeLine(res, {
+        type: "final",
+        overallSummary,
+        summaryHighlights,
+        enhancements,
+      });
       writeLine(res, { type: "done" });
       return res.end();
     } catch (error) {

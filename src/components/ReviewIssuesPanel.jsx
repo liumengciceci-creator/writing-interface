@@ -49,6 +49,34 @@ function renderSummaryWithHighlights(summary, highlights = []) {
   );
 }
 
+function renderSuggestionPoints(value) {
+  const text = String(value || "").trim();
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const bulletLines = lines.filter((line) => /^[•·*-]\s*/.test(line));
+
+  if (bulletLines.length < 2) return text;
+
+  return (
+    <ul
+      style={{
+        margin: 0,
+        paddingLeft: 18,
+        display: "grid",
+        gap: 8,
+      }}
+    >
+      {bulletLines.map((line, index) => (
+        <li key={`${index}-${line.slice(0, 20)}`}>
+          {line.replace(/^[•·*-]\s*/, "")}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function ReviewIssuesPanel({
   open,
   results = [],
@@ -311,9 +339,10 @@ export default function ReviewIssuesPanel({
               fontSize: 11.4,
               lineHeight: 1.68,
               whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
             }}
           >
-            {modificationInstruction}
+            {renderSuggestionPoints(modificationInstruction)}
           </div>
 
           {applyError ? (
