@@ -3,6 +3,14 @@ import { API_BASE_URL } from "../apiConfig";
 const DEFAULT_API_URL =
   `${API_BASE_URL}/api/adjust-style`;
 
+function normalizeStyleComparison(value) {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[。！？.!?]+$/g, "")
+    .trim();
+}
+
 /**
  * 调整单个模块的文本风格。
  *
@@ -109,6 +117,15 @@ export async function adjustBlockStyle({
   if (!resultText) {
     throw new Error(
       "AI 没有返回有效文本"
+    );
+  }
+
+  if (
+    normalizeStyleComparison(resultText) ===
+    normalizeStyleComparison(normalizedText)
+  ) {
+    throw new Error(
+      "模型没有实际改变文本风格，请重试或选择更明确的风格"
     );
   }
 

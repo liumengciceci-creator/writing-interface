@@ -147,10 +147,11 @@ Requirements:
 2. Preserve the original core meaning and argument.
 3. Preserve the rhetorical function of the block type.
 4. Keep the length reasonably close to the original.
-5. Improve only the requested stylistic dimension.
+5. Improve only the requested stylistic dimension, but realize that change concretely through sentence structure, organization, emphasis, transitions, or wording as appropriate.
 6. Do not invent facts, sources, quotations, references, or statistics.
 7. Do not introduce unrelated arguments.
 8. Output only the revised text.
 9. Do not output markdown, quotation marks, or explanations.
+10. The output must be a visibly revised version, not a verbatim copy of the original. Even when the original already partly matches the requested style, make at least one meaningful stylistic transformation while preserving its content.
 `.trim();
 }

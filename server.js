@@ -1667,20 +1667,48 @@ app.post(
           isCustom: isCustom === true,
         });
 
-      const response =
-        await openai.responses.create({
-          model: WRITING_MODEL,
-          input: prompt,
-        });
+      let resultText = "";
 
-      const resultText =
-        String(
-          response.output_text || ""
-        ).trim();
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const response =
+          await openai.responses.create({
+            model: WRITING_MODEL,
+            input:
+              attempt === 1
+                ? prompt
+                : `${prompt}\n\nYour previous answer did not make a meaningful stylistic change. Rewrite the text again so the requested style is visibly expressed through structure, emphasis, transitions, or wording. Do not return the original text unchanged.`,
+            reasoning: { effort: "low" },
+          });
+
+        resultText =
+          sanitizeServerGeneratedText(
+            response.output_text || ""
+          )
+            .replace(/^(?:修改后|改写后|修订后|调整后)\s*[:：]\s*/i, "")
+            .replace(/^[“"]([\s\S]*)[”"]$/u, "$1")
+            .trim();
+
+        if (
+          resultText &&
+          normalizeGeneratedComparison(resultText) !==
+            normalizeGeneratedComparison(normalizedText)
+        ) {
+          break;
+        }
+      }
 
       if (!resultText) {
-        return res.status(500).json({
+        return res.status(502).json({
           error: "AI 没有返回有效文本",
+        });
+      }
+
+      if (
+        normalizeGeneratedComparison(resultText) ===
+        normalizeGeneratedComparison(normalizedText)
+      ) {
+        return res.status(502).json({
+          error: "模型没有实际改变文本风格，请重试或选择更明确的风格",
         });
       }
 

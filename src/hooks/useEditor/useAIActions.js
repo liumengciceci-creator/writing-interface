@@ -278,14 +278,23 @@ export function useAIActions({
         blockOrId,
         valueOrOptions
       ) => {
-        const block =
+        const suppliedBlock =
           typeof blockOrId ===
             "object" &&
           blockOrId !== null
             ? blockOrId
-            : getBlockById(
-                blockOrId
-              );
+            : null;
+
+        /**
+         * 面板操作可能持有旧 block；优先按 ID 读取画布中的最新模块。
+         */
+        const blockId =
+          suppliedBlock?.id ??
+          blockOrId;
+
+        const block =
+          getBlockById(blockId) ||
+          suppliedBlock;
 
         if (!block) {
           const error =
@@ -511,14 +520,24 @@ export function useAIActions({
         isCustom = false,
         onTextStart,
       }) => {
-        const block =
+        const suppliedBlock =
           typeof blockOrId ===
             "object" &&
           blockOrId !== null
             ? blockOrId
-            : getBlockById(
-                blockOrId
-              );
+            : null;
+
+        /**
+         * 快速指令会在动画后延迟触发，不能直接使用点击时捕获的旧 block。
+         * 每次都先按 ID 读取画布中的最新模块，避免旧文字的改写结果被新状态覆盖。
+         */
+        const blockId =
+          suppliedBlock?.id ??
+          blockOrId;
+
+        const block =
+          getBlockById(blockId) ||
+          suppliedBlock;
 
         if (!block) {
           const error =
