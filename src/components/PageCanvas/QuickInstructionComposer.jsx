@@ -63,6 +63,7 @@ export default function QuickInstructionComposer({
   const [instructions, setInstructions] = useState(readInstructions);
   const inputRef = useRef(null);
   const panelRef = useRef(null);
+  const dragRef = useRef(null);
   const { instructionLabel, instructionText, t } = useI18n();
 
   useEffect(() => {
@@ -86,21 +87,56 @@ export default function QuickInstructionComposer({
     };
   }, [onClose]);
 
-  const panelPosition = useMemo(() => {
+  const initialGeometry = useMemo(() => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const width = Math.min(460, Math.max(286, viewportWidth - 24));
     const estimatedHeight = 88;
-    const anchorCenterX = anchorRect
-      ? (anchorRect.left + anchorRect.right) / 2
-      : viewportWidth / 2;
-    const left = clamp(anchorCenterX - width / 2, 12, viewportWidth - width - 12);
-    const above = (anchorRect?.top ?? viewportHeight / 2) - estimatedHeight - 10;
-    const top = above >= 12
-      ? above
-      : Math.min(viewportHeight - estimatedHeight - 12, (anchorRect?.bottom ?? 30) + 10);
+    const preferredLeft = (anchorRect?.right ?? viewportWidth / 2) + 10;
+    const preferredTop = (anchorRect?.bottom ?? viewportHeight / 2) + 10;
+    const left = clamp(preferredLeft, 12, viewportWidth - width - 12);
+    const top = clamp(preferredTop, 12, viewportHeight - estimatedHeight - 12);
     return { left, top, width };
   }, [anchorRect]);
+
+  const [position, setPosition] = useState(() => ({
+    left: initialGeometry.left,
+    top: initialGeometry.top,
+  }));
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      const panelHeight = panelRef.current?.offsetHeight || 88;
+      setPosition({
+        left: clamp(
+          event.clientX - drag.offsetX,
+          12,
+          window.innerWidth - initialGeometry.width - 12
+        ),
+        top: clamp(
+          event.clientY - drag.offsetY,
+          12,
+          window.innerHeight - panelHeight - 12
+        ),
+      });
+    };
+
+    const stopDragging = () => {
+      dragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [initialGeometry.width]);
 
   const submit = () => {
     const instruction = value.trim();
@@ -117,9 +153,9 @@ export default function QuickInstructionComposer({
       aria-label={t("quickInstruction.dialog")}
       style={{
         position: "fixed",
-        left: panelPosition.left,
-        top: panelPosition.top,
-        width: panelPosition.width,
+        left: position.left,
+        top: position.top,
+        width: initialGeometry.width,
         zIndex: 5100,
         padding: "9px 11px 8px",
         border: "1px solid rgba(17,24,39,0.08)",
@@ -129,6 +165,46 @@ export default function QuickInstructionComposer({
         boxSizing: "border-box",
       }}
     >
+      <button
+        type="button"
+        aria-label={t("quickInstruction.move")}
+        title={t("quickInstruction.move")}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const rect = panelRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          dragRef.current = {
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+          };
+        }}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 4,
+          width: 38,
+          height: 8,
+          padding: 0,
+          border: 0,
+          background: "transparent",
+          cursor: "grab",
+          transform: "translateX(-50%)",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            display: "block",
+            width: 24,
+            height: 3,
+            margin: "0 auto",
+            borderRadius: 999,
+            background: "#d7dbe2",
+          }}
+        />
+      </button>
+
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <input
           ref={inputRef}
@@ -147,7 +223,7 @@ export default function QuickInstructionComposer({
             height: 32,
             padding: "0 3px",
             border: 0,
-            borderBottom: `1.5px solid ${blockColor}55`,
+            borderBottom: 0,
             outline: 0,
             background: "transparent",
             color: "#1f2937",

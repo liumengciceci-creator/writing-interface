@@ -866,6 +866,38 @@ const SingleSemanticEditor =
           [adjustingStyleBlockId]
         );
 
+      const [
+        instructionBlinkOn,
+        setInstructionBlinkOn,
+      ] = useState(false);
+
+      useEffect(() => {
+        if (
+          !isAdjustingStyle ||
+          adjustingStyleBlockId == null
+        ) {
+          setInstructionBlinkOn(false);
+          return undefined;
+        }
+
+        setInstructionBlinkOn(true);
+        const intervalId = window.setInterval(
+          () => {
+            setInstructionBlinkOn(
+              (current) => !current
+            );
+          },
+          300
+        );
+
+        return () => {
+          window.clearInterval(intervalId);
+        };
+      }, [
+        isAdjustingStyle,
+        adjustingStyleBlockId,
+      ]);
+
       const blockById =
         useMemo(() => {
           const result =
@@ -2109,7 +2141,7 @@ const SingleSemanticEditor =
               }
 
               instructionBlinkOn={
-                isAdjustingStyle
+                instructionBlinkOn
               }
 
               lengthResizeDraft={lengthResizeDraft}
