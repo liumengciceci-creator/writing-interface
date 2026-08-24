@@ -41,7 +41,6 @@ export default function Toolbar({
       statusText || ""
     ).trim();
 
-
   const hasGenerationError =
     normalizedGenerationStatus.startsWith(
       "错误："
@@ -50,59 +49,6 @@ export default function Toolbar({
       "错误："
     );
 
-
-  /**
-   * 状态显示逻辑
-   *
-   * 优先级：
-   *
-   * 1. 长度调整
-   * 2. AI生成
-   * 3. 错误
-   * 4. 普通状态
-   */
-  let visibleStatus = "";
-
-
-  if (isReviewing) {
-    visibleStatus = reviewStatus || "正在审阅模块关系...";
-  } else if (
-    isAdjustingLength
-  ) {
-    visibleStatus =
-      normalizedStatusText ||
-      "正在调整模块长度...";
-  } else if (
-    isGenerating
-  ) {
-    visibleStatus =
-      normalizedGenerationStatus ||
-      normalizedStatusText ||
-      "正在生成...";
-  } else if (
-    hasGenerationError
-  ) {
-    visibleStatus =
-      normalizedGenerationStatus ||
-      normalizedStatusText;
-  } else {
-    visibleStatus =
-      normalizedStatusText;
-  }
-
-
-  /**
-   * 判断是否显示蓝色状态气泡
-   */
-  const isBusyStatus =
-    isGenerating ||
-    isAdjustingLength ||
-    isReviewing ||
-    normalizedStatusText.startsWith(
-      "正在"
-    );
-
-
   const busy = isGenerating || isAdjustingLength || isReviewing;
   const generationDisabled = selectedIds.length === 0 || busy;
   const reviewDisabled =
@@ -110,6 +56,29 @@ export default function Toolbar({
     selectedIds.length === 1 ||
     busy;
   const completeDisabled = editableBlockCount === 0 || busy;
+  const generationMessage =
+    isGenerating
+      ? normalizedGenerationStatus ||
+        "正在生成..."
+      : hasGenerationError ||
+          normalizedGenerationStatus.startsWith(
+            "生成完成"
+          )
+        ? normalizedGenerationStatus
+        : "";
+  const reviewMessage = isReviewing
+    ? String(
+        reviewStatus ||
+          "正在审阅模块关系..."
+      ).trim()
+    : "";
+  const canvasStatus =
+    isGenerating || isReviewing
+      ? ""
+      : isAdjustingLength
+        ? normalizedStatusText ||
+          "正在调整模块长度..."
+        : normalizedStatusText;
   const groupStyle = {
     display: "flex",
     alignItems: "center",
@@ -124,14 +93,26 @@ export default function Toolbar({
     <div
       style={{
         width: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 10,
+        minHeight:
+          generationMessage ||
+          reviewMessage
+            ? 78
+            : 54,
+        position: "relative",
       }}
     >
-      <div style={groupStyle} aria-label="画布工具">
+      <div
+        style={{
+          ...groupStyle,
+          position: "absolute",
+          top: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1,
+          whiteSpace: "nowrap",
+        }}
+        aria-label="画布工具"
+      >
         <button type="button" onClick={onZoomOut} style={toolbarButton}>−</button>
         <button type="button" onClick={onResetZoom} style={zoomLabelButton}>
           {Math.round(zoom * 100)}%
@@ -172,11 +153,34 @@ export default function Toolbar({
           />
           联网搜索：{webSearchEnabled ? "开" : "关"}
         </button>
+
+        {canvasStatus ? (
+          <span
+            aria-live="polite"
+            title={canvasStatus}
+            style={{
+              maxWidth: 210,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              color: normalizedStatusText.startsWith("错误：")
+                ? "#b91c1c"
+                : "#596273",
+              fontSize: 12,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {canvasStatus}
+          </span>
+        ) : null}
       </div>
 
       <div
         style={{
           ...groupStyle,
+          position: "absolute",
+          top: 0,
+          right: 0,
+          zIndex: 2,
           border: "1px solid rgba(79,127,216,0.18)",
           background: "rgba(248,250,255,0.98)",
         }}
@@ -195,37 +199,110 @@ export default function Toolbar({
           }}
           onClick={onGenerate}
           disabled={generationDisabled}
-          style={{ ...toolbarWideButton, opacity: generationDisabled ? 0.5 : 1 }}
+          title={generationMessage || "生成所选模块"}
+          style={{
+            ...toolbarWideButton,
+            width: generationMessage ? 220 : "auto",
+            minHeight: 34,
+            height: "auto",
+            padding: generationMessage
+              ? "7px 12px"
+              : toolbarWideButton.padding,
+            display: "inline-flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            gap: generationMessage ? 3 : 0,
+            opacity:
+              generationDisabled &&
+              !isGenerating
+                ? 0.5
+                : 1,
+          }}
         >
-          {isGenerating
-            ? "生成中..."
-            : selectedIds.length > 0
-              ? `AI生成 (${selectedIds.length})`
-              : "AI生成"}
+          <span>
+            {isGenerating
+              ? "AI生成中"
+              : selectedIds.length > 0
+                ? `AI生成 (${selectedIds.length})`
+                : "AI生成"}
+          </span>
+          {generationMessage ? (
+            <span
+              aria-live="polite"
+              style={{
+                width: "100%",
+                color: hasGenerationError
+                  ? "#b91c1c"
+                  : "#5f6f8f",
+                fontSize: 11,
+                fontWeight: 400,
+                lineHeight: "15px",
+                textAlign: "left",
+                whiteSpace: "normal",
+              }}
+            >
+              {generationMessage}
+            </span>
+          ) : null}
         </button>
 
         <button
           type="button"
           onClick={onReview}
           disabled={reviewDisabled}
-          style={{
-            ...toolbarWideButton,
-            opacity: reviewDisabled ? 0.5 : 1,
-            color: isReviewing ? "#315ea8" : toolbarWideButton.color,
-          }}
           title={
-            selectedIds.length === 1
+            reviewMessage ||
+            (selectedIds.length === 1
               ? "请选择至少两个模块，或清除选择以审阅全文"
               : selectedIds.length >= 2
                 ? "审阅所选模块"
-                : "审阅全文；已完成内容会先恢复为模块"
+                : "审阅全文；已完成内容会先恢复为模块")
           }
+          style={{
+            ...toolbarWideButton,
+            width: reviewMessage ? 220 : "auto",
+            minHeight: 34,
+            height: "auto",
+            padding: reviewMessage
+              ? "7px 12px"
+              : toolbarWideButton.padding,
+            display: "inline-flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            gap: reviewMessage ? 3 : 0,
+            opacity:
+              reviewDisabled &&
+              !isReviewing
+                ? 0.5
+                : 1,
+            color: isReviewing ? "#315ea8" : toolbarWideButton.color,
+          }}
         >
-          {isReviewing
-            ? "审阅中..."
-            : selectedIds.length >= 2
-              ? `审阅 (${selectedIds.length})`
-              : "审阅全文"}
+          <span>
+            {isReviewing
+              ? "审阅中"
+              : selectedIds.length >= 2
+                ? `审阅 (${selectedIds.length})`
+                : "审阅全文"}
+          </span>
+          {reviewMessage ? (
+            <span
+              aria-live="polite"
+              style={{
+                width: "100%",
+                color: "#5f6f8f",
+                fontSize: 11,
+                fontWeight: 400,
+                lineHeight: "15px",
+                textAlign: "left",
+                whiteSpace: "normal",
+              }}
+            >
+              {reviewMessage}
+            </span>
+          ) : null}
         </button>
 
         <button
@@ -237,41 +314,6 @@ export default function Toolbar({
           完成
         </button>
       </div>
-
-      {visibleStatus ? (
-        <span
-          aria-live="polite"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            minWidth: isBusyStatus ? 190 : 0,
-            padding: isBusyStatus ? "5px 9px" : 0,
-            borderRadius: 999,
-            background: isBusyStatus ? "rgba(37,99,235,0.08)" : "transparent",
-            color: hasGenerationError
-              ? "#b91c1c"
-              : isBusyStatus
-                ? "#315ea8"
-                : "#666",
-            fontSize: 12,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {isBusyStatus ? (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "#4f7fd8",
-              }}
-            />
-          ) : null}
-          {visibleStatus}
-        </span>
-      ) : null}
     </div>
   );
 }

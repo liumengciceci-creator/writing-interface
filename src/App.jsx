@@ -992,6 +992,12 @@ export default function App() {
               position:
                 "relative",
 
+              width:
+                "100%",
+
+              minHeight:
+                64,
+
               zIndex:
                 30,
 
