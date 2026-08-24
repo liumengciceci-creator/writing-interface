@@ -149,6 +149,7 @@ export default function App() {
     graph: [],
     notes: [],
     activeGraphId: null,
+    activeIssue: null,
     results: [],
   });
   /**
@@ -362,6 +363,7 @@ export default function App() {
       graph: [],
       notes: [],
       activeGraphId: null,
+      activeIssue: null,
       results: [],
     });
 
@@ -464,6 +466,9 @@ export default function App() {
               const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
               const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
               const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
+              const originalText = String(sourceBlock.text || "").trim();
+              const suggestedText = String(item.suggestedText || "").trim();
+              if (!suggestedText || suggestedText === originalText) return null;
               return {
                 id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
@@ -475,20 +480,26 @@ export default function App() {
                 sourceBlock: {
                   id: sourceBlock.id,
                   type: sourceBlock.type,
+                  label: sourceType,
                   text: String(sourceBlock.text || ""),
+                  color: sourceBlock.color || "#64748b",
+                  fill: sourceBlock.fill || "#f8fafc",
                 },
                 targetBlock: {
                   id: targetBlock.id,
                   type: targetBlock.type,
+                  label: targetType,
                   text: String(targetBlock.text || ""),
+                  color: targetBlock.color || "#64748b",
+                  fill: targetBlock.fill || "#f8fafc",
                 },
                 contextBlocks: blocks.map((block) => ({
                   id: block.id,
                   type: block.type,
                   text: String(block.text || ""),
                 })),
-                originalText: String(sourceBlock.text || ""),
-                suggestedText: String(item.suggestedText || sourceBlock.text || ""),
+                originalText,
+                suggestedText,
                 summary: String(item.summary || "这条关系可以进一步加强。"),
                 comment: String(item.summary || "这条关系可以进一步加强。"),
                 suggestion: String(item.suggestion || "可以进一步补足这条关系中的关键逻辑。"),
@@ -509,6 +520,7 @@ export default function App() {
         running: false,
         activeIds: [],
         activeGraphId: null,
+        activeIssue: null,
         blinkOn: false,
         status: state.results.length > 0
           ? `审阅完成：发现 ${state.results.length} 个潜在增强点`
@@ -522,6 +534,7 @@ export default function App() {
         running: false,
         activeIds: [],
         activeGraphId: null,
+        activeIssue: null,
         blinkOn: false,
         status: "整体审阅失败，请稍后重试",
       }));
@@ -540,6 +553,7 @@ export default function App() {
       ...state,
       activeIds: [],
       activeGraphId: null,
+      activeIssue: null,
       blinkOn: false,
     }));
   };
@@ -560,6 +574,7 @@ export default function App() {
       ...state,
       activeIds: [sourceId, targetId],
       activeGraphId: `issue-${item.id}`,
+      activeIssue: item,
       blinkOn: true,
     }));
 
@@ -1120,6 +1135,10 @@ export default function App() {
                 reviewState.activeIds.length > 0
                   ? reviewState.blinkOn
                   : generatingBlinkOn
+              }
+
+              activeReviewIssue={
+                reviewState.activeIssue
               }
 
               isAdjustingLength={

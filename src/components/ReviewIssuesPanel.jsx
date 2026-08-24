@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { streamReviewEnhancementDetail } from "../api/reviewBlockCompatibility.js";
 
@@ -25,7 +30,7 @@ export default function ReviewIssuesPanel({
   const [detailError, setDetailError] = useState("");
   const detailAbortRef = useRef(null);
 
-  const closeIssue = () => {
+  const closeIssue = useCallback(() => {
     detailAbortRef.current?.abort();
     detailAbortRef.current = null;
     setSelectedIssueId(null);
@@ -33,7 +38,7 @@ export default function ReviewIssuesPanel({
     setDetailLoading(false);
     setDetailError("");
     onFocusIssue?.(null);
-  };
+  }, [onFocusIssue]);
 
   const handleSelectIssue = async (item) => {
     if (selectedIssueId === item.id) {
@@ -77,11 +82,17 @@ export default function ReviewIssuesPanel({
     if (!selectedIssueId) return;
     if (results.some((item) => item.id === selectedIssueId && !item.decision)) return;
     closeIssue();
-  }, [results, selectedIssueId]);
+  }, [closeIssue, results, selectedIssueId]);
 
   if (!open) return null;
 
   const pendingResults = results.filter((item) => !item.decision);
+  const selectedItem = pendingResults.find((item) => item.id === selectedIssueId) || null;
+  const accentColor = selectedItem?.sourceBlock?.color || "#d6a31a";
+  const accentFill = selectedItem?.sourceBlock?.fill || "#fff8e7";
+  const hasRevision = selectedItem
+    ? selectedItem.suggestedText !== selectedItem.originalText
+    : false;
 
   return (
     <aside
@@ -107,7 +118,7 @@ export default function ReviewIssuesPanel({
           borderRadius: 13,
           background: "rgba(255,255,255,0.92)",
           boxShadow: "0 7px 22px rgba(15,23,42,0.09)",
-          overflow: "hidden",
+          overflow: "visible",
         }}
       >
         <header
@@ -127,7 +138,7 @@ export default function ReviewIssuesPanel({
                 : "本轮审阅已完成"}
             </div>
             <div style={{ marginTop: 4, color: "#7b8190", fontSize: 10.5, lineHeight: 1.45 }}>
-              点击一项，定位相关模块并查看详细意见
+              选择圆点，查看对应模块关系
             </div>
           </div>
           <button
@@ -153,168 +164,185 @@ export default function ReviewIssuesPanel({
           </button>
         </header>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
-          {pendingResults.length === 0 ? (
-            <div style={{ padding: "18px 10px", color: "#6b7280", fontSize: 11.5, lineHeight: 1.6 }}>
-              暂未发现需要立即修改的内容关系。
+        {pendingResults.length === 0 ? (
+          <div style={{ padding: "18px 14px", color: "#6b7280", fontSize: 11.5, lineHeight: 1.6 }}>
+            暂未发现需要立即修改的内容关系。
+          </div>
+        ) : (
+          <div
+            role="list"
+            aria-label="潜在修改点编号"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 10,
+              padding: "14px",
+            }}
+          >
+            {pendingResults.map((item, index) => {
+              const selected = item.id === selectedIssueId;
+              const itemColor = item.sourceBlock?.color || "#d6a31a";
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="listitem"
+                  aria-label={`查看第 ${index + 1} 处潜在修改点`}
+                  aria-pressed={selected}
+                  title={item.summary || item.category || `修改点 ${index + 1}`}
+                  onClick={() => handleSelectIssue(item)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 34,
+                    height: 34,
+                    padding: 0,
+                    border: selected ? `2px solid ${itemColor}` : "2px solid #fff",
+                    borderRadius: "50%",
+                    background: itemColor,
+                    boxShadow: selected
+                      ? `0 0 0 3px color-mix(in srgb, ${itemColor} 22%, transparent)`
+                      : "0 2px 7px rgba(15,23,42,0.15)",
+                    color: "#fff",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transform: selected ? "scale(1.08)" : "scale(1)",
+                    transition: "transform 160ms ease, box-shadow 160ms ease",
+                  }}
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {selectedItem ? (
+        <article
+          aria-live="polite"
+          style={{
+            position: "relative",
+            marginTop: 22,
+            padding: "21px 13px 13px",
+            border: `1.5px solid ${accentColor}`,
+            borderRadius: 11,
+            background: accentFill,
+            boxShadow: "0 7px 18px rgba(15,23,42,0.08)",
+            color: "#374151",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: -10,
+              left: 11,
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 20,
+              padding: "0 8px",
+              borderRadius: 5,
+              background: accentColor,
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 800,
+              boxShadow: "0 2px 5px rgba(15,23,42,0.10)",
+            }}
+          >
+            {selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type || "模块"}修改建议
+          </span>
+
+          <div
+            style={{
+              minHeight: 58,
+              fontSize: 11.4,
+              lineHeight: 1.68,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {detailText || (detailLoading ? "正在结合相关模块判断如何加强…" : "")}
+            {detailLoading ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-block",
+                  width: 1,
+                  height: "1em",
+                  marginLeft: 2,
+                  background: accentColor,
+                  verticalAlign: "-0.12em",
+                  animation: "semantic-review-stream-caret 0.8s steps(1) infinite",
+                }}
+              />
+            ) : null}
+          </div>
+
+          {detailError ? (
+            <div style={{ marginTop: 7, color: "#b42318", fontSize: 10.8, lineHeight: 1.5 }}>
+              {detailError}
             </div>
           ) : null}
 
-          {pendingResults.map((item, index) => {
-            const selected = selectedIssueId === item.id;
-            const hasRevision = item.suggestedText !== item.originalText;
-
-            return (
-              <article
-                key={item.id}
-                style={{
-                  border: selected
-                    ? "1px solid rgba(205,151,20,0.62)"
-                    : "1px solid rgba(17,24,39,0.08)",
-                  borderRadius: 10,
-                  background: selected ? "#fff9e9" : "#fafafa",
-                  overflow: "hidden",
-                  transition: "border-color 160ms ease, background 160ms ease",
-                }}
-              >
-                <button
-                  type="button"
-                  aria-expanded={selected}
-                  onClick={() => handleSelectIssue(item)}
+          {!detailLoading && !detailError && detailText ? (
+            <>
+              {hasRevision ? (
+                <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "26px minmax(0, 1fr)",
-                    gap: 9,
-                    width: "100%",
-                    padding: "10px 11px",
-                    border: 0,
-                    background: "transparent",
-                    textAlign: "left",
-                    cursor: "pointer",
+                    marginTop: 10,
+                    padding: 9,
+                    border: `1px solid color-mix(in srgb, ${accentColor} 35%, transparent)`,
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.66)",
+                    color: "#374151",
+                    fontSize: 11,
+                    lineHeight: 1.58,
                   }}
                 >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 24,
-                      height: 24,
-                      borderRadius: "50%",
-                      background: selected ? "#c78f11" : "#dda919",
-                      color: "#fff",
-                      fontSize: 10.5,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {index + 1}
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: "block", color: "#9a7010", fontSize: 10, fontWeight: 800 }}>
-                      {item.category || "内容关系把关"}
-                    </span>
-                    <span style={{ display: "block", marginTop: 3, color: "#374151", fontSize: 11.3, lineHeight: 1.5 }}>
-                      {item.summary || item.comment}
-                    </span>
-                  </span>
-                </button>
-
-                {selected ? (
-                  <div
-                    aria-live="polite"
-                    style={{
-                      padding: "0 11px 11px 46px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        minHeight: 48,
-                        padding: 9,
-                        borderRadius: 8,
-                        background: "rgba(255,255,255,0.82)",
-                        color: "#4b5563",
-                        fontSize: 11.3,
-                        lineHeight: 1.62,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {detailText || (detailLoading ? "正在结合相关模块重新判断…" : "")}
-                      {detailLoading ? (
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            display: "inline-block",
-                            width: 1,
-                            height: "1em",
-                            marginLeft: 2,
-                            background: "#9a7010",
-                            verticalAlign: "-0.12em",
-                            animation: "semantic-review-stream-caret 0.8s steps(1) infinite",
-                          }}
-                        />
-                      ) : null}
-                    </div>
-
-                    {detailError ? (
-                      <div style={{ marginTop: 7, color: "#b42318", fontSize: 10.8, lineHeight: 1.5 }}>
-                        {detailError}
-                      </div>
-                    ) : null}
-
-                    {!detailLoading && !detailError && detailText ? (
-                      <>
-                        {hasRevision ? (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              padding: 8,
-                              borderRadius: 8,
-                              background: "#fff",
-                              color: "#374151",
-                              fontSize: 11,
-                              lineHeight: 1.58,
-                            }}
-                          >
-                            <div style={{ marginBottom: 4, color: "#80621b", fontSize: 10, fontWeight: 800 }}>
-                              可直接替换为
-                            </div>
-                            {item.suggestedText}
-                          </div>
-                        ) : null}
-
-                        <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
-                          {hasRevision ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onAccept(item);
-                                closeIssue();
-                              }}
-                              style={{ ...panelButton, flex: 1, border: 0, background: "#315ea8", color: "#fff" }}
-                            >
-                              加强
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onReject(item);
-                              closeIssue();
-                            }}
-                            style={{ ...panelButton, flex: hasRevision ? "0 0 auto" : 1, border: "1px solid #d7dce3", background: "#fff", color: "#4b5563" }}
-                          >
-                            {hasRevision ? "保留原文" : "知道了"}
-                          </button>
-                        </div>
-                      </>
-                    ) : null}
+                  <div style={{ marginBottom: 4, color: accentColor, fontSize: 10, fontWeight: 800 }}>
+                    建议改写
                   </div>
+                  {selectedItem.suggestedText}
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                {hasRevision ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAccept(selectedItem);
+                      closeIssue();
+                    }}
+                    style={{ ...panelButton, flex: 1, border: 0, background: accentColor, color: "#fff" }}
+                  >
+                    应用修改
+                  </button>
                 ) : null}
-              </article>
-            );
-          })}
-        </div>
-      </section>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReject(selectedItem);
+                    closeIssue();
+                  }}
+                  style={{
+                    ...panelButton,
+                    flex: hasRevision ? "0 0 auto" : 1,
+                    border: "1px solid rgba(17,24,39,0.14)",
+                    background: "rgba(255,255,255,0.76)",
+                    color: "#4b5563",
+                  }}
+                >
+                  {hasRevision ? "暂不修改" : "知道了"}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </article>
+      ) : null}
     </aside>
   );
 }
