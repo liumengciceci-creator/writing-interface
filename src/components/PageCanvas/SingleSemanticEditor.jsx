@@ -2502,6 +2502,14 @@ const SingleSemanticEditor =
                         block.text ?? ""
                       );
 
+                const showGeneratedEditPencil =
+                  block.isGenerated === true &&
+                  Boolean(
+                    String(block.text || "").trim()
+                  ) &&
+                  selectedIdSet.has(blockId) &&
+                  !generatingIdSet.has(blockId);
+
                 return (
                   <Fragment
                     key={blockId}
@@ -2833,6 +2841,13 @@ const SingleSemanticEditor =
                         isTitleBlock
                           ? "1px 12px 3px"
                           : "2px 8px",
+
+                      paddingRight:
+                        showGeneratedEditPencil
+                          ? isTitleBlock
+                            ? 28
+                            : 24
+                          : undefined,
 
                       border:
                         "1px solid transparent",

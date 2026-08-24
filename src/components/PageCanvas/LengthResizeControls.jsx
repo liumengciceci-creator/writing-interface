@@ -369,70 +369,72 @@ function LengthResizeControls({
                 />
               </button>
 
-              <button
-                type="button"
-                aria-label={t("quickInstruction.open")}
-                title={t("quickInstruction.open")}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  cancelLengthResize?.();
+              {handle.block?.isGenerated === true ? (
+                <button
+                  type="button"
+                  aria-label={t("quickInstruction.open")}
+                  title={t("quickInstruction.open")}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cancelLengthResize?.();
 
-                  const blockElement = Array.from(
-                    document.querySelectorAll(
-                      "[data-semantic-block-id][data-semantic-text='true']"
-                    )
-                  ).find(
-                    (element) =>
-                      normalizeId(
-                        element.getAttribute(
-                          "data-semantic-block-id"
-                        )
-                      ) === blockId
-                  );
+                    const blockElement = Array.from(
+                      document.querySelectorAll(
+                        "[data-semantic-block-id][data-semantic-text='true']"
+                      )
+                    ).find(
+                      (element) =>
+                        normalizeId(
+                          element.getAttribute(
+                            "data-semantic-block-id"
+                          )
+                        ) === blockId
+                    );
 
-                  const rect = (
-                    blockElement || event.currentTarget
-                  ).getBoundingClientRect();
+                    const rect = (
+                      blockElement || event.currentTarget
+                    ).getBoundingClientRect();
 
-                  setComposer({
-                    block: handle.block,
-                    blockId,
-                    blockColor,
-                    anchorRect: {
-                      left: rect.left,
-                      right: rect.right,
-                      top: rect.top,
-                      bottom: rect.bottom,
-                    },
-                  });
-                }}
-                style={{
-                  position: "absolute",
-                  left: 16,
-                  top: "50%",
-                  width: 18,
-                  height: 18,
-                  zIndex: 24,
-                  padding: 0,
-                  border: "1px solid #d9dce2",
-                  borderRadius: 5,
-                  background: "rgba(255,255,255,0.94)",
-                  boxShadow: "0 2px 6px rgba(15,23,42,0.10)",
-                  color: "#777",
-                  fontSize: 13,
-                  lineHeight: "16px",
-                  cursor: "pointer",
-                  pointerEvents: "auto",
-                  transform: "translateY(-50%)",
-                }}
-              >
-                ✎
-              </button>
+                    setComposer({
+                      block: handle.block,
+                      blockId,
+                      blockColor,
+                      anchorRect: {
+                        left: rect.left,
+                        right: rect.right,
+                        top: rect.top,
+                        bottom: rect.bottom,
+                      },
+                    });
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: -3,
+                    top: "50%",
+                    width: 16,
+                    height: 16,
+                    zIndex: 24,
+                    padding: 0,
+                    border: 0,
+                    borderRadius: 0,
+                    background: "transparent",
+                    boxShadow: "none",
+                    color: "#666b73",
+                    fontSize: 13,
+                    lineHeight: "16px",
+                    cursor: "pointer",
+                    pointerEvents: "auto",
+                    transform: "translateY(-50%)",
+                  }}
+                >
+                  ✎
+                </button>
+              ) : null}
 
               {showStatus && (
                 <LengthResizeStatus
