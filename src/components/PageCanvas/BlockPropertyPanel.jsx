@@ -3,6 +3,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useI18n } from "../../i18n.jsx";
 
 /**
  * 预设标签颜色。
@@ -246,6 +247,7 @@ export default function BlockPropertyPanel({
   isApplyingMultiAction = false,
   multiActionError = "",
 }) {
+  const { blockTypeLabel, t } = useI18n();
   /**
    * 标签名称。
    */
@@ -380,9 +382,7 @@ export default function BlockPropertyPanel({
     }
 
     setSelectedBlockType(
-      getBlockTypeLabel(
-        currentBlock.type
-      )
+      blockTypeLabel(currentBlock.type, getBlockTypeLabel(currentBlock.type))
     );
 
     setSelectedColor(
@@ -395,6 +395,7 @@ export default function BlockPropertyPanel({
     currentBlock?.id,
     currentBlock?.type,
     currentBlock?.color,
+    blockTypeLabel,
   ]);
 
   /**
@@ -743,7 +744,7 @@ export default function BlockPropertyPanel({
               selectedOption.id,
 
             styleLabel:
-              selectedOption.label,
+              t(`style.${selectedOption.id}`),
 
             isCustom:
               false,
@@ -786,7 +787,7 @@ export default function BlockPropertyPanel({
               instruction,
 
             styleLabel:
-              "自定义风格",
+              t("property.customStyle"),
 
             isCustom:
               true,
@@ -893,7 +894,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionTitleStyle
                 }
               >
-                1. 标签
+                1. {t("property.label")}
               </h3>
 
               <div
@@ -901,7 +902,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionDescriptionStyle
                 }
               >
-                修改当前模块的标签名称和颜色
+                {t("property.editLabel")}
               </div>
 
               <div
@@ -914,7 +915,7 @@ background: "rgba(255,255,255,0.82)",
                     fieldLabelStyle
                   }
                 >
-                  标签名称
+                  {t("sidebar.labelName")}
                 </div>
 
                 <input
@@ -922,7 +923,7 @@ background: "rgba(255,255,255,0.82)",
                   value={
                     selectedBlockType
                   }
-                  placeholder="输入标签名称"
+                  placeholder={t("property.labelPlaceholder")}
                   onChange={(
                     event
                   ) => {
@@ -960,7 +961,7 @@ background: "rgba(255,255,255,0.82)",
                   fieldLabelStyle
                 }
               >
-                标签颜色
+                {t("sidebar.labelColor")}
               </div>
 
               <div
@@ -986,7 +987,7 @@ background: "rgba(255,255,255,0.82)",
                         key={color}
                         type="button"
                         title={color}
-                        aria-label={`选择颜色 ${color}`}
+                        aria-label={t("property.chooseColor", { color })}
                         onClick={() => {
                           setSelectedColor(
                             color
@@ -1058,7 +1059,7 @@ background: "rgba(255,255,255,0.82)",
                       : "not-allowed",
                 }}
               >
-                应用
+                {t("common.apply")}
               </button>
 
               {appearanceError && (
@@ -1087,7 +1088,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionTitleStyle
                 }
               >
-                2. 调整长度
+                2. {t("property.length")}
               </h3>
 
               <div
@@ -1095,7 +1096,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionDescriptionStyle
                 }
               >
-                调整当前模块内容的长度
+                {t("property.lengthHelp")}
               </div>
 
               <div
@@ -1113,9 +1114,9 @@ background: "rgba(255,255,255,0.82)",
                   color: "#555",
                 }}
               >
-                <span>更短</span>
-                <span>适中</span>
-                <span>更长</span>
+                <span>{t("property.shorter")}</span>
+                <span>{t("property.medium")}</span>
+                <span>{t("property.longer")}</span>
               </div>
 
               <input
@@ -1219,8 +1220,8 @@ background: "rgba(255,255,255,0.82)",
                   }}
                 >
                   {isAdjustingLength
-                    ? "处理中..."
-                    : "应用"}
+                    ? t("common.processing")
+                    : t("common.apply")}
                 </button>
               </div>
 
@@ -1252,7 +1253,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionTitleStyle
                 }
               >
-                3. 文本风格调整
+                3. {t("property.style")}
               </h3>
 
               <div
@@ -1260,7 +1261,7 @@ background: "rgba(255,255,255,0.82)",
                   sectionDescriptionStyle
                 }
               >
-                选择或自定义文本风格
+                {t("property.styleHelp")}
               </div>
 
               <div
@@ -1331,7 +1332,7 @@ background: "rgba(255,255,255,0.82)",
 
                         <span>
                           {
-                            option.label
+                            t(`style.${option.id}`)
                           }
                         </span>
                       </button>
@@ -1399,7 +1400,7 @@ background: "rgba(255,255,255,0.82)",
                   </span>
 
                   <span>
-                    自定义风格
+                    {t("property.customStyle")}
                   </span>
                 </span>
 
@@ -1430,7 +1431,7 @@ background: "rgba(255,255,255,0.82)",
                         event.target.value
                       );
                     }}
-                    placeholder="例如：语言更正式，并突出研究贡献。"
+                    placeholder={t("property.customStylePlaceholder")}
                     style={{
                       width: "100%",
                       minHeight: 90,
@@ -1493,8 +1494,8 @@ background: "rgba(255,255,255,0.82)",
                     }}
                   >
                     {isAdjustingStyle
-                      ? "处理中..."
-                      : "应用自定义风格"}
+                      ? t("common.processing")
+                      : t("property.applyCustomStyle")}
                   </button>
                 </div>
               )}
@@ -1526,8 +1527,8 @@ background: "rgba(255,255,255,0.82)",
                   }}
                 >
                   {isAdjustingStyle
-                    ? "处理中..."
-                    : "应用文本风格"}
+                    ? t("common.processing")
+                    : t("property.applyStyle")}
                 </button>
               )}
 
@@ -1556,7 +1557,7 @@ background: "rgba(255,255,255,0.82)",
               sectionTitleStyle
             }
           >
-            对两个模块进行操作
+            {t("property.multiTitle")}
           </h3>
 
           <div
@@ -1564,7 +1565,7 @@ background: "rgba(255,255,255,0.82)",
               sectionDescriptionStyle
             }
           >
-            已选择 2 个模块。模仿和关系操作会按照选择顺序执行。
+            {t("property.twoSelected")}
           </div>
 
           <div
@@ -1605,7 +1606,7 @@ background: "rgba(255,255,255,0.82)",
                 ↗
               </span>
 
-              <span>拼接</span>
+              <span>{t("property.concatenate")}</span>
             </button>
 
             <button
@@ -1638,7 +1639,7 @@ background: "rgba(255,255,255,0.82)",
                 ▣
               </span>
 
-              <span>融合</span>
+              <span>{t("property.merge")}</span>
             </button>
 
             <button
@@ -1671,7 +1672,7 @@ background: "rgba(255,255,255,0.82)",
                 Aa
               </span>
 
-              <span>模仿</span>
+              <span>{t("property.imitate")}</span>
             </button>
 
             <button
@@ -1705,7 +1706,7 @@ background: "rgba(255,255,255,0.82)",
               </span>
 
               <span>
-                建立联系
+                {t("property.relate")}
               </span>
             </button>
           </div>
@@ -1739,9 +1740,9 @@ background: "rgba(255,255,255,0.82)",
                   color: "#666",
                 }}
               >
-                <span>更短</span>
-                <span>适中</span>
-                <span>更长</span>
+                <span>{t("property.shorter")}</span>
+                <span>{t("property.medium")}</span>
+                <span>{t("property.longer")}</span>
               </div>
 
               <input
@@ -1843,7 +1844,7 @@ background: "rgba(255,255,255,0.82)",
                       }}
                     >
                       {
-                        option.label
+                        t(`relation.${option.id}`)
                       }
                     </button>
                   )
@@ -1878,8 +1879,8 @@ background: "rgba(255,255,255,0.82)",
             }}
           >
             {isApplyingMultiAction
-              ? "处理中..."
-              : "应用所选操作"}
+              ? t("common.processing")
+              : t("property.applySelected")}
           </button>
 
           {multiActionError && (
@@ -1915,7 +1916,7 @@ background: "rgba(255,255,255,0.82)",
             lineHeight: "18px",
           }}
         >
-          当前双模块操作只支持选择两个模块，请取消多余选择后再操作。
+          {t("property.tooMany")}
         </div>
       )}
     </aside>

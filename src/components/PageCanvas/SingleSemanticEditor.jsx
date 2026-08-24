@@ -24,6 +24,7 @@ import LengthFlowSpacer from "./LengthFlowSpacer.jsx";
 import useInlineEditing from "./useInlineEditing.js";
 import useSemanticMeasurements from "./useSemanticMeasurements.js";
 import useLengthResize from "./useLengthResize.js";
+import { useI18n } from "../../i18n.jsx";
 
 import {
   EMPTY_TEXT,
@@ -337,6 +338,7 @@ function getLengthClippedText(
       ) <=
       targetMeasuredWidth
     ) {
+      const { blockTypeLabel, t } = useI18n();
       best = middle;
       low = middle + 1;
     } else {
@@ -1843,9 +1845,7 @@ const SingleSemanticEditor =
                   payload.text
                 ) ||
                 payload.label ||
-                getTypeLabel(
-                  payload.type
-                ),
+                blockTypeLabel(payload.type, getTypeLabel(payload.type)),
             };
 
             onInsertBlock?.(
@@ -2300,8 +2300,8 @@ const SingleSemanticEditor =
 
                       <button
                         type="button"
-                        aria-label="复制段落"
-                        title="复制段落"
+                        aria-label={t("canvas.copyParagraph")}
+                        title={t("canvas.copyParagraph")}
                         onMouseDown={(event) => {
                           event.preventDefault();
                           event.stopPropagation();
@@ -2500,9 +2500,7 @@ const SingleSemanticEditor =
                     data-semantic-text="true"
 
                     data-semantic-label={
-                      getTypeLabel(
-                        block.type
-                      )
+                      blockTypeLabel(block.type, getTypeLabel(block.type))
                     }
 
                     data-semantic-type={

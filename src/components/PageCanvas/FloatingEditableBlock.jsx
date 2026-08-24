@@ -12,33 +12,8 @@ import {
 
 import InstructionDropBurst from "./InstructionDropBurst.jsx";
 import BlockSources from "./BlockSources.jsx";
+import { useI18n } from "../../i18n.jsx";
 
-const BLOCK_TYPE_LABELS = {
-  Title: "标题",
-  Claim: "论点",
-  Evidence: "证据",
-  Reason: "原因",
-  Counter: "反论",
-  Compare: "对比",
-  Conclusion: "结论",
-  Question: "问题",
-  Generated: "生成",
-  Transition: "过渡",
-  Merged: "融合",
-};
-
-/**
- * 将模块类型转换成界面显示标签。
- * 自定义模块没有映射时，
- * 继续显示它原来的 type。
- */
-function getBlockTypeLabel(type) {
-  return (
-    BLOCK_TYPE_LABELS[type] ||
-    type ||
-    "模块"
-  );
-}
 
 /**
  * 简单判断文本主要是英文还是中文。
@@ -78,6 +53,7 @@ export default function FloatingEditableBlock({
   onUpdateText,
   onUpdateWidth,
 }) {
+  const { blockTypeLabel } = useI18n();
   const isTitleBlock =
     block.type === "Title";
 
@@ -939,7 +915,7 @@ export default function FloatingEditableBlock({
                           "nowrap",
                       }}
                     >
-                      {getBlockTypeLabel(
+                      {blockTypeLabel(
                         block.type
                       )}
                     </span>
@@ -1075,7 +1051,7 @@ export default function FloatingEditableBlock({
             "ellipsis",
         }}
       >
-        {getBlockTypeLabel(
+        {blockTypeLabel(
           block.type
         )}
       </div>

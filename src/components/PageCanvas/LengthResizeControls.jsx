@@ -6,6 +6,7 @@ import {
 import {
   normalizeId,
 } from "./semanticEditorUtils";
+import { useI18n } from "../../i18n.jsx";
 
 /**
  * 绘制长度拉伸手柄和长度提示。
@@ -37,6 +38,7 @@ function LengthResizeControls({
   hasFocusedEditingBlock = false,
   effectiveEditingBlockId = "",
 }) {
+  const { t } = useI18n();
   /**
    * 当前鼠标悬停的拉伸手柄对应的模块 ID。
    */
@@ -197,8 +199,8 @@ function LengthResizeControls({
             >
               <button
                 type="button"
-                aria-label="调整模块长度"
-                title="拖动调整长度"
+                aria-label={t("canvas.adjustLength")}
+                title={t("canvas.dragAdjustLength")}
 
                 data-length-resize-handle="true"
 
@@ -387,6 +389,7 @@ function LengthResizeStatus({
   draft,
   color,
 }) {
+  const { t } = useI18n();
   if (!draft) {
     return null;
   }
@@ -417,8 +420,8 @@ function LengthResizeStatus({
     (
       draft.lengthUnit ===
       "word"
-        ? "词"
-        : "字"
+        ? t("canvas.word")
+        : t("canvas.character")
     );
 
   return (

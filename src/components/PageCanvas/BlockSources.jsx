@@ -1,7 +1,10 @@
+import { useI18n } from "../../i18n.jsx";
+
 export default function BlockSources({
   sources,
   floating = false,
 }) {
+  const { t } = useI18n();
   const safeSources = Array.isArray(sources)
     ? sources.filter((source) => source?.url).slice(0, 5)
     : [];
@@ -25,7 +28,7 @@ export default function BlockSources({
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
-      aria-label="生成内容来源"
+      aria-label={t("canvas.sources")}
     >
       <span
         style={{

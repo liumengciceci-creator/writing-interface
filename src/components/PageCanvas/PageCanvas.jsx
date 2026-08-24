@@ -18,28 +18,8 @@ import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
 import CompletedSection from "./CompletedSection";
 import FloatingEditableBlock from "./FloatingEditableBlock";
 import SingleSemanticEditor from "./SingleSemanticEditor";
+import { useI18n } from "../../i18n.jsx";
 
-const BLOCK_TYPE_LABELS = {
-  Title: "标题",
-  Claim: "论点",
-  Evidence: "证据",
-  Reason: "原因",
-  Counter: "反论",
-  Compare: "对比",
-  Conclusion: "结论",
-  Question: "问题",
-  Generated: "生成",
-  Transition: "过渡",
-  Merged: "融合",
-};
-
-function getBlockTypeLabel(type) {
-  return (
-    BLOCK_TYPE_LABELS[type] ||
-    type ||
-    "模块"
-  );
-}
 
 function normalizeId(value) {
   return value == null
@@ -103,6 +83,7 @@ function InlineDragPreview({
   preview,
   zIndex = 1200,
 }) {
+  const { blockTypeLabel } = useI18n();
   if (!preview?.block) {
     return null;
   }
@@ -226,7 +207,7 @@ function InlineDragPreview({
                       "nowrap",
                   }}
                 >
-                  {getBlockTypeLabel(
+                  {blockTypeLabel(
                     block.type
                   )}
                 </span>
@@ -343,7 +324,7 @@ function InlineDragPreview({
             "none",
         }}
       >
-        {getBlockTypeLabel(
+        {blockTypeLabel(
           block.type
         )}
       </div>

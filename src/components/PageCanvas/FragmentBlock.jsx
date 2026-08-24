@@ -1,29 +1,4 @@
-const BLOCK_TYPE_LABELS = {
-  Title: "标题",
-  Claim: "论点",
-  Evidence: "证据",
-  Reason: "原因",
-  Counter: "反论",
-  Compare: "对比",
-  Conclusion: "结论",
-  Question: "问题",
-  Generated: "生成",
-  Transition: "过渡",
-  Merged: "融合",
-};
-
-/**
- * 将模块类型转换为界面显示标签。
- * 自定义模块没有对应映射时，
- * 继续显示原始 type。
- */
-function getBlockTypeLabel(type) {
-  return (
-    BLOCK_TYPE_LABELS[type] ||
-    type ||
-    "模块"
-  );
-}
+import { useI18n } from "../../i18n.jsx";
 
 /**
  * 判断文本是否主要为英文。
@@ -65,6 +40,7 @@ export default function FragmentBlock({
   isGeneratingThisBlock = false,
   generatingBlinkOn = false,
 }) {
+  const { blockTypeLabel } = useI18n();
   const text =
     fragment.text ||
     "\u200B";
@@ -274,7 +250,7 @@ export default function FragmentBlock({
                 : "box-shadow 0.2s ease, transform 0.15s ease",
           }}
         >
-          {getBlockTypeLabel(
+          {blockTypeLabel(
             fragment.type
           )}
         </div>

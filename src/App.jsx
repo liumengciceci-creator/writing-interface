@@ -21,6 +21,7 @@ import {
 import {
   exportDocumentToWord,
 } from "./utils/exportDocumentToWord.js";
+import { useI18n } from "./i18n.jsx";
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
@@ -169,6 +170,7 @@ function getReviewableBlocksFromSections(sourceSections) {
 }
 
 export default function App() {
+  const { blockTypeLabel, t } = useI18n();
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
     running: false,
@@ -330,17 +332,17 @@ export default function App() {
 
   const showBusyActionReason = () => {
     if (isGenerating) {
-      showTemporaryStatus("AI 正在生成，请等待本轮生成完成。", 2600);
+      showTemporaryStatus(t("app.busyGenerating"), 2600);
       return true;
     }
 
     if (reviewState.running) {
-      showTemporaryStatus("正在审阅模块关系，请等待本轮审阅完成。", 2600);
+      showTemporaryStatus(t("app.busyReviewing"), 2600);
       return true;
     }
 
     if (isAdjustingLength) {
-      showTemporaryStatus("正在调整模块长度，请等待当前操作完成。", 2600);
+      showTemporaryStatus(t("app.busyResizing"), 2600);
       return true;
     }
 
@@ -351,7 +353,7 @@ export default function App() {
     if (showBusyActionReason()) return;
 
     if (selectedIds.length === 0) {
-      showTemporaryStatus("请先选择至少一个模块，再使用 AI 生成。", 2800);
+      showTemporaryStatus(t("app.selectToGenerate"), 2800);
       return;
     }
 
@@ -363,12 +365,12 @@ export default function App() {
     if (showBusyActionReason()) return;
 
     if (reviewableBlockCount < 2) {
-      showTemporaryStatus("全文至少需要两个非空模块才能进行审阅。", 2800);
+      showTemporaryStatus(t("app.needTwoReview"), 2800);
       return;
     }
 
     if (selectedIds.length === 1) {
-      showTemporaryStatus("请至少选择两个模块；清除选择后可直接审阅全文。", 3000);
+      showTemporaryStatus(t("app.selectTwoReview"), 3000);
       return;
     }
 
@@ -380,7 +382,7 @@ export default function App() {
     if (showBusyActionReason()) return;
 
     if (editableBlockCount === 0) {
-      showTemporaryStatus("当前没有可以完成的模块。", 2600);
+      showTemporaryStatus(t("app.nothingToComplete"), 2600);
       return;
     }
 
@@ -407,20 +409,20 @@ export default function App() {
         relations.push({ relationType, relationLabel, criterion, sourceBlock: block, targetBlock: claim, contextBlocks: [claim, block] });
       };
 
-      if (block.type === "Reason") addClaimRelation("reasonExplainsClaim", "原因 → 论点", "原因是否解释论点");
-      if (block.type === "Evidence") addClaimRelation("evidenceSupportsClaim", "证据 → 论点", "证据是否支持论点");
-      if (block.type === "Counter") addClaimRelation("counterChallengesClaim", "反论 → 论点", "反论是否回应论点");
-      if (block.type === "Compare") addClaimRelation("compareClarifiesClaim", "对比 → 论点", "对比是否阐明论点");
+      if (block.type === "Reason") addClaimRelation("reasonExplainsClaim", t("relation.reasonClaim"), t("relation.reasonCriterion"));
+      if (block.type === "Evidence") addClaimRelation("evidenceSupportsClaim", t("relation.evidenceClaim"), t("relation.evidenceCriterion"));
+      if (block.type === "Counter") addClaimRelation("counterChallengesClaim", t("relation.counterClaim"), t("relation.counterCriterion"));
+      if (block.type === "Compare") addClaimRelation("compareClarifiesClaim", t("relation.compareClaim"), t("relation.compareCriterion"));
 
       if (block.type === "Conclusion") {
         const documentBlocks = blocks.slice(0, index).filter((item) => item.type !== "Title");
         if (documentBlocks.length > 0) {
           relations.push({
             relationType: "conclusionSummarizesDocument",
-            relationLabel: "结论 → 全文",
-            criterion: "结论是否总结全文",
+            relationLabel: t("relation.conclusionDocument"),
+            criterion: t("relation.conclusionCriterion"),
             sourceBlock: block,
-            targetBlock: { id: "selected-document", type: "全文", text: documentBlocks.map((item) => item.text || "").join("\n") },
+            targetBlock: { id: "selected-document", type: t("app.document"), text: documentBlocks.map((item) => item.text || "").join("\n") },
             contextBlocks: documentBlocks,
             activeIds: [block.id, ...documentBlocks.map((item) => item.id)],
           });
@@ -456,7 +458,7 @@ export default function App() {
       total: blocks.length,
       activeIds: blocks.map((block) => String(block.id)),
       blinkOn: true,
-      status: "正在整体判断所选模块之间的关系…",
+      status: t("app.reviewWhole"),
       graph: [],
       notes: [],
       activeGraphId: "overall-review",
@@ -471,15 +473,6 @@ export default function App() {
     const relationByPair = new Map();
     const getRelationPairKey = (sourceId, targetId) =>
       [String(sourceId), String(targetId)].sort().join("::");
-    const typeLabels = {
-      Claim: "论点",
-      Reason: "原因",
-      Evidence: "证据",
-      Counter: "反论",
-      Compare: "对比",
-      Conclusion: "结论",
-      Title: "标题",
-    };
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) => state.running && state.activeGraphId
         ? { ...state, blinkOn: !state.blinkOn }
@@ -497,7 +490,7 @@ export default function App() {
             const note = {
               id: String(event.id),
               blockId: String(event.id),
-              type: typeLabels[block.type] || block.type || "模块",
+              type: blockTypeLabel(block.type, block.type || t("app.module")),
               text: String(event.focus || ""),
               color: block.color || "#64748b",
               fill: block.fill || "#f8fafc",
@@ -513,8 +506,8 @@ export default function App() {
               activeGraphId: `note-${block.id}`,
               blinkOn: true,
               status: note.text
-                ? `正在检查${note.type}：${note.text}`
-                : `正在检查${note.type}在整体论证中的作用…`,
+                ? t("relation.checkingModule", { type: note.type, text: note.text })
+                : t("relation.checkingRole", { type: note.type }),
             }));
             await waitForReviewBeat(560);
             return;
@@ -526,9 +519,9 @@ export default function App() {
             if (!sourceBlock || !targetBlock) return;
             const pairKey = getRelationPairKey(sourceBlock.id, targetBlock.id);
             if (relationByPair.has(pairKey)) return;
-            const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
-            const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
-            const relation = String(event.relation || "关联");
+            const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
+            const targetType = blockTypeLabel(targetBlock.type, targetBlock.type || t("app.module"));
+            const relation = String(event.relation || t("app.related"));
             const id = `inferred-${sourceBlock.id}-${targetBlock.id}-${relationByPair.size}`;
             const relationInfo = {
               id,
@@ -538,7 +531,7 @@ export default function App() {
               importance: Math.max(1, Math.min(5, Number(event.importance) || 3)),
               color: sourceBlock.color || targetBlock.color || "#9aa3af",
               relationLabel: `${sourceType} → ${targetType}`,
-              criterion: `这两个模块形成“${relation}”的内容关系`,
+              criterion: t("relation.pairCriterion", { relation }),
               sourceBlock,
               targetBlock,
             };
@@ -551,7 +544,7 @@ export default function App() {
               activeIds: [sourceBlock.id, targetBlock.id],
               activeGraphId: relationInfo.id,
               blinkOn: true,
-              status: `正在判断：${sourceType}与${targetType}形成“${relation}”`,
+              status: t("relation.judging", { source: sourceType, target: targetType, relation }),
             }));
             await waitForReviewBeat(760);
             return;
@@ -564,7 +557,7 @@ export default function App() {
               activeGraphId: null,
               activeIssue: null,
               blinkOn: false,
-              status: "正在生成潜在修改建议…",
+              status: t("app.reviewSuggestions"),
             }));
             return;
           }
@@ -575,16 +568,16 @@ export default function App() {
               const targetBlock = blockById.get(String(item.targetId));
               if (!sourceBlock || !targetBlock) return null;
               const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
-              const sourceType = typeLabels[sourceBlock.type] || sourceBlock.type || "模块";
-              const targetType = typeLabels[targetBlock.type] || targetBlock.type || "模块";
+              const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
+              const targetType = blockTypeLabel(targetBlock.type, targetBlock.type || t("app.module"));
               const originalText = String(sourceBlock.text || "").trim();
               const modificationInstruction = String(item.suggestion || "").trim();
               if (!modificationInstruction) return null;
               return {
                 id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
-                category: String(item.category || "内容关系把关"),
-                criterion: String(item.criterion || relation?.criterion || "模型识别出的内容关系"),
+                category: String(item.category || t("app.contentReview")),
+                criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
                 relationSourceId: String(sourceBlock.id),
                 relationTargetId: String(targetBlock.id),
                 targetBlockId: sourceBlock.id,
@@ -610,8 +603,8 @@ export default function App() {
                   text: String(block.text || ""),
                 })),
                 originalText,
-                summary: String(item.summary || "这条关系可以进一步加强。"),
-                comment: String(item.summary || "这条关系可以进一步加强。"),
+                summary: String(item.summary || t("app.canStrengthen")),
+                comment: String(item.summary || t("app.canStrengthen")),
                 suggestion: modificationInstruction,
                 modificationInstruction,
                 decision: null,
@@ -628,7 +621,7 @@ export default function App() {
               summaryHighlights: Array.isArray(event.summaryHighlights)
                 ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
                 : [],
-              status: "正在整理潜在增强点…",
+              status: t("app.reviewOrganizing"),
             }));
           }
         },
@@ -642,8 +635,8 @@ export default function App() {
         activeIssue: null,
         blinkOn: false,
         status: state.results.length > 0
-          ? `审阅完成：发现 ${state.results.length} 个潜在增强点`
-          : `审阅完成：已检查 ${state.notes.length} 个模块`,
+          ? t("app.reviewDoneIssues", { count: state.results.length })
+          : t("app.reviewDoneModules", { count: state.notes.length }),
       }));
       setReviewPanelOpen(true);
     } catch (error) {
@@ -655,7 +648,7 @@ export default function App() {
         activeGraphId: null,
         activeIssue: null,
         blinkOn: false,
-        status: "整体审阅失败，请稍后重试",
+        status: t("app.reviewFailed"),
       }));
       setReviewPanelOpen(false);
     } finally {
@@ -911,7 +904,7 @@ export default function App() {
 
           <div
             aria-live="polite"
-            title="不包含空格和换行"
+            title={t("app.noSpaces")}
             style={{
               position: "fixed",
               left: 18,
@@ -951,7 +944,7 @@ export default function App() {
                 pointerEvents: "none",
               }}
             >
-              总字数　
+              {t("app.totalCharacters")}　
               <span
                 style={{
                   color: "#111827",
@@ -972,7 +965,7 @@ export default function App() {
                 isGenerating ||
                 isAdjustingLength
               }
-              title="将当前线性正文导出为 Word 文档"
+              title={t("app.exportWordTitle")}
               style={{
                 width: "100%",
                 height: 30,
@@ -1002,7 +995,7 @@ export default function App() {
                     : "pointer",
               }}
             >
-              导出Word
+              {t("app.exportWord")}
             </button>
           </div>
         </div>
@@ -1397,11 +1390,7 @@ beginDuplicateDrag={
                 "center",
             }}
           >
-            Shift 多选模块　|　
-            长按显示抓手后拖动排序　|　
-            选中模块后拖动右侧长度柄，Enter 应用　|　
-            Delete 删除模块　|　
-            生成：按钮或 Enter
+            {t("app.bottomHelp")}
           </div>
         </main>
 

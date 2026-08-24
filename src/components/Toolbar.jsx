@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n.jsx";
 import {
   dividerStyle,
   toolbarButton,
@@ -33,30 +34,34 @@ export default function Toolbar({
   reviewPanelStacked = false,
 
 }) {
+  const {
+    localizeStatus,
+    t,
+  } = useI18n();
   const normalizedGenerationStatus =
     String(
-      generationStatus || ""
+      localizeStatus(generationStatus) || ""
     ).trim();
 
   const normalizedStatusText =
     String(
-      statusText || ""
+      localizeStatus(statusText) || ""
     ).trim();
 
   const busy = isGenerating || isAdjustingLength || isReviewing;
   const normalizedReviewStatus =
-    String(reviewStatus || "").trim();
+    String(localizeStatus(reviewStatus) || "").trim();
   const rawCentralStatus =
     normalizedStatusText ||
     (
       isReviewing
         ? normalizedReviewStatus ||
-          "正在审阅模块关系..."
+          t("status.reviewing")
         : isGenerating
           ? normalizedGenerationStatus ||
-            "正在生成..."
+            t("status.generating")
           : isAdjustingLength
-            ? "正在调整模块长度..."
+            ? t("status.resizing")
             : normalizedGenerationStatus ||
               normalizedReviewStatus
     );
@@ -81,7 +86,7 @@ export default function Toolbar({
   }, [busy, rawCentralStatus]);
 
   const statusIsError =
-    /错误|失败/.test(
+    /错误|失败|error|failed|failure/i.test(
       centralStatus
     );
   const groupStyle = {
@@ -129,7 +134,7 @@ export default function Toolbar({
           zIndex: 1,
           whiteSpace: "nowrap",
         }}
-        aria-label="画布工具"
+        aria-label={t("toolbar.canvasTools")}
       >
         <button type="button" onClick={onZoomOut} style={toolbarButton}>−</button>
         <button type="button" onClick={onResetZoom} style={zoomLabelButton}>
@@ -143,7 +148,7 @@ export default function Toolbar({
           style={toolbarWideButton}
           disabled={busy}
         >
-          撤销
+          {t("toolbar.undo")}
         </button>
         <button
           type="button"
@@ -169,7 +174,11 @@ export default function Toolbar({
               background: webSearchEnabled ? "#4f7fd8" : "#9ca3af",
             }}
           />
-          联网搜索：{webSearchEnabled ? "开" : "关"}
+          {t("toolbar.webSearch", {
+            state: webSearchEnabled
+              ? t("toolbar.on")
+              : t("toolbar.off"),
+          })}
         </button>
 
       </div>
@@ -185,7 +194,7 @@ export default function Toolbar({
           border: "none",
           background: "#f8f8f8",
         }}
-        aria-label="主要写作操作"
+        aria-label={t("toolbar.mainActions")}
       >
         <button
           type="button"
@@ -197,13 +206,13 @@ export default function Toolbar({
             event.preventDefault();
           }}
           onClick={onGenerate}
-          title="生成所选模块"
+          title={t("toolbar.generateTitle")}
           style={{
             ...toolbarWideButton,
             opacity: 1,
           }}
         >
-          AI生成
+          {t("toolbar.generate")}
         </button>
 
         <button
@@ -211,17 +220,17 @@ export default function Toolbar({
           onClick={onReview}
           title={
             selectedIds.length === 1
-              ? "请选择至少两个模块，或清除选择以审阅全文"
+              ? t("toolbar.reviewNeedTwo")
               : selectedIds.length >= 2
-                ? "审阅所选模块"
-                : "审阅全文；已完成内容会先恢复为模块"
+                ? t("toolbar.reviewSelected")
+                : t("toolbar.reviewAll")
           }
           style={{
             ...toolbarWideButton,
             opacity: 1,
           }}
         >
-          审阅
+          {t("toolbar.review")}
         </button>
 
         <button
@@ -229,7 +238,7 @@ export default function Toolbar({
           onClick={onComplete}
           style={{ ...toolbarWideButton, opacity: 1 }}
         >
-          完成
+          {t("toolbar.complete")}
         </button>
       </div>
 

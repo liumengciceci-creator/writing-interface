@@ -19,6 +19,7 @@ import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
 import {
   ColorSpectrumPicker,
 } from "./Sidebar.jsx";
+import { useI18n } from "../i18n.jsx";
 
 const INSTRUCTIONS_STORAGE_KEY =
   "writing-interface-block-instructions";
@@ -236,6 +237,11 @@ export default function InstructionPalette({
   width = 152,
   onWidthChange,
 }) {
+  const {
+    instructionLabel,
+    instructionText: getInstructionText,
+    t,
+  } = useI18n();
   const [
     instructions,
     setInstructions,
@@ -388,7 +394,7 @@ export default function InstructionPalette({
 
     if (!nextLabel) {
       setErrorText(
-        "请输入圆形模块名称"
+        t("instruction.nameRequired")
       );
 
       return;
@@ -435,11 +441,10 @@ export default function InstructionPalette({
         instruction
       );
       setLabel(
-        instruction.label || ""
+        instructionLabel(instruction)
       );
       setInstructionText(
-        instruction.instruction ||
-          ""
+        getInstructionText(instruction)
       );
       setSelectedColor(
         instruction.color ||
@@ -467,13 +472,19 @@ export default function InstructionPalette({
         intent: "pending",
       };
 
+      const localizedInstruction = {
+        ...instruction,
+        label: instructionLabel(instruction),
+        instruction: getInstructionText(instruction),
+      };
+
       const payload =
         createInstructionDragPayload(
-          instruction
+          localizedInstruction
         );
 
       setActiveInstructionDragData(
-        instruction
+        localizedInstruction
       );
 
       event.dataTransfer.effectAllowed =
@@ -562,12 +573,12 @@ export default function InstructionPalette({
               color: "#555",
             }}
           >
-            指令
+            {t("instruction.title")}
           </span>
 
           <button
             type="button"
-            title="添加修改指令"
+            title={t("instruction.add")}
             onClick={() => {
               setEditingInstruction(
                 null
@@ -753,7 +764,9 @@ export default function InstructionPalette({
                 <button
                   type="button"
                   draggable
-                  title={`拖到模块上：${instruction.instruction}`}
+                  title={t("instruction.drag", {
+                    instruction: getInstructionText(instruction),
+                  })}
                   onDragStart={(
                     event
                   ) =>
@@ -815,12 +828,14 @@ export default function InstructionPalette({
                     WebkitUserSelect:
                       "none",
                   }}
-                  aria-label={`拖动指令：${instruction.label}`}
+                  aria-label={t("instruction.dragLabel", {
+                    label: instructionLabel(instruction),
+                  })}
                 />
 
                 <span
                   title={
-                    instruction.instruction
+                    getInstructionText(instruction)
                   }
                   style={{
                     minWidth: 0,
@@ -839,13 +854,15 @@ export default function InstructionPalette({
                       "none",
                   }}
                 >
-                  {instruction.label}
+                  {instructionLabel(instruction)}
                 </span>
 
                 <button
                   type="button"
-                  title="编辑指令"
-                  aria-label={`编辑指令 ${instruction.label}`}
+                  title={t("instruction.edit")}
+                  aria-label={t("instruction.editTitle", {
+                    label: instructionLabel(instruction),
+                  })}
                   onMouseDown={(
                     event
                   ) => {
@@ -884,7 +901,7 @@ export default function InstructionPalette({
 
                 <button
                   type="button"
-                  title="删除指令"
+                  title={t("instruction.delete")}
                   onMouseDown={(
                     event
                   ) => {
@@ -992,8 +1009,8 @@ export default function InstructionPalette({
                   }}
                 >
                   {editingInstruction
-                    ? "编辑修改指令"
-                    : "添加修改指令"}
+                    ? t("instruction.edit")
+                    : t("instruction.add")}
                 </strong>
 
                 <button
@@ -1022,14 +1039,14 @@ export default function InstructionPalette({
                   fontSize: 13,
                 }}
               >
-                圆形模块名称
+                {t("instruction.name")}
               </label>
 
               <input
                 autoFocus
                 value={label}
                 maxLength={20}
-                placeholder="例如：更加有逻辑性"
+                placeholder={t("instruction.namePlaceholder")}
                 onChange={(event) => {
                   setLabel(
                     event.target.value
@@ -1059,12 +1076,12 @@ export default function InstructionPalette({
                   fontSize: 13,
                 }}
               >
-                发送给 AI 的具体指令
+                {t("instruction.sendToAI")}
               </label>
 
               <textarea
                 value={instructionText}
-                placeholder="可选：进一步说明希望 AI 如何修改。留空时直接使用上面的名称。"
+                placeholder={t("instruction.detailPlaceholder")}
                 onChange={(event) => {
                   setInstructionText(
                     event.target.value
@@ -1100,7 +1117,7 @@ export default function InstructionPalette({
                     fontSize: 13,
                   }}
                 >
-                  指令颜色
+                  {t("instruction.color")}
                 </div>
 
                 <div
@@ -1121,7 +1138,9 @@ export default function InstructionPalette({
                         title={
                           colorConfig.color
                         }
-                        aria-label={`选择颜色 ${colorConfig.color}`}
+                        aria-label={t("instruction.chooseColor", {
+                          color: colorConfig.color,
+                        })}
                         onClick={() =>
                           {
                             setSelectedColor(
@@ -1158,8 +1177,8 @@ export default function InstructionPalette({
 
                   <button
                     type="button"
-                    title="自选颜色"
-                    aria-label="打开自选指令色谱"
+                    title={t("sidebar.customColor")}
+                    aria-label={t("instruction.customColor")}
                     onClick={() => {
                       setShowColorSpectrum(
                         (current) =>
@@ -1266,7 +1285,7 @@ export default function InstructionPalette({
                     cursor: "pointer",
                   }}
                 >
-                  取消
+                  {t("common.cancel")}
                 </button>
 
                 <button
@@ -1285,8 +1304,8 @@ export default function InstructionPalette({
                   }}
                 >
                   {editingInstruction
-                    ? "保存"
-                    : "添加"}
+                    ? t("common.save")
+                    : t("common.add")}
                 </button>
               </div>
             </div>

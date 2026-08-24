@@ -14,6 +14,8 @@ import {
 
 import InstructionPalette from "./InstructionPalette.jsx";
 import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
+import { useI18n } from "../i18n.jsx";
+import LanguageMenu from "./LanguageMenu.jsx";
 
 const BLOCK_TYPE_LABELS = {
   Title: "标题",
@@ -851,7 +853,8 @@ export function ColorSpectrumPicker({
  * 生成拖拽时提供给编辑器的模块数据。
  */
 function createDraggedModuleData(
-  item
+  item,
+  displayLabel
 ) {
   return {
     id: null,
@@ -860,10 +863,7 @@ function createDraggedModuleData(
       item.type,
 
     label:
-      item.label ||
-      getTypeLabel(
-        item.type
-      ),
+      displayLabel || item.label || getTypeLabel(item.type),
 
     color:
       item.color ||
@@ -875,10 +875,7 @@ function createDraggedModuleData(
 
     text:
       item.text ||
-      item.label ||
-      getTypeLabel(
-        item.type
-      ),
+      displayLabel || item.label || getTypeLabel(item.type),
 
     placement:
       "inline",
@@ -898,6 +895,7 @@ export default function Sidebar({
   onDeleteCustomTemplate,
   onUpdateCustomTemplate,
 }) {
+  const { blockTypeLabel, t } = useI18n();
   const [
     showAddPanel,
     setShowAddPanel,
@@ -929,6 +927,16 @@ export default function Sidebar({
     editingTemplate,
     setEditingTemplate,
   ] = useState(null);
+
+  const getDisplayTypeLabel = (item) => {
+    if (!item) return t("app.module");
+    const hasUserLabel = item.isCustom === true || Boolean(
+      defaultTemplateOverrides[item.type]?.label
+    );
+    return hasUserLabel
+      ? item.label || item.type
+      : blockTypeLabel(item.type, item.label || item.type);
+  };
 
   const [
     defaultTemplateOverrides,
@@ -1311,7 +1319,7 @@ export default function Sidebar({
 
       if (!trimmedName) {
         setErrorText(
-          "请输入标签名称"
+          t("sidebar.nameRequired")
         );
 
         return;
@@ -1329,17 +1337,14 @@ export default function Sidebar({
                   editingTemplate.type)
             ) &&
             String(
-              item.label ||
-                getTypeLabel(
-                  item.type
-                )
+              getDisplayTypeLabel(item)
             ).toLowerCase() ===
             trimmedName.toLowerCase()
         );
 
       if (duplicated) {
         setErrorText(
-          "这个标签名称已经存在"
+          t("sidebar.nameExists")
         );
 
         return;
@@ -1408,8 +1413,7 @@ export default function Sidebar({
     (item) => {
       setEditingTemplate(item);
       setNewTypeName(
-        item.label ||
-          getTypeLabel(item.type)
+        getDisplayTypeLabel(item)
       );
       setNewColor(
         item.color ||
@@ -1438,7 +1442,8 @@ export default function Sidebar({
 
       const moduleData =
         createDraggedModuleData(
-          item
+          item,
+          getDisplayTypeLabel(item)
         );
 
       const serializedData =
@@ -1612,25 +1617,31 @@ export default function Sidebar({
               "grab",
           }}
         >
-          <span
+          <div
             style={{
-              fontSize:
-                11,
-
-              fontWeight:
-                600,
-
-              color:
-                "#555",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              minWidth: 0,
             }}
           >
-            标签
-          </span>
+            <LanguageMenu embedded />
+            <span
+              style={{
+                minWidth: 0,
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#555",
+              }}
+            >
+              {t("sidebar.labels")}
+            </span>
+          </div>
 
           <button
             type="button"
 
-            title="添加自定义标签"
+            title={t("sidebar.addLabel")}
 
             onClick={() => {
               setEditingTemplate(
@@ -1917,7 +1928,7 @@ export default function Sidebar({
                   }
                 }}
 
-                title="拖动到画布"
+                title={t("sidebar.dragToCanvas")}
 
                 style={{
                   flex: 1,
@@ -1989,19 +2000,15 @@ export default function Sidebar({
                     "grab";
                 }}
               >
-                {getTypeLabel(
-                  item.label ||
-                    item.type
-                )}
+                {getDisplayTypeLabel(item)}
               </button>
 
               <button
                 type="button"
-                title="编辑标签"
-                aria-label={`编辑标签 ${
-                  item.label ||
-                  getTypeLabel(item.type)
-                }`}
+                title={t("sidebar.editLabel")}
+                aria-label={t("sidebar.editLabelTitle", {
+                  label: getDisplayTypeLabel(item),
+                })}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -2038,7 +2045,7 @@ export default function Sidebar({
                 <button
                   type="button"
 
-                  title="删除标签"
+                  title={t("sidebar.deleteLabel")}
 
                   onMouseDown={(
                     event
@@ -2054,11 +2061,9 @@ export default function Sidebar({
                     event.stopPropagation();
 
                     const confirmed =
-                      window.confirm(
-                        `确定删除标签“${getTypeLabel(
-                          item.type
-                        )}”吗？\n已经放在画布上的模块不会被删除。`
-                      );
+                      window.confirm(t("sidebar.deleteConfirm", {
+                        label: getDisplayTypeLabel(item),
+                      }));
 
                     if (
                       confirmed
@@ -2223,8 +2228,8 @@ export default function Sidebar({
                 }}
               >
                 {editingTemplate
-                  ? "编辑标签"
-                  : "添加自定义标签"}
+                  ? t("sidebar.editLabel")
+                  : t("sidebar.addLabel")}
               </strong>
 
               <button
@@ -2270,7 +2275,7 @@ export default function Sidebar({
                   "#555",
               }}
             >
-              标签名称
+              {t("sidebar.labelName")}
             </label>
 
             <input
@@ -2284,7 +2289,7 @@ export default function Sidebar({
                 30
               }
 
-              placeholder="例如：示例"
+              placeholder={t("sidebar.labelNamePlaceholder")}
 
               onChange={(
                 event
@@ -2380,7 +2385,7 @@ export default function Sidebar({
                   "#555",
               }}
             >
-              标签颜色
+              {t("sidebar.labelColor")}
             </div>
 
             <div
@@ -2457,7 +2462,7 @@ export default function Sidebar({
 
               <button
                 type="button"
-                title="打开自选色谱"
+                title={t("sidebar.customColor")}
 
                 onClick={() =>
                   setShowColorSpectrum(
@@ -2573,7 +2578,7 @@ export default function Sidebar({
                     "pointer",
                 }}
               >
-                取消
+                {t("common.cancel")}
               </button>
 
               <button
@@ -2607,8 +2612,8 @@ export default function Sidebar({
                 }}
               >
                 {editingTemplate
-                  ? "保存"
-                  : "添加"}
+                  ? t("common.save")
+                  : t("common.add")}
               </button>
             </div>
           </div>

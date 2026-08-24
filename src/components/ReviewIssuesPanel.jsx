@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useI18n } from "../i18n.jsx";
 
 const panelButton = {
   height: 30,
@@ -58,6 +59,7 @@ export default function ReviewIssuesPanel({
   onReject,
   onClose,
 }) {
+  const { blockTypeLabel, t } = useI18n();
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   const [applyLoading, setApplyLoading] = useState(false);
   const [applyError, setApplyError] = useState("");
@@ -100,7 +102,7 @@ export default function ReviewIssuesPanel({
   return (
     <aside
       className="review-issues-panel"
-      aria-label="潜在修改点"
+      aria-label={t("review.issueNumbers")}
       style={{
         zIndex: 2000,
         height: "auto",
@@ -133,12 +135,12 @@ export default function ReviewIssuesPanel({
         >
           <div>
             <div style={{ color: "#1f2937", fontSize: 13, fontWeight: 800 }}>
-              {overallSummary ? "整体关系判断" : "本轮审阅结果"}
+              {overallSummary ? t("review.overall") : t("review.result")}
             </div>
           </div>
           <button
             type="button"
-            aria-label="关闭审阅结果"
+            aria-label={t("review.close")}
             onClick={() => {
               closeIssue();
               onClose?.();
@@ -161,7 +163,7 @@ export default function ReviewIssuesPanel({
 
         {overallSummary ? (
           <div
-            aria-label="整体论证关系总结"
+            aria-label={t("review.summary")}
             style={{
               margin: "12px 14px 0",
               padding: "11px 12px",
@@ -183,24 +185,24 @@ export default function ReviewIssuesPanel({
         >
           <div style={{ color: "#1f2937", fontSize: 12, fontWeight: 800 }}>
             {pendingResults.length > 0
-              ? `发现 ${pendingResults.length} 处潜在修改点`
-              : "本轮审阅已完成"}
+              ? t("review.found", { count: pendingResults.length })
+              : t("review.completed")}
           </div>
           {pendingResults.length > 0 ? (
             <div style={{ marginTop: 4, color: "#7b8190", fontSize: 10.5, lineHeight: 1.45 }}>
-              选择圆点，查看对应模块关系
+              {t("review.selectDot")}
             </div>
           ) : null}
         </div>
 
         {pendingResults.length === 0 ? (
           <div style={{ padding: "18px 14px", color: "#6b7280", fontSize: 11.5, lineHeight: 1.6 }}>
-            暂未发现需要立即修改的内容关系。
+            {t("review.none")}
           </div>
         ) : (
           <div
             role="list"
-            aria-label="潜在修改点编号"
+            aria-label={t("review.issueNumbers")}
             style={{
               display: "flex",
               flexWrap: "wrap",
@@ -218,9 +220,9 @@ export default function ReviewIssuesPanel({
                   key={item.id}
                   type="button"
                   role="listitem"
-                  aria-label={`查看第 ${index + 1} 处潜在修改点`}
+                  aria-label={t("review.viewIssue", { count: index + 1 })}
                   aria-pressed={selected}
-                  title={item.summary || item.category || `修改点 ${index + 1}`}
+                  title={item.summary || item.category || t("review.issue", { count: index + 1 })}
                   onClick={() => handleSelectIssue(item)}
                   style={{
                     display: "inline-flex",
@@ -284,7 +286,12 @@ export default function ReviewIssuesPanel({
               boxShadow: "0 2px 5px rgba(15,23,42,0.10)",
             }}
           >
-            {selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type || "模块"}修改指令
+            {t("review.instruction", {
+              label: blockTypeLabel(
+                selectedItem.sourceBlock?.type,
+                selectedItem.sourceBlock?.label || selectedItem.sourceBlock?.type
+              ),
+            })}
           </span>
 
           <div
@@ -317,7 +324,7 @@ export default function ReviewIssuesPanel({
                     closeIssue();
                   } catch (error) {
                     setApplyLoading(false);
-                    setApplyError(error?.message || "按照指令修改失败，请重试");
+                    setApplyError(error?.message || t("review.applyFailed"));
                   }
                 }}
                 style={{
@@ -330,7 +337,7 @@ export default function ReviewIssuesPanel({
                   opacity: applyLoading ? 0.7 : 1,
                 }}
               >
-                {applyLoading ? "正在按指令修改…" : "按此指令修改"}
+                {applyLoading ? t("review.applying") : t("review.apply")}
               </button>
               <button
                 type="button"
@@ -348,7 +355,7 @@ export default function ReviewIssuesPanel({
                   opacity: applyLoading ? 0.55 : 1,
                 }}
               >
-                暂不修改
+                {t("review.skip")}
               </button>
             </div>
           ) : null}

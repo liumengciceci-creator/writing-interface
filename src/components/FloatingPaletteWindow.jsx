@@ -7,6 +7,7 @@ import {
 import {
   createPortal,
 } from "react-dom";
+import { useI18n } from "../i18n.jsx";
 
 function clamp(
   value,
@@ -65,6 +66,7 @@ export default function FloatingPaletteWindow({
   onWidthChange,
   children,
 }) {
+  const { t } = useI18n();
   const [position, setPosition] =
     useState(() =>
       loadPosition(
@@ -281,8 +283,8 @@ export default function FloatingPaletteWindow({
 
       <button
         type="button"
-        aria-label="调整窗口宽度"
-        title="左右拖动调整宽度"
+        aria-label={t("canvas.resizeWidth")}
+        title={t("canvas.dragResizeWidth")}
         onPointerDown={(event) => {
           event.preventDefault();
           event.stopPropagation();
