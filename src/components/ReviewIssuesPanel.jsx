@@ -101,16 +101,17 @@ export default function ReviewIssuesPanel({
     <aside
       aria-label="潜在修改点"
       style={{
-        position: "sticky",
-        top: 0,
-        alignSelf: "start",
+        position: "absolute",
+        top: 104,
+        right: 18,
         zIndex: 2000,
-        width: "100%",
-        height: "100dvh",
+        width: 340,
+        height: "auto",
+        maxHeight: "calc(100dvh - 124px)",
         minHeight: 0,
         overflowY: "auto",
-        padding: "16px 14px 24px",
-        background: "#e7e7e7",
+        padding: "0 0 20px",
+        background: "transparent",
         boxSizing: "border-box",
         isolation: "isolate",
       }}

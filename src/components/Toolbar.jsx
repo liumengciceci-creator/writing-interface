@@ -28,8 +28,6 @@ export default function Toolbar({
   webSearchEnabled = false,
   onToggleWebSearch,
 
-  editableBlockCount = 0,
-  reviewableBlockCount = 0,
 }) {
   const normalizedGenerationStatus =
     String(
@@ -41,44 +39,27 @@ export default function Toolbar({
       statusText || ""
     ).trim();
 
-  const hasGenerationError =
-    normalizedGenerationStatus.startsWith(
-      "错误："
-    ) ||
-    normalizedStatusText.startsWith(
-      "错误："
-    );
-
   const busy = isGenerating || isAdjustingLength || isReviewing;
-  const generationDisabled = selectedIds.length === 0 || busy;
-  const reviewDisabled =
-    reviewableBlockCount < 2 ||
-    selectedIds.length === 1 ||
-    busy;
-  const completeDisabled = editableBlockCount === 0 || busy;
-  const generationMessage =
-    isGenerating
-      ? normalizedGenerationStatus ||
-        "正在生成..."
-      : hasGenerationError ||
-          normalizedGenerationStatus.startsWith(
-            "生成完成"
-          )
-        ? normalizedGenerationStatus
-        : "";
-  const reviewMessage = isReviewing
-    ? String(
-        reviewStatus ||
+  const normalizedReviewStatus =
+    String(reviewStatus || "").trim();
+  const centralStatus =
+    normalizedStatusText ||
+    (
+      isReviewing
+        ? normalizedReviewStatus ||
           "正在审阅模块关系..."
-      ).trim()
-    : "";
-  const canvasStatus =
-    isGenerating || isReviewing
-      ? ""
-      : isAdjustingLength
-        ? normalizedStatusText ||
-          "正在调整模块长度..."
-        : normalizedStatusText;
+        : isGenerating
+          ? normalizedGenerationStatus ||
+            "正在生成..."
+          : isAdjustingLength
+            ? "正在调整模块长度..."
+            : normalizedGenerationStatus ||
+              normalizedReviewStatus
+    );
+  const statusIsError =
+    /错误|失败/.test(
+      centralStatus
+    );
   const groupStyle = {
     display: "flex",
     alignItems: "center",
@@ -94,8 +75,7 @@ export default function Toolbar({
       style={{
         width: "100%",
         minHeight:
-          generationMessage ||
-          reviewMessage
+          centralStatus
             ? 78
             : 54,
         position: "relative",
@@ -154,24 +134,6 @@ export default function Toolbar({
           联网搜索：{webSearchEnabled ? "开" : "关"}
         </button>
 
-        {canvasStatus ? (
-          <span
-            aria-live="polite"
-            title={canvasStatus}
-            style={{
-              maxWidth: 210,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              color: normalizedStatusText.startsWith("错误：")
-                ? "#b91c1c"
-                : "#596273",
-              fontSize: 12,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {canvasStatus}
-          </span>
-        ) : null}
       </div>
 
       <div
@@ -193,127 +155,71 @@ export default function Toolbar({
              * 不把焦点从正在编辑的 contentEditable 抢到按钮上。
              * onClick 仍会正常触发，键盘操作也不受影响。
              */
-            if (!generationDisabled) {
-              event.preventDefault();
-            }
+            event.preventDefault();
           }}
           onClick={onGenerate}
-          disabled={generationDisabled}
-          title={generationMessage || "生成所选模块"}
+          title="生成所选模块"
           style={{
             ...toolbarWideButton,
-            width: generationMessage ? 220 : "auto",
-            minHeight: 34,
-            height: "auto",
-            padding: generationMessage
-              ? "7px 12px"
-              : toolbarWideButton.padding,
-            display: "inline-flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            gap: generationMessage ? 3 : 0,
-            opacity:
-              generationDisabled &&
-              !isGenerating
-                ? 0.5
-                : 1,
+            opacity: 1,
           }}
         >
-          <span>
-            {isGenerating
-              ? "AI生成中"
-              : selectedIds.length > 0
-                ? `AI生成 (${selectedIds.length})`
-                : "AI生成"}
-          </span>
-          {generationMessage ? (
-            <span
-              aria-live="polite"
-              style={{
-                width: "100%",
-                color: hasGenerationError
-                  ? "#b91c1c"
-                  : "#5f6f8f",
-                fontSize: 11,
-                fontWeight: 400,
-                lineHeight: "15px",
-                textAlign: "left",
-                whiteSpace: "normal",
-              }}
-            >
-              {generationMessage}
-            </span>
-          ) : null}
+          AI生成
         </button>
 
         <button
           type="button"
           onClick={onReview}
-          disabled={reviewDisabled}
           title={
-            reviewMessage ||
-            (selectedIds.length === 1
+            selectedIds.length === 1
               ? "请选择至少两个模块，或清除选择以审阅全文"
               : selectedIds.length >= 2
                 ? "审阅所选模块"
-                : "审阅全文；已完成内容会先恢复为模块")
+                : "审阅全文；已完成内容会先恢复为模块"
           }
           style={{
             ...toolbarWideButton,
-            width: reviewMessage ? 220 : "auto",
-            minHeight: 34,
-            height: "auto",
-            padding: reviewMessage
-              ? "7px 12px"
-              : toolbarWideButton.padding,
-            display: "inline-flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            gap: reviewMessage ? 3 : 0,
-            opacity:
-              reviewDisabled &&
-              !isReviewing
-                ? 0.5
-                : 1,
-            color: isReviewing ? "#315ea8" : toolbarWideButton.color,
+            opacity: 1,
           }}
         >
-          <span>
-            {isReviewing
-              ? "审阅中"
-              : selectedIds.length >= 2
-                ? `审阅 (${selectedIds.length})`
-                : "审阅全文"}
-          </span>
-          {reviewMessage ? (
-            <span
-              aria-live="polite"
-              style={{
-                width: "100%",
-                color: "#5f6f8f",
-                fontSize: 11,
-                fontWeight: 400,
-                lineHeight: "15px",
-                textAlign: "left",
-                whiteSpace: "normal",
-              }}
-            >
-              {reviewMessage}
-            </span>
-          ) : null}
+          审阅
         </button>
 
         <button
           type="button"
           onClick={onComplete}
-          disabled={completeDisabled}
-          style={{ ...toolbarWideButton, opacity: completeDisabled ? 0.5 : 1 }}
+          style={{ ...toolbarWideButton, opacity: 1 }}
         >
           完成
         </button>
       </div>
+
+      {centralStatus ? (
+        <div
+          aria-live="polite"
+          title={centralStatus}
+          style={{
+            position: "absolute",
+            top: 50,
+            left: "50%",
+            zIndex: 3,
+            maxWidth: "min(680px, 72%)",
+            transform: "translateX(-50%)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            color: statusIsError
+              ? "#b91c1c"
+              : "#526078",
+            fontSize: 12,
+            fontWeight: 500,
+            lineHeight: "18px",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {centralStatus}
+        </div>
+      ) : null}
     </div>
   );
 }

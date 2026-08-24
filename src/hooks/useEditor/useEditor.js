@@ -1876,6 +1876,7 @@ export function useEditor() {
      * 状态提示。
      */
     statusText,
+    showTemporaryStatus,
 
     /**
      * DOM refs。

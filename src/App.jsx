@@ -228,6 +228,7 @@ export default function App() {
      * 页面与布局状态。
      */
     statusText,
+    showTemporaryStatus,
     stageRef,
     pageRef,
     contentRef,
@@ -326,6 +327,66 @@ export default function App() {
     () => getReviewableBlocksFromSections(sections).length,
     [sections]
   );
+
+  const showBusyActionReason = () => {
+    if (isGenerating) {
+      showTemporaryStatus("AI 正在生成，请等待本轮生成完成。", 2600);
+      return true;
+    }
+
+    if (reviewState.running) {
+      showTemporaryStatus("正在审阅模块关系，请等待本轮审阅完成。", 2600);
+      return true;
+    }
+
+    if (isAdjustingLength) {
+      showTemporaryStatus("正在调整模块长度，请等待当前操作完成。", 2600);
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleToolbarGenerate = () => {
+    if (showBusyActionReason()) return;
+
+    if (selectedIds.length === 0) {
+      showTemporaryStatus("请先选择至少一个模块，再使用 AI 生成。", 2800);
+      return;
+    }
+
+    showTemporaryStatus("", 0);
+    generateFromSelectedBlocks();
+  };
+
+  const handleToolbarReview = () => {
+    if (showBusyActionReason()) return;
+
+    if (reviewableBlockCount < 2) {
+      showTemporaryStatus("全文至少需要两个非空模块才能进行审阅。", 2800);
+      return;
+    }
+
+    if (selectedIds.length === 1) {
+      showTemporaryStatus("请至少选择两个模块；清除选择后可直接审阅全文。", 3000);
+      return;
+    }
+
+    showTemporaryStatus("", 0);
+    handleReview();
+  };
+
+  const handleToolbarComplete = () => {
+    if (showBusyActionReason()) return;
+
+    if (editableBlockCount === 0) {
+      showTemporaryStatus("当前没有可以完成的模块。", 2600);
+      return;
+    }
+
+    showTemporaryStatus("", 0);
+    handleComplete();
+  };
 
   const handleExportWord = () => {
     exportDocumentToWord(
@@ -793,9 +854,7 @@ export default function App() {
            * 审阅完成后仅展开紧凑的潜在修改点面板，不再显示关系树。
            */
           gridTemplateColumns:
-            reviewPanelOpen
-              ? "164px minmax(720px, 1fr) 340px"
-              : "164px minmax(0, 1fr)",
+            "164px minmax(0, 1fr)",
 
           width:
             "100%",
@@ -1027,15 +1086,15 @@ export default function App() {
   }
 
   onGenerate={
-    generateFromSelectedBlocks
+    handleToolbarGenerate
   }
 
-  onReview={handleReview}
+  onReview={handleToolbarReview}
   isReviewing={reviewState.running}
   reviewStatus={reviewState.status}
 
   onComplete={
-    handleComplete
+    handleToolbarComplete
   }
 
   selectedIds={
@@ -1082,15 +1141,22 @@ export default function App() {
     toggleWebSearch
   }
 
-  editableBlockCount={
-    editableBlockCount
-  }
-
-  reviewableBlockCount={
-    reviewableBlockCount
-  }
 />
           </div>
+
+          <ReviewIssuesPanel
+            open={reviewPanelOpen}
+            results={reviewState.results}
+            overallSummary={reviewState.overallSummary}
+            summaryHighlights={reviewState.summaryHighlights}
+            onFocusIssue={handleFocusReviewIssue}
+            onAccept={handleReviewAccept}
+            onReject={handleReviewReject}
+            onClose={() => {
+              clearReviewIssueFocus();
+              setReviewPanelOpen(false);
+            }}
+          />
 
           {/* 页面画布 */}
           <div
@@ -1322,20 +1388,6 @@ beginDuplicateDrag={
             生成：按钮或 Enter
           </div>
         </main>
-
-        <ReviewIssuesPanel
-          open={reviewPanelOpen}
-          results={reviewState.results}
-          overallSummary={reviewState.overallSummary}
-          summaryHighlights={reviewState.summaryHighlights}
-          onFocusIssue={handleFocusReviewIssue}
-          onAccept={handleReviewAccept}
-          onReject={handleReviewReject}
-          onClose={() => {
-            clearReviewIssueFocus();
-            setReviewPanelOpen(false);
-          }}
-        />
 
         <ActiveReviewCurve
           stageRef={stageRef}
