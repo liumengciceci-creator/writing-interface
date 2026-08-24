@@ -1526,10 +1526,10 @@ export default function Sidebar({
       }}
     >
       <FloatingPaletteWindow
-        storageKey="writing-interface-label-palette-position"
+        storageKey="writing-interface-label-palette-position-v2"
         defaultPosition={{
           x: 18,
-          y: 32,
+          y: 44,
         }}
         width={labelPaletteWidth}
         onWidthChange={

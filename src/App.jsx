@@ -1029,7 +1029,7 @@ export default function App() {
               "center",
 
             padding:
-              "20px 18px 32px",
+              "32px 18px 32px",
 
             boxSizing:
               "border-box",

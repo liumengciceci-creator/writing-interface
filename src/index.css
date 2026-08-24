@@ -120,10 +120,10 @@ body {
 
 .review-issues-panel {
   position: absolute;
-  top: 122px;
+  top: 134px;
   right: 18px;
   width: var(--review-panel-width);
-  max-height: calc(100dvh - 142px);
+  max-height: calc(100dvh - 154px);
 }
 
 .editor-main.review-panel-stacked
@@ -173,7 +173,7 @@ body {
   }
 
   .canvas-status {
-    top: 112px !important;
+    top: 120px !important;
   }
 }
 

@@ -246,7 +246,7 @@ export default function Toolbar({
           title={centralStatus}
           style={{
             position: "absolute",
-            top: 62,
+            top: 72,
             left: "var(--toolbar-center, 50%)",
             zIndex: 3,
             maxWidth: "min(680px, 72%)",
