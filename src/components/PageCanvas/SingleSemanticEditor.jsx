@@ -338,7 +338,6 @@ function getLengthClippedText(
       ) <=
       targetMeasuredWidth
     ) {
-      const { blockTypeLabel, t } = useI18n();
       best = middle;
       low = middle + 1;
     } else {
@@ -444,6 +443,11 @@ const SingleSemanticEditor =
       },
       forwardedRef
     ) {
+
+      const {
+        blockTypeLabel,
+        t,
+      } = useI18n();
 
       const editorRef =
         useRef(null);
