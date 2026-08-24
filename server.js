@@ -695,6 +695,84 @@ function getCompletedResponseText(response) {
 }
 
 /**
+ * Read the model response as an upstream stream, even though block text is
+ * validated before it is exposed to the editor. This prevents a long silent
+ * provider request from being cut off by an intermediary before any body data
+ * is received.
+ */
+async function createCompletedWritingResponse({
+  prompt,
+  targetBlocks,
+  signal,
+}) {
+  const stream = await openai.responses.create(
+    {
+      ...buildWritingRequestOptions({
+        prompt,
+        targetBlocks,
+      }),
+      stream: true,
+    },
+    signal ? { signal } : undefined
+  );
+
+  let outputText = "";
+  let completedResponse = null;
+
+  for await (const event of stream) {
+    if (signal?.aborted) {
+      const error = new Error("生成已取消");
+      error.name = "AbortError";
+      throw error;
+    }
+
+    if (event.type === "response.output_text.delta") {
+      outputText += String(event.delta || "");
+      continue;
+    }
+
+    if (event.type === "response.completed") {
+      completedResponse = event.response || null;
+      continue;
+    }
+
+    if (
+      event.type === "response.failed" ||
+      event.type === "response.incomplete" ||
+      event.type === "error"
+    ) {
+      const error = new Error(
+        event?.error?.message ||
+          event?.response?.error?.message ||
+          "模型流未能完整生成"
+      );
+      error.code = "UPSTREAM_STREAM_INCOMPLETE";
+      error.details = event;
+      throw error;
+    }
+  }
+
+  const response =
+    completedResponse ||
+    {
+      output_text: outputText,
+      output: [],
+    };
+  const rawText = outputText.trim() || getCompletedResponseText(response);
+
+  if (!rawText) {
+    const error = new Error("模型流结束但没有返回正文");
+    error.code = "EMPTY_MODEL_STREAM";
+    throw error;
+  }
+
+  return {
+    response,
+    rawText,
+  };
+}
+
+/**
  * 普通 JSON 生成接口使用的提示词。
  */
 function buildJsonPrompt({
@@ -1381,13 +1459,13 @@ async function generateValidatedBufferedBlocks({
           .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose. If a directive asks for 数据 or the target is Evidence: ${retryEvidenceInstruction} Never output the word 数据 as the answer.`
       : "";
 
-    lastResponse = await openai.responses.create(
-      buildWritingRequestOptions({
+    const completed = await createCompletedWritingResponse({
         prompt: `${prompt}${retryInstruction}`,
         targetBlocks,
-      }),
-      signal ? { signal } : undefined
-    );
+        signal,
+      });
+
+    lastResponse = completed.response;
 
     if (isClientClosed() || signal?.aborted) {
       const error = new Error("客户端已断开，生成已取消");
@@ -1403,7 +1481,7 @@ async function generateValidatedBufferedBlocks({
       });
     }
 
-    const rawText = getCompletedResponseText(lastResponse);
+    const rawText = completed.rawText;
     const textById = parseBufferedBlockOutput(rawText, targetBlocks);
 
     lastInvalid = targetBlocks.flatMap((block) => {

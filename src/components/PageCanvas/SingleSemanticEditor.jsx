@@ -20,6 +20,7 @@ import BlockSources from "./BlockSources.jsx";
 import SemanticHighlightLayer from "./SemanticHighlightLayer.jsx";
 import LengthResizeControls from "./LengthResizeControls.jsx";
 import LengthFlowSpacer from "./LengthFlowSpacer.jsx";
+import QuickInstructionComposer from "./QuickInstructionComposer.jsx";
 
 import useInlineEditing from "./useInlineEditing.js";
 import useSemanticMeasurements from "./useSemanticMeasurements.js";
@@ -498,6 +499,11 @@ const SingleSemanticEditor =
       const [
         instructionEffect,
         setInstructionEffect,
+      ] = useState(null);
+
+      const [
+        quickInstructionTarget,
+        setQuickInstructionTarget,
       ] = useState(null);
 
       /**
@@ -2014,6 +2020,89 @@ const SingleSemanticEditor =
             effect={instructionEffect}
           />
 
+          {quickInstructionTarget ? (
+            <QuickInstructionComposer
+              anchorRect={quickInstructionTarget.anchorRect}
+              blockColor={quickInstructionTarget.blockColor}
+              onClose={() => setQuickInstructionTarget(null)}
+              onSubmit={(instructionText, instructionStyle) => {
+                const target = quickInstructionTarget;
+                const targetBlock =
+                  blockById.get(target.blockId) || target.block;
+                const instruction = {
+                  id:
+                    instructionStyle?.id ||
+                    `quick-instruction-${Date.now()}`,
+                  label:
+                    instructionStyle?.label ||
+                    instructionText,
+                  instruction: instructionText,
+                  color:
+                    instructionStyle?.color ||
+                    target.blockColor,
+                  fill:
+                    instructionStyle?.fill ||
+                    targetBlock?.fill ||
+                    "#f3f4f6",
+                };
+
+                setQuickInstructionTarget(null);
+                setInstructionEffect({
+                  blockId: target.blockId,
+                  color: instruction.color,
+                  fill: instruction.fill,
+                  phase: "impact",
+                  clientX:
+                    (target.anchorRect.left + target.anchorRect.right) / 2,
+                  clientY:
+                    (target.anchorRect.top + target.anchorRect.bottom) / 2,
+                });
+
+                if (instructionDropTimerRef.current) {
+                  window.clearTimeout(instructionDropTimerRef.current);
+                }
+
+                instructionDropTimerRef.current = window.setTimeout(() => {
+                  instructionDropTimerRef.current = null;
+                  setInstructionEffect((current) =>
+                    normalizeId(current?.blockId) === target.blockId
+                      ? { ...current, phase: "waiting" }
+                      : current
+                  );
+
+                  Promise.resolve(
+                    onApplyInstruction?.(
+                      targetBlock,
+                      instruction,
+                      {
+                        onTextStart: () => {
+                          setInstructionEffect((current) =>
+                            normalizeId(current?.blockId) === target.blockId
+                              ? null
+                              : current
+                          );
+                        },
+                      }
+                    )
+                  )
+                    .catch((error) => {
+                      console.error(
+                        "[SingleSemanticEditor] 快速修改指令失败：",
+                        error
+                      );
+                    })
+                    .finally(() => {
+                      setInstructionEffect((current) =>
+                        normalizeId(current?.blockId) === target.blockId
+                          ? null
+                          : current
+                      );
+                    });
+                }, 660);
+              }}
+            />
+          ) : null}
+
           <div
             ref={setEditorElement}
             data-single-semantic-editor="true"
@@ -2161,8 +2250,6 @@ const SingleSemanticEditor =
               lengthResizePreview={lengthResizePreview}
               isLengthResizeDragging={isLengthResizeDragging}
               beginLengthResize={beginLengthResize}
-              cancelLengthResize={cancelLengthResize}
-              onApplyInstruction={onApplyInstruction}
               isGenerating={isGenerating}
               isAdjustingLength={isAdjustingLength}
               hasFocusedEditingBlock={hasFocusedEditingBlock}
@@ -2577,14 +2664,31 @@ const SingleSemanticEditor =
                       )
                     }
 
-                    onDoubleClick={(
-                      event
-                    ) =>
+                    onDoubleClick={(event) => {
                       handleDoubleClick(
                         event,
                         block
-                      )
-                    }
+                      );
+
+                      if (isGenerating) {
+                        return;
+                      }
+
+                      const rect =
+                        event.currentTarget.getBoundingClientRect();
+
+                      setQuickInstructionTarget({
+                        block,
+                        blockId,
+                        blockColor: color,
+                        anchorRect: {
+                          left: rect.left,
+                          right: rect.right,
+                          top: rect.top,
+                          bottom: rect.bottom,
+                        },
+                      });
+                    }}
 
                     onDragOver={(
                       event

@@ -35,6 +35,30 @@ export async function generateBlocksStream({
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let receivedDone = false;
+
+  const emitLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    let event;
+    try {
+      event = JSON.parse(trimmed);
+    } catch (error) {
+      console.warn(
+        "[generateBlocksStream] JSON parse failed:",
+        trimmed,
+        error
+      );
+      return;
+    }
+
+    if (event?.type === "done") {
+      receivedDone = true;
+    }
+
+    onEvent?.(event);
+  };
 
   try {
     while (true) {
@@ -51,19 +75,7 @@ export async function generateBlocksStream({
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        try {
-          const event = JSON.parse(trimmed);
-          onEvent?.(event);
-        } catch (error) {
-          console.warn(
-            "[generateBlocksStream] JSON parse failed:",
-            trimmed,
-            error
-          );
-        }
+        emitLine(line);
       }
     }
 
@@ -72,16 +84,13 @@ export async function generateBlocksStream({
     const finalText = buffer.trim();
 
     if (finalText) {
-      try {
-        const event = JSON.parse(finalText);
-        onEvent?.(event);
-      } catch (error) {
-        console.warn(
-          "[generateBlocksStream] Final JSON parse failed:",
-          finalText,
-          error
-        );
-      }
+      emitLine(finalText);
+    }
+
+    if (!receivedDone) {
+      throw new Error(
+        "生成连接在服务端确认完成前中断，请重试"
+      );
     }
   } catch (error) {
     if (error?.name === "AbortError") {

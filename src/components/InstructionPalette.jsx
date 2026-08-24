@@ -24,6 +24,9 @@ import { useI18n } from "../i18n.jsx";
 const INSTRUCTIONS_STORAGE_KEY =
   "writing-interface-block-instructions";
 
+const INSTRUCTIONS_UPDATED_EVENT =
+  "writing-interface-instructions-updated";
+
 const INSTRUCTIONS_DEFAULT_VERSION_KEY =
   "writing-interface-block-instructions-default-version";
 
@@ -371,6 +374,33 @@ export default function InstructionPalette({
       );
     }
   }, [instructions]);
+
+  useEffect(() => {
+    const handleInstructionsUpdated =
+      (event) => {
+        if (
+          Array.isArray(
+            event?.detail
+          )
+        ) {
+          setInstructions(
+            event.detail
+          );
+        }
+      };
+
+    window.addEventListener(
+      INSTRUCTIONS_UPDATED_EVENT,
+      handleInstructionsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        INSTRUCTIONS_UPDATED_EVENT,
+        handleInstructionsUpdated
+      );
+    };
+  }, []);
 
   const closeAddPanel = () => {
     setShowAddPanel(false);

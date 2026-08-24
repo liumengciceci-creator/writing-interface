@@ -1,8 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n.jsx";
 
 const INSTRUCTIONS_STORAGE_KEY = "writing-interface-block-instructions";
+const INSTRUCTIONS_UPDATED_EVENT = "writing-interface-instructions-updated";
+
+const INSTRUCTION_COLORS = [
+  { color: "#ef4444", fill: "#feecec" },
+  { color: "#f59e0b", fill: "#fff4dc" },
+  { color: "#0ea5a4", fill: "#e7f8f6" },
+  { color: "#8b5cf6", fill: "#f3eeff" },
+  { color: "#3b82f6", fill: "#eaf2ff" },
+];
 
 const FALLBACK_INSTRUCTIONS = [
   {
@@ -49,8 +64,29 @@ function readInstructions() {
   return FALLBACK_INSTRUCTIONS;
 }
 
+function saveInstructions(instructions) {
+  try {
+    window.localStorage.setItem(
+      INSTRUCTIONS_STORAGE_KEY,
+      JSON.stringify(instructions)
+    );
+    window.dispatchEvent(
+      new CustomEvent(INSTRUCTIONS_UPDATED_EVENT, { detail: instructions })
+    );
+  } catch (error) {
+    console.error("保存快速修改指令失败：", error);
+  }
+}
+
 function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function createInstructionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `instruction-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export default function QuickInstructionComposer({
@@ -61,15 +97,56 @@ export default function QuickInstructionComposer({
 }) {
   const [value, setValue] = useState("");
   const [instructions, setInstructions] = useState(readInstructions);
+  const [selectedInstructionId, setSelectedInstructionId] = useState(null);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customLabel, setCustomLabel] = useState("");
+  const [customText, setCustomText] = useState("");
+  const [customColor, setCustomColor] = useState(INSTRUCTION_COLORS[3]);
   const inputRef = useRef(null);
   const panelRef = useRef(null);
   const dragRef = useRef(null);
   const { instructionLabel, instructionText, t } = useI18n();
 
+  const initialGeometry = useMemo(() => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const width = Math.min(430, Math.max(280, viewportWidth - 24));
+    const estimatedHeight = 118;
+    const moduleLeft = anchorRect?.left ?? viewportWidth / 2 - width / 2;
+    const moduleRight = anchorRect?.right ?? moduleLeft + width;
+    const moduleTop = anchorRect?.top ?? viewportHeight / 2;
+    const moduleBottom = anchorRect?.bottom ?? moduleTop;
+    const preferredLeft = moduleRight - width;
+    const belowTop = moduleBottom + 6;
+    const preferredTop =
+      belowTop + estimatedHeight <= viewportHeight - 10
+        ? belowTop
+        : moduleTop - estimatedHeight - 6;
+
+    return {
+      left: clamp(preferredLeft, 12, viewportWidth - width - 12),
+      top: clamp(preferredTop, 12, viewportHeight - estimatedHeight - 12),
+      width,
+    };
+  }, [anchorRect]);
+
+  const [position, setPosition] = useState(() => ({
+    left: initialGeometry.left,
+    top: initialGeometry.top,
+  }));
+
   useEffect(() => {
-    setInstructions(readInstructions());
     const frameId = window.requestAnimationFrame(() => inputRef.current?.focus());
     return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  useEffect(() => {
+    const syncInstructions = (event) => {
+      const next = Array.isArray(event?.detail) ? event.detail : readInstructions();
+      setInstructions(next);
+    };
+    window.addEventListener(INSTRUCTIONS_UPDATED_EVENT, syncInstructions);
+    return () => window.removeEventListener(INSTRUCTIONS_UPDATED_EVENT, syncInstructions);
   }, []);
 
   useEffect(() => {
@@ -87,29 +164,11 @@ export default function QuickInstructionComposer({
     };
   }, [onClose]);
 
-  const initialGeometry = useMemo(() => {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const width = Math.min(460, Math.max(286, viewportWidth - 24));
-    const estimatedHeight = 88;
-    const preferredLeft = (anchorRect?.right ?? viewportWidth / 2) + 10;
-    const preferredTop = (anchorRect?.bottom ?? viewportHeight / 2) + 10;
-    const left = clamp(preferredLeft, 12, viewportWidth - width - 12);
-    const top = clamp(preferredTop, 12, viewportHeight - estimatedHeight - 12);
-    return { left, top, width };
-  }, [anchorRect]);
-
-  const [position, setPosition] = useState(() => ({
-    left: initialGeometry.left,
-    top: initialGeometry.top,
-  }));
-
   useEffect(() => {
     const handlePointerMove = (event) => {
       const drag = dragRef.current;
       if (!drag) return;
-
-      const panelHeight = panelRef.current?.offsetHeight || 88;
+      const panelHeight = panelRef.current?.offsetHeight || 118;
       setPosition({
         left: clamp(
           event.clientX - drag.offsetX,
@@ -123,11 +182,9 @@ export default function QuickInstructionComposer({
         ),
       });
     };
-
     const stopDragging = () => {
       dragRef.current = null;
     };
-
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", stopDragging);
     window.addEventListener("pointercancel", stopDragging);
@@ -138,10 +195,69 @@ export default function QuickInstructionComposer({
     };
   }, [initialGeometry.width]);
 
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const nextLeft = clamp(rect.left, 12, window.innerWidth - rect.width - 12);
+    const nextTop = clamp(rect.top, 12, window.innerHeight - rect.height - 12);
+    if (nextLeft !== rect.left || nextTop !== rect.top) {
+      setPosition({ left: nextLeft, top: nextTop });
+    }
+  }, [instructions.length, showCustomForm]);
+
+  const beginPanelDrag = (event) => {
+    if (event.button !== 0) return;
+    if (
+      event.target.closest(
+        "input, textarea, button, select, [contenteditable='true'], [data-no-dialog-drag='true']"
+      )
+    ) {
+      return;
+    }
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    dragRef.current = {
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+  };
+
   const submit = () => {
     const instruction = value.trim();
     if (!instruction) return;
-    onSubmit?.(instruction);
+    const selected = instructions.find(
+      (item) => item.id === selectedInstructionId
+    );
+    onSubmit?.(instruction, {
+      id: selected?.id || `quick-instruction-${Date.now()}`,
+      label: selected ? instructionLabel(selected) : instruction,
+      color: selected?.color || blockColor,
+      fill: selected?.fill || "#f3f4f6",
+    });
+  };
+
+  const addCustomInstruction = () => {
+    const label = customLabel.trim();
+    const instruction = customText.trim() || label;
+    if (!label) return;
+    const nextInstruction = {
+      id: createInstructionId(),
+      label,
+      instruction,
+      color: customColor.color,
+      fill: customColor.fill,
+    };
+    const next = [...instructions, nextInstruction];
+    setInstructions(next);
+    saveInstructions(next);
+    setShowCustomForm(false);
+    setCustomLabel("");
+    setCustomText("");
+    setSelectedInstructionId(nextInstruction.id);
+    setValue(instruction);
+    inputRef.current?.focus();
   };
 
   if (typeof document === "undefined") return null;
@@ -151,65 +267,30 @@ export default function QuickInstructionComposer({
       ref={panelRef}
       role="dialog"
       aria-label={t("quickInstruction.dialog")}
+      onPointerDown={beginPanelDrag}
       style={{
         position: "fixed",
         left: position.left,
         top: position.top,
         width: initialGeometry.width,
         zIndex: 5100,
-        padding: "9px 11px 8px",
+        padding: "9px 11px 9px",
         border: "1px solid rgba(17,24,39,0.08)",
         borderRadius: 16,
         background: "rgba(255,255,255,0.98)",
         boxShadow: "0 10px 28px rgba(15,23,42,0.16)",
         boxSizing: "border-box",
+        cursor: "move",
       }}
     >
-      <button
-        type="button"
-        aria-label={t("quickInstruction.move")}
-        title={t("quickInstruction.move")}
-        onPointerDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const rect = panelRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          dragRef.current = {
-            offsetX: event.clientX - rect.left,
-            offsetY: event.clientY - rect.top,
-          };
-        }}
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: 4,
-          width: 38,
-          height: 8,
-          padding: 0,
-          border: 0,
-          background: "transparent",
-          cursor: "grab",
-          transform: "translateX(-50%)",
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            display: "block",
-            width: 24,
-            height: 3,
-            margin: "0 auto",
-            borderRadius: 999,
-            background: "#d7dbe2",
-          }}
-        />
-      </button>
-
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <input
           ref={inputRef}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setSelectedInstructionId(null);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -223,12 +304,12 @@ export default function QuickInstructionComposer({
             height: 32,
             padding: "0 3px",
             border: 0,
-            borderBottom: 0,
             outline: 0,
             background: "transparent",
             color: "#1f2937",
             fontFamily: "inherit",
             fontSize: 13.5,
+            cursor: "text",
           }}
         />
         <button
@@ -262,22 +343,23 @@ export default function QuickInstructionComposer({
         aria-label={t("quickInstruction.presets")}
         style={{
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           gap: 5,
           marginTop: 7,
-          overflowX: "auto",
-          scrollbarWidth: "none",
         }}
       >
         {instructions.map((instruction) => {
           const label = instructionLabel(instruction);
           const text = instructionText(instruction);
+          const selected = selectedInstructionId === instruction.id;
           return (
             <button
               key={instruction.id}
               type="button"
               title={text}
               onClick={() => {
+                setSelectedInstructionId(instruction.id);
                 setValue(text);
                 inputRef.current?.focus();
               }}
@@ -288,9 +370,9 @@ export default function QuickInstructionComposer({
                 alignItems: "center",
                 gap: 5,
                 padding: "0 8px 0 5px",
-                border: "1px solid rgba(55,65,81,0.42)",
+                border: `1px solid ${selected ? instruction.color : "rgba(55,65,81,0.38)"}`,
                 borderRadius: 999,
-                background: "#ffffff",
+                background: selected ? instruction.fill : "#ffffff",
                 color: "#6b7280",
                 fontSize: 10,
                 whiteSpace: "nowrap",
@@ -303,14 +385,134 @@ export default function QuickInstructionComposer({
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  background: instruction.color || blockColor,
+                  background: `linear-gradient(100deg, ${instruction.color || blockColor} 15%, #ffffff 48%, ${instruction.color || blockColor} 80%)`,
+                  backgroundSize: "240% 100%",
+                  animation: "quick-instruction-color-flow 2.2s linear infinite",
                 }}
               />
               {label}
             </button>
           );
         })}
+
+        <button
+          type="button"
+          aria-label={t("instruction.add")}
+          title={t("instruction.add")}
+          onClick={() => setShowCustomForm((current) => !current)}
+          style={{
+            width: 23,
+            height: 23,
+            flex: "0 0 23px",
+            padding: 0,
+            border: "1px solid rgba(55,65,81,0.38)",
+            borderRadius: "50%",
+            background: showCustomForm ? "#f3f4f6" : "#fff",
+            color: "#4b5563",
+            fontSize: 17,
+            lineHeight: "21px",
+            cursor: "pointer",
+          }}
+        >
+          +
+        </button>
       </div>
+
+      {showCustomForm ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(92px, 0.8fr) minmax(130px, 1.4fr) auto",
+            gap: 6,
+            alignItems: "center",
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: "1px solid #eef0f3",
+          }}
+        >
+          <input
+            value={customLabel}
+            maxLength={20}
+            placeholder={t("instruction.name")}
+            onChange={(event) => setCustomLabel(event.target.value)}
+            style={{
+              minWidth: 0,
+              height: 29,
+              padding: "0 8px",
+              border: "1px solid #d7dbe2",
+              borderRadius: 7,
+              outline: 0,
+              fontFamily: "inherit",
+              fontSize: 11,
+            }}
+          />
+          <input
+            value={customText}
+            placeholder={t("instruction.detail")}
+            onChange={(event) => setCustomText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCustomInstruction();
+              }
+            }}
+            style={{
+              minWidth: 0,
+              height: 29,
+              padding: "0 8px",
+              border: "1px solid #d7dbe2",
+              borderRadius: 7,
+              outline: 0,
+              fontFamily: "inherit",
+              fontSize: 11,
+            }}
+          />
+          <button
+            type="button"
+            disabled={!customLabel.trim()}
+            onClick={addCustomInstruction}
+            style={{
+              width: 29,
+              height: 29,
+              padding: 0,
+              border: 0,
+              borderRadius: "50%",
+              background: customLabel.trim() ? customColor.color : "#d1d5db",
+              color: "#fff",
+              cursor: customLabel.trim() ? "pointer" : "default",
+            }}
+          >
+            ✓
+          </button>
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {INSTRUCTION_COLORS.map((option) => (
+              <button
+                key={option.color}
+                type="button"
+                aria-label={t("instruction.chooseColor", { color: option.color })}
+                onClick={() => setCustomColor(option)}
+                style={{
+                  width: 16,
+                  height: 16,
+                  padding: 0,
+                  border: `2px solid ${customColor.color === option.color ? "#111827" : "#fff"}`,
+                  borderRadius: "50%",
+                  background: option.color,
+                  boxShadow: `0 0 0 1px ${option.color}66`,
+                  cursor: "pointer",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>,
     document.body
   );

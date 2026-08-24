@@ -7,7 +7,6 @@ import {
   normalizeId,
 } from "./semanticEditorUtils";
 import { useI18n } from "../../i18n.jsx";
-import QuickInstructionComposer from "./QuickInstructionComposer.jsx";
 
 /**
  * 绘制长度拉伸手柄和长度提示。
@@ -32,8 +31,6 @@ function LengthResizeControls({
   isLengthResizeDragging = false,
 
   beginLengthResize,
-  cancelLengthResize,
-  onApplyInstruction,
 
   isGenerating = false,
   isAdjustingLength = false,
@@ -49,8 +46,6 @@ function LengthResizeControls({
     hoveredBlockId,
     setHoveredBlockId,
   ] = useState(null);
-
-  const [composer, setComposer] = useState(null);
 
   /**
    * AI 正在生成或正在执行长度调整时，
@@ -369,73 +364,6 @@ function LengthResizeControls({
                 />
               </button>
 
-              {handle.block?.isGenerated === true ? (
-                <button
-                  type="button"
-                  aria-label={t("quickInstruction.open")}
-                  title={t("quickInstruction.open")}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    cancelLengthResize?.();
-
-                    const blockElement = Array.from(
-                      document.querySelectorAll(
-                        "[data-semantic-block-id][data-semantic-text='true']"
-                      )
-                    ).find(
-                      (element) =>
-                        normalizeId(
-                          element.getAttribute(
-                            "data-semantic-block-id"
-                          )
-                        ) === blockId
-                    );
-
-                    const rect = (
-                      blockElement || event.currentTarget
-                    ).getBoundingClientRect();
-
-                    setComposer({
-                      block: handle.block,
-                      blockId,
-                      blockColor,
-                      anchorRect: {
-                        left: rect.left,
-                        right: rect.right,
-                        top: rect.top,
-                        bottom: rect.bottom,
-                      },
-                    });
-                  }}
-                  style={{
-                    position: "absolute",
-                    left: 1,
-                    top: "50%",
-                    width: 12,
-                    height: 14,
-                    zIndex: 24,
-                    padding: 0,
-                    border: 0,
-                    borderRadius: 0,
-                    background: "transparent",
-                    boxShadow: "none",
-                    color: "#666b73",
-                    fontSize: 11,
-                    lineHeight: "14px",
-                    cursor: "pointer",
-                    pointerEvents: "auto",
-                    transform: "translateY(-50%)",
-                  }}
-                >
-                  ✎
-                </button>
-              ) : null}
-
               {showStatus && (
                 <LengthResizeStatus
                   draft={
@@ -451,31 +379,6 @@ function LengthResizeControls({
         }
       )}
 
-      {composer ? (
-        <QuickInstructionComposer
-          anchorRect={composer.anchorRect}
-          blockColor={composer.blockColor}
-          onClose={() => setComposer(null)}
-          onSubmit={(instruction) => {
-            const target = composer;
-            setComposer(null);
-            Promise.resolve(
-              onApplyInstruction?.(
-                target.block,
-                {
-                  id: `quick-instruction-${Date.now()}`,
-                  label: instruction,
-                  instruction,
-                  color: target.blockColor,
-                  fill: target.block?.fill || "#f3f4f6",
-                }
-              )
-            ).catch((error) => {
-              console.error("[LengthResizeControls] quick instruction failed:", error);
-            });
-          }}
-        />
-      ) : null}
     </>
   );
 }
