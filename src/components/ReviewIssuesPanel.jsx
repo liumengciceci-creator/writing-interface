@@ -225,7 +225,6 @@ export default function ReviewIssuesPanel({
       {selectedItem ? (
         <article
           aria-live="polite"
-          data-review-suggestion-for={selectedItem.id}
           style={{
             position: "relative",
             marginTop: 22,

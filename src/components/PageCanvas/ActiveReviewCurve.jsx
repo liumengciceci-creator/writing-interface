@@ -22,18 +22,7 @@ function findBlockElements(stage, blockId) {
   ));
 }
 
-function findSuggestionElement(issueId) {
-  const normalizedId = normalizeId(issueId);
-  if (!normalizedId) return null;
-
-  return Array.from(
-    document.querySelectorAll("[data-review-suggestion-for]")
-  ).find(
-    (element) => normalizeId(element.getAttribute("data-review-suggestion-for")) === normalizedId
-  ) || null;
-}
-
-function getCombinedRect(elements) {
+function getCombinedRect(elements, stageRect) {
   if (!elements.length) return null;
 
   const rects = elements
@@ -42,34 +31,43 @@ function getCombinedRect(elements) {
 
   if (!rects.length) return null;
 
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  const left = Math.min(...rects.map((rect) => rect.left)) - stageRect.left;
+  const top = Math.min(...rects.map((rect) => rect.top)) - stageRect.top;
+  const right = Math.max(...rects.map((rect) => rect.right)) - stageRect.left;
+  const bottom = Math.max(...rects.map((rect) => rect.bottom)) - stageRect.top;
 
   return {
     left,
     top,
     right,
     bottom,
+    width: right - left,
+    height: bottom - top,
     centerX: (left + right) / 2,
     centerY: (top + bottom) / 2,
   };
 }
 
-function createCurve(sourceRect, suggestionRect) {
-  const movingRight = suggestionRect.centerX >= sourceRect.centerX;
-  const startX = movingRight ? sourceRect.right + 4 : sourceRect.left - 4;
-  const endX = movingRight ? suggestionRect.left - 9 : suggestionRect.right + 9;
-  const startY = sourceRect.centerY;
-  const endY = suggestionRect.centerY;
-  const horizontalDistance = Math.abs(endX - startX);
-  const controlDistance = Math.max(42, horizontalDistance * 0.44);
-  const direction = movingRight ? 1 : -1;
-  const firstControlX = startX + controlDistance * direction;
-  const secondControlX = endX - controlDistance * direction;
+function createCurve(from, to) {
+  const verticalGap = Math.abs(from.centerY - to.centerY);
 
-  return `M ${startX} ${startY} C ${firstControlX} ${startY}, ${secondControlX} ${endY}, ${endX} ${endY}`;
+  if (verticalGap > 48) {
+    const startX = from.right + 4;
+    const startY = from.centerY;
+    const endX = to.right + 8;
+    const endY = to.centerY;
+    const controlX = Math.max(from.right, to.right) + 52;
+
+    return `M ${startX} ${startY} C ${controlX} ${startY}, ${controlX} ${endY}, ${endX} ${endY}`;
+  }
+
+  const movingRight = to.centerX >= from.centerX;
+  const startX = movingRight ? from.right + 4 : from.left - 4;
+  const endX = movingRight ? to.left - 8 : to.right + 8;
+  const bendY = Math.min(from.top, to.top) - 30;
+  const middleX = (startX + endX) / 2;
+
+  return `M ${startX} ${from.centerY} C ${middleX} ${bendY}, ${middleX} ${bendY}, ${endX} ${to.centerY}`;
 }
 
 export default function ActiveReviewCurve({ stageRef, issue }) {
@@ -82,8 +80,9 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
   useLayoutEffect(() => {
     const stage = stageRef?.current;
     const sourceId = issue?.relationSourceId;
+    const relatedId = issue?.relationTargetId;
 
-    if (!stage || sourceId == null || !issue?.id) {
+    if (!stage || sourceId == null || relatedId == null) {
       setCurve(null);
       return undefined;
     }
@@ -91,46 +90,25 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
     setCurve(null);
 
     let frameId = null;
-    let retryFrameId = null;
-    let retryCount = 0;
     let resizeObserver = null;
-    let observedSuggestion = null;
 
     const measure = () => {
       frameId = null;
       const sourceElements = findBlockElements(stage, sourceId);
-      const suggestionElement = findSuggestionElement(issue.id);
-      const sourceRect = getCombinedRect(sourceElements);
-      const suggestionRect = suggestionElement?.getBoundingClientRect();
+      const relatedElements = findBlockElements(stage, relatedId);
+      const stageRect = stage.getBoundingClientRect();
+      const sourceRect = getCombinedRect(sourceElements, stageRect);
+      const relatedRect = getCombinedRect(relatedElements, stageRect);
 
-      if (!sourceRect || !suggestionRect?.width || !suggestionRect?.height) {
+      if (!sourceRect || !relatedRect) {
         setCurve(null);
-        if (retryCount < 10) {
-          retryCount += 1;
-          retryFrameId = requestAnimationFrame(() => {
-            retryFrameId = null;
-            measure();
-          });
-        }
         return;
       }
 
-      retryCount = 0;
-      if (resizeObserver && suggestionElement !== observedSuggestion) {
-        if (observedSuggestion) resizeObserver.unobserve(observedSuggestion);
-        resizeObserver.observe(suggestionElement);
-        observedSuggestion = suggestionElement;
-      }
-
       setCurve({
-        path: createCurve(sourceRect, {
-          left: suggestionRect.left,
-          right: suggestionRect.right,
-          centerX: (suggestionRect.left + suggestionRect.right) / 2,
-          centerY: (suggestionRect.top + suggestionRect.bottom) / 2,
-        }),
-        width: window.innerWidth,
-        height: window.innerHeight,
+        path: createCurve(relatedRect, sourceRect),
+        width: Math.max(stage.scrollWidth, stage.clientWidth),
+        height: Math.max(stage.scrollHeight, stage.clientHeight),
       });
     };
 
@@ -141,27 +119,20 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
 
     requestMeasure();
     window.addEventListener("resize", requestMeasure);
-    window.addEventListener("scroll", requestMeasure, true);
 
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(requestMeasure);
       resizeObserver.observe(stage);
       findBlockElements(stage, sourceId).forEach((element) => resizeObserver.observe(element));
-      const suggestionElement = findSuggestionElement(issue.id);
-      if (suggestionElement) {
-        resizeObserver.observe(suggestionElement);
-        observedSuggestion = suggestionElement;
-      }
+      findBlockElements(stage, relatedId).forEach((element) => resizeObserver.observe(element));
     }
 
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
-      if (retryFrameId != null) cancelAnimationFrame(retryFrameId);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", requestMeasure);
-      window.removeEventListener("scroll", requestMeasure, true);
     };
-  }, [issue?.id, issue?.relationSourceId, stageRef]);
+  }, [issue?.id, issue?.relationSourceId, issue?.relationTargetId, stageRef]);
 
   if (!issue || !curve) return null;
 
@@ -174,9 +145,9 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
       height={curve.height}
       viewBox={`0 0 ${curve.width} ${curve.height}`}
       style={{
-        position: "fixed",
+        position: "absolute",
         inset: 0,
-        zIndex: 2400,
+        zIndex: 6000,
         overflow: "visible",
         pointerEvents: "none",
       }}
