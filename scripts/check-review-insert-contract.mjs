@@ -19,6 +19,17 @@ const checks = [
     "review prompt must allow revise/insert without fixed suggestion or word counts",
   ],
   [
+    server.includes("你先写了……，提出……") &&
+      server.includes("只概括现有内容及其关系") &&
+      server.includes("不在 overallSummary 中评价哪里不足"),
+    "overall review must remain a concise narrative of the author's argument",
+  ],
+  [
+    server.includes("不要把材料和命令堆成密集清单") &&
+      server.includes("不得为了让意见显得具体而自行发明原文没有建立的阅读情境"),
+    "revision advice must be readable and must not invent unsupported scenarios",
+  ],
+  [
     server.includes("insertType 必须严格选用上方标签栏中的一个 type") &&
       server.includes("targetIndex !== sourceIndex + 1"),
     "server must validate the inserted type and the adjacent insertion gap",
