@@ -83,7 +83,12 @@ function InlineDragPreview({
   preview,
   zIndex = 1200,
 }) {
-  const { blockTypeLabel } = useI18n();
+  // The preview is rendered in a separate branch from PageCanvas. Keep the
+  // localized label resolver in this component's own scope so external drops
+  // never depend on a variable owned by the canvas or another preview branch.
+  const {
+    blockTypeLabel: getPreviewTypeLabel,
+  } = useI18n();
   if (!preview?.block) {
     return null;
   }
@@ -207,7 +212,7 @@ function InlineDragPreview({
                       "nowrap",
                   }}
                 >
-                  {blockTypeLabel(
+                  {getPreviewTypeLabel(
                     block.type
                   )}
                 </span>
@@ -324,7 +329,7 @@ function InlineDragPreview({
             "none",
         }}
       >
-        {blockTypeLabel(
+        {getPreviewTypeLabel(
           block.type
         )}
       </div>
