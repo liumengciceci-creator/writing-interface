@@ -4,6 +4,7 @@ const REVIEW_URL = `${API_BASE_URL}/api/review-block-compatibility`;
 const REVIEW_STREAM_URL = `${API_BASE_URL}/api/review-framework-stream`;
 const REVIEW_DETAIL_STREAM_URL = `${API_BASE_URL}/api/review-enhancement-detail-stream`;
 const APPLY_REVIEW_INSTRUCTION_URL = `${API_BASE_URL}/api/apply-review-instruction`;
+const APPLY_REVIEW_INSTRUCTION_STREAM_URL = `${API_BASE_URL}/api/apply-review-instruction-stream`;
 
 export async function reviewArgumentFrameworkStream({ blocks = [], onEvent, signal }) {
   const response = await fetch(REVIEW_STREAM_URL, {
@@ -118,6 +119,60 @@ export async function applyReviewInstruction({
   const text = String(data.text || "").trim();
   if (!text) throw new Error("模型没有返回修改后的模块内容");
   return text;
+}
+
+export async function applyReviewInstructionStream({
+  instruction,
+  sourceBlock,
+  targetBlock,
+  contextBlocks = [],
+  onEvent,
+  signal,
+}) {
+  const response = await fetch(APPLY_REVIEW_INSTRUCTION_STREAM_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction, sourceBlock, targetBlock, contextBlocks }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `执行修改指令失败：${response.status}`);
+  }
+  if (!response.body) throw new Error("当前浏览器不支持流式修改");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let completed = false;
+
+  const dispatch = async (line) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "error") {
+      throw new Error(event.message || "执行修改指令失败");
+    }
+    if (event.type === "done") completed = true;
+    await onEvent?.(event);
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) await dispatch(line);
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) await dispatch(buffer);
+    if (!completed) throw new Error("修改结果未完整返回，请重试");
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function cleanOneSentence(value, fallback = "尚未填写内容") {

@@ -2220,7 +2220,7 @@ sourceId 与 targetId 必须体现语义方向，而不是写作先后。例如�
 最后一行格式：
 {"type":"final","overallSummary":"一段连续的整体关系总结","summaryHighlights":["总结中需要加粗的短语1","总结中需要加粗的短语2","总结中需要加粗的短语3"],"enhancements":[{"sourceId":"需要加强的模块id","targetId":"与问题直接相关的模块id","category":"证据充分性/结论覆盖度/机制解释/反论回应/论点边界/逻辑衔接之一","criterion":"本条具体检查标准","summary":"一句具体判断","suggestion":"一条具体、可直接交给大模型执行的修改指令"}]}
 overallSummary 必须由你通读全部模块后生成，不能使用固定模板或只罗列模块类型。使用与正文语言一致的连续自然表达，具体说明各模块如何推进、支持、解释、限定或修正彼此，并在结尾简要判断整体衔接。中文控制在100至180个汉字，英文控制在70至130个单词。summaryHighlights 提取 overallSummary 中3至5个最关键的原文短语，中文每项4至14个汉字，英文每项2至8个单词，必须能在 overallSummary 中逐字找到；前端会将这些短语加粗。
-每条 suggestion 是“修改指令”，不是替作者写好的修订文本。先具体指出当前模块实际能够说明什么、尚不足以支持目标模块中的哪一项判断，再明确要求从哪些内容维度补充、限定、比较或重新组织，以及补充内容应如何与目标论点建立联系。优先要求有论证作用的信息，例如研究对象、测量指标、对照关系、作用机制、适用条件、反例回应或结论覆盖范围；不要只说“增强解释、更加具体、润色语言”，不要输出“可改为……”，也不要直接给出修订后的完整模块。中文 suggestion 控制在70至150个汉字，英文控制在45至100个单词，并使用相应语言的命令式表达形成可执行指令。
+每条 suggestion 是“修改指令”，不是替作者写好的修订文本。必须基于相关模块的具体内容，自然而完整地交代：当前信息究竟缺少、混淆、跳过或过度推断了什么；这个问题为什么会削弱当前内容本应完成的功能；作者应补充、删除、限定、比较或重新组织哪些信息；完成后会带来什么与本条问题直接相关的效果。效果必须由实际内容决定，例如让原因更充分、分析更深入、证据更有支持力、结论覆盖更完整、概念更准确、反论更有效或前后衔接更清楚，不能一律写成“改善某一层面的论证”。可以采用“由于……，建议……，从而……”等表达，也可以根据问题使用其他自然句式；不同建议不要机械套用同一模板。优先要求有实际内容作用的信息，例如研究对象、测量指标、对照关系、作用机制、适用条件、反例回应或结论覆盖范围；不要只说“增强解释、更加具体、润色语言”，不要输出“可改为……”，也不要直接给出修订后的完整模块。中文 suggestion 控制在90至180个汉字，英文控制在60至120个单词，并形成可直接交给大模型执行的明确指令。
 增强点可以位于任意两个相关模块之间，sourceId 与 targetId 必须对应此前输出的一条关系。只要存在实质改进空间，4个及以上模块通常给出2至5条互不重复的增强建议；不要只检查相邻模块，也不要为了凑数虚构问题或事实。`;
 
     let textBuffer = "";
@@ -2382,10 +2382,11 @@ ${JSON.stringify(issue, null, 2)}
 
 输出要求：
 1. 直接输出给作者看的意见，并严格使用与原文相同的主要语言；不要根据界面语言翻译内容，不要输出 JSON、Markdown、标题符号或思考过程。
-2. 中文总长度控制在120至220个汉字，英文控制在80至150个单词，依次写清相应语言的“判断/原因/修改建议”三部分。
+2. 中文总长度控制在130至240个汉字，英文控制在90至165个单词。使用连贯自然的语言写清当前问题、为何构成问题、具体应执行的修改动作，以及修改后与该问题直接对应的作用；不要机械列出固定标题，也不要让所有意见套用同一句式。
 3. 必须具体说明这两个模块的内容如何关联，不能只说“可以加强”或复述模块标签。
-4. 从内容上把关：证据是否足以支持观点、原因是否真正解释机制、反论是否回应核心论点、结论是否覆盖整段内容；只选择与当前问题有关的标准。
-5. 不得虚构原文没有提供的数据、研究、来源或事实。`;
+4. 从内容上把关：分析是否到位、原因是否充分并真正解释机制、证据是否足以支持具体判断、反论是否回应核心论点、结论是否覆盖整段内容、概念与限定是否准确、模块衔接是否存在跳跃；只选择与当前问题真正有关的标准。
+5. 修改动作要明确到内容层面，例如补充作用机制或比较维度、说明研究对象与指标、增加必要限定、回应具体反例、收窄结论范围或重组推理顺序。随后说明这一动作会怎样解决刚才指出的具体缺口，而不是笼统声称“提升论证”。
+6. 不得虚构原文没有提供的数据、研究、来源或事实。`;
 
     try {
       const stream = await openai.responses.create({
@@ -2515,6 +2516,152 @@ ${instruction}
       return res.status(error.statusCode || 500).json({
         error: error.message || "执行修改指令失败",
       });
+    }
+  }
+);
+
+/**
+ * 接受审阅指令后的模块改写流。
+ *
+ * 模型推理期间前端保持目标模块闪烁；服务端确认结果有效后，才以小段
+ * 增量写回画布，避免无效或与原文相同的内容覆盖用户文本。
+ */
+app.post(
+  "/api/apply-review-instruction-stream",
+  async (req, res) => {
+    const body = req.body || {};
+    const sourceBlock = body.sourceBlock && typeof body.sourceBlock === "object"
+      ? {
+          id: String(body.sourceBlock.id || "source"),
+          type: String(body.sourceBlock.type || "Unknown"),
+          text: String(body.sourceBlock.text || "").trim(),
+        }
+      : null;
+    const targetBlock = body.targetBlock && typeof body.targetBlock === "object"
+      ? {
+          id: String(body.targetBlock.id || "target"),
+          type: String(body.targetBlock.type || "Unknown"),
+          text: String(body.targetBlock.text || "").trim(),
+        }
+      : null;
+    const instruction = String(body.instruction || "").trim();
+    const contextBlocks = Array.isArray(body.contextBlocks)
+      ? body.contextBlocks
+          .filter((block) => block && String(block.text || "").trim())
+          .slice(0, 18)
+          .map((block) => ({
+            id: String(block.id || ""),
+            type: String(block.type || "Unknown"),
+            text: String(block.text || "").trim(),
+          }))
+      : [];
+
+    if (!sourceBlock?.text || !targetBlock?.text || !instruction) {
+      return res.status(400).json({ error: "缺少执行修改指令所需的模块或指令" });
+    }
+
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+    writeLine(res, { type: "ready", blockId: sourceBlock.id });
+
+    const basePrompt = `你是一名严谨的多语言论证写作编辑。作者已经接受了一条审阅修改指令，请按照该指令重写“需要修改的模块”。
+
+需要修改的模块：
+${JSON.stringify(sourceBlock, null, 2)}
+
+与它直接相关的模块：
+${JSON.stringify(targetBlock, null, 2)}
+
+所选内容上下文：
+${JSON.stringify(contextBlocks, null, 2)}
+
+作者接受的修改指令：
+${instruction}
+
+执行要求：
+1. 输出修改后的来源模块全文，只输出可直接写回模块的正文，不输出标题、解释、修改说明、Markdown或引号。
+2. 先识别指令针对的真实缺口，再执行与该缺口相匹配的内容改动。缺口可能是分析不到位、原因不充分、证据支持不足、结论覆盖不完整、概念或限定不准确、反论无效、逻辑跳跃或衔接不清；不要预设成固定的“改善某层论证”。
+3. 真正补充、删除、限定、比较或重组相关内容，不要只做措辞润色，也不要把修改指令复述进正文。
+4. 保留原模块中仍然成立的核心信息，并根据当前模块的实际功能提高其分析深度、解释充分性、证据支持力、结论完整性、表达准确性、回应效果或衔接清晰度；只处理指令实际涉及的方面。
+5. 只能使用上下文已经提供的信息和你有较高把握的知识；不得虚构论文名称、研究数据、来源或事实。若指令要求的精确信息在上下文中不存在，用审慎限定替代编造。
+6. 保持原文语言和模块类型，篇幅以完整执行该指令为准。`;
+
+    try {
+      let revisedText = "";
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        let rawText = "";
+        const stream = await openai.responses.create({
+          model: WRITING_MODEL,
+          input: attempt === 1
+            ? basePrompt
+            : `${basePrompt}\n\n上一次输出没有产生实质修改。请重新执行指令，确保新内容确实解决指令指出的具体缺口，并与原模块明显不同。`,
+          reasoning: { effort: "low" },
+          max_output_tokens: 1800,
+          stream: true,
+        });
+
+        for await (const event of stream) {
+          if (event.type === "response.output_text.delta") {
+            rawText += String(event.delta || "");
+          }
+        }
+
+        revisedText = sanitizeServerGeneratedText(rawText)
+          .replace(/^(?:修改后|改写后|修订后|建议文本)\s*[:：]\s*/i, "")
+          .trim();
+
+        if (
+          revisedText &&
+          normalizeGeneratedComparison(revisedText) !==
+            normalizeGeneratedComparison(sourceBlock.text)
+        ) {
+          break;
+        }
+      }
+
+      if (
+        !revisedText ||
+        normalizeGeneratedComparison(revisedText) ===
+          normalizeGeneratedComparison(sourceBlock.text)
+      ) {
+        throw new Error("模型未能按照修改指令产生有效新内容");
+      }
+
+      if (!canWriteResponse(res)) return;
+      writeLine(res, { type: "text_start", blockId: sourceBlock.id });
+
+      const characters = Array.from(revisedText);
+      for (let index = 0; index < characters.length; index += 3) {
+        if (!canWriteResponse(res)) return;
+        writeLine(res, {
+          type: "delta",
+          blockId: sourceBlock.id,
+          delta: characters.slice(index, index + 3).join(""),
+        });
+        await new Promise((resolve) => setTimeout(resolve, 18));
+      }
+
+      if (canWriteResponse(res)) {
+        writeLine(res, {
+          type: "done",
+          blockId: sourceBlock.id,
+          text: revisedText,
+        });
+        res.end();
+      }
+    } catch (error) {
+      console.error("❌ apply-review-instruction-stream error:", error);
+      if (!res.writableEnded) {
+        writeLine(res, {
+          type: "error",
+          message: error.message || "执行修改指令失败",
+        });
+        res.end();
+      }
     }
   }
 );

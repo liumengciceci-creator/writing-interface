@@ -12,7 +12,7 @@ import ActiveReviewCurve from "./components/PageCanvas/ActiveReviewCurve.jsx";
 import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
 import LanguageMenu from "./components/LanguageMenu.jsx";
 import {
-  applyReviewInstruction,
+  applyReviewInstructionStream,
   reviewArgumentFrameworkStream,
 } from "./api/reviewBlockCompatibility.js";
 
@@ -687,16 +687,79 @@ export default function App() {
   const handleReviewAccept = async (item) => {
     const liveSourceBlock = getBlockById(item.targetBlockId) || item.sourceBlock;
     const liveTargetBlock = getBlockById(item.relationTargetId) || item.targetBlock;
-    const revisedText = await applyReviewInstruction({
-      instruction: item.modificationInstruction || item.suggestion,
-      sourceBlock: liveSourceBlock,
-      targetBlock: liveTargetBlock,
-      contextBlocks: item.contextBlocks,
-    });
+    const targetBlockId = String(item.targetBlockId);
+    const originalText = String(liveSourceBlock?.text || "");
+    const applyGraphId = `apply-review-${item.id}`;
+    let streamedText = "";
+    let finalText = "";
+    let textStarted = false;
 
-    handleChangeText(item.targetBlockId, revisedText);
-    setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "accepted" } : result) }));
-    clearReviewIssueFocus();
+    setReviewState((state) => ({
+      ...state,
+      activeIds: [targetBlockId],
+      activeGraphId: applyGraphId,
+      blinkOn: true,
+    }));
+
+    const blinkTimer = window.setInterval(() => {
+      setReviewState((state) =>
+        state.activeGraphId === applyGraphId && !textStarted
+          ? { ...state, blinkOn: !state.blinkOn }
+          : state
+      );
+    }, 320);
+
+    try {
+      await applyReviewInstructionStream({
+        instruction: item.modificationInstruction || item.suggestion,
+        sourceBlock: liveSourceBlock,
+        targetBlock: liveTargetBlock,
+        contextBlocks: item.contextBlocks,
+        onEvent: async (event) => {
+          if (event.type === "text_start") {
+            textStarted = true;
+            window.clearInterval(blinkTimer);
+            setReviewState((state) => ({ ...state, blinkOn: false }));
+            return;
+          }
+
+          if (event.type === "delta") {
+            streamedText += String(event.delta || "");
+            handleChangeText(targetBlockId, streamedText);
+            return;
+          }
+
+          if (event.type === "done") {
+            finalText = String(event.text || streamedText).trim();
+            if (!finalText) throw new Error(t("review.applyFailed"));
+            handleChangeText(targetBlockId, finalText);
+          }
+        },
+      });
+
+      setReviewState((state) => ({
+        ...state,
+        results: state.results.map((result) =>
+          result.id === item.id ? { ...result, decision: "accepted" } : result
+        ),
+      }));
+      clearReviewIssueFocus();
+    } catch (error) {
+      handleChangeText(targetBlockId, originalText);
+      throw error;
+    } finally {
+      window.clearInterval(blinkTimer);
+      setReviewState((state) =>
+        state.activeGraphId === applyGraphId
+          ? {
+              ...state,
+              activeIds: [],
+              activeGraphId: null,
+              blinkOn: false,
+            }
+          : state
+      );
+    }
   };
 
   const handleReviewReject = (item) => {
