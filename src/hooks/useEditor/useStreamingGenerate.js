@@ -228,7 +228,7 @@ function getBlockDirective(block) {
     : text;
 }
 
-function getSpecialIntentGuides(text) {
+function getSpecialIntentGuides(text, { webSearchAllowed = false } = {}) {
   const normalized = String(text || "").trim();
   const guides = [];
 
@@ -243,7 +243,9 @@ function getSpecialIntentGuides(text) {
 
   if (/数据|比例|百分比|样本|统计/.test(normalized)) {
     guides.push(
-      "本次用户明确要求量化证据：先检索并核验与当前论点直接相关的研究或调查，再写出研究对象、样本或测量范围以及关键数值；不得用笼统的‘研究表明’代替数据，也不得虚构无法确认的精确数字。即使用户只输入‘数据’二字，也要把它当作生成命令执行，绝不能原样返回。"
+      webSearchAllowed
+        ? "本次用户明确要求量化证据：检索并核验与当前论点直接相关的研究或调查，再写出研究对象、样本或测量范围以及关键数值；不得用笼统的‘研究表明’代替数据，也不得虚构无法确认的精确数字。即使用户只输入‘数据’二字，也要把它当作生成命令执行，绝不能原样返回。"
+        : "本次用户明确要求量化证据，但网页搜索当前关闭。结合现有上下文和你有较高把握的知识生成完整证据句；不要声称已经检索或核验来源，不要虚构论文题目、年份或无法确认的精确数字，也绝不能只返回‘数据’二字。"
     );
   }
 
@@ -266,7 +268,7 @@ function normalizeGenerationComparison(value) {
 
 function createGenerationInstruction(
   block,
-  { ignoreExistingText = false } = {}
+  { ignoreExistingText = false, webSearchAllowed = false } = {}
 ) {
   const userInput = ignoreExistingText
     ? ""
@@ -284,7 +286,7 @@ function createGenerationInstruction(
     userInput
       ? `用户输入：${userInput}`
       : "用户没有提供草稿，请根据上下文补全这个模块。",
-    ...getSpecialIntentGuides(userInput),
+    ...getSpecialIntentGuides(userInput, { webSearchAllowed }),
     ...formGuide,
     "执行规则：",
     "1. 用户输入决定具体内容与意图，模块标签决定其论证功能；不得把‘加数据’‘加学者观点’等命令原样写进正文。",
@@ -824,22 +826,20 @@ export function useStreamingGenerate({
         userInputMode: directive ? "instruction" : "empty",
         requiredPrefix: "",
         instruction: [
-          createGenerationInstruction(entry.block),
+          createGenerationInstruction(entry.block, {
+            webSearchAllowed: webSearchEnabled,
+          }),
           directive
             ? `最高优先级写作指令：${directive}`
             : "当前文本只是空模块或标签占位文字，请依据上下文主动补全。",
           "本次会同时生成全部选中模块。必须结合其他目标模块的要求，先规划完整、连贯的段落，再为本模块输出新的正文。",
           "指令可能是命令、主题、半截句或已有草稿：都必须转化成新的最终正文，绝不能把指令本身原样返回。",
         ].join("\n"),
-        // 证据、数据、研究发现等内容没有检索就无法同时满足
-        // “给出可核验事实”和“不得编造”的要求，因此这是内容正确性约束，
-        // 不受普通网页检索开关影响。开关仅控制非必需检索。
         searchPolicy:
+          webSearchEnabled &&
           getSearchPolicy(entry.block, directive) === "required"
             ? "required"
-            : webSearchEnabled
-              ? "auto"
-              : "disabled",
+            : "disabled",
       };
     });
 

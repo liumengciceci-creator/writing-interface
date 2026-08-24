@@ -91,6 +91,7 @@ export default function ReviewIssuesPanel({
     setDetailLoading(true);
     setDetailError("");
     onFocusIssue?.(item);
+    let completedDetailText = "";
 
     try {
       await streamReviewEnhancementDetail({
@@ -99,8 +100,13 @@ export default function ReviewIssuesPanel({
         targetBlock: item.targetBlock,
         contextBlocks: item.contextBlocks,
         signal: controller.signal,
-        onDelta: (delta) => setDetailText((text) => `${text}${delta}`),
+        // 接口仍可分块传输以保证连接稳定，但界面等完整意见生成后
+        // 再一次性呈现，避免逐字流式输出干扰阅读。
+        onDelta: (delta) => {
+          completedDetailText += String(delta || "");
+        },
       });
+      setDetailText(completedDetailText);
       setDetailLoading(false);
     } catch (error) {
       if (error?.name === "AbortError") return;
@@ -331,21 +337,7 @@ export default function ReviewIssuesPanel({
               whiteSpace: "pre-wrap",
             }}
           >
-            {detailText || (detailLoading ? "正在结合相关模块判断如何加强…" : "")}
-            {detailLoading ? (
-              <span
-                aria-hidden="true"
-                style={{
-                  display: "inline-block",
-                  width: 1,
-                  height: "1em",
-                  marginLeft: 2,
-                  background: accentColor,
-                  verticalAlign: "-0.12em",
-                  animation: "semantic-review-stream-caret 0.8s steps(1) infinite",
-                }}
-              />
-            ) : null}
+            {detailText || (detailLoading ? "正在生成完整修改意见…" : "")}
           </div>
 
           {detailError ? (

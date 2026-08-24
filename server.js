@@ -567,12 +567,8 @@ function resolveTargetBlocks(body) {
 
   const normalizedTargetBlocks = targetBlocks.map((block) => ({
     ...block,
-    // 旧版前端可能把证据/数据请求错误地标为 disabled。
-    // 后端再次兜底，避免模型在不能检索时既被要求给出精确数据、
-    // 又被要求不得编造，最终只能重复“数据”等用户指令。
-    searchPolicy: requiresVerifiedSearch(block)
-      ? "required"
-      : normalizeSearchPolicy(block?.searchPolicy),
+    // 是否使用网页搜索完全服从前端开关，不再根据模块类型自动开启。
+    searchPolicy: normalizeSearchPolicy(block?.searchPolicy),
   }));
 
   return {
@@ -592,27 +588,6 @@ function normalizeSearchPolicy(value) {
   }
 
   return "disabled";
-}
-
-function requiresVerifiedSearch(block) {
-  const type = String(block?.type || "");
-  const directive = String(
-    block?.directive || block?.userInput || ""
-  );
-
-  if (
-    type === "Title" ||
-    type === "Transition" ||
-    type === "Conclusion"
-  ) {
-    return false;
-  }
-
-  if (type === "Evidence") return true;
-
-  return /学者|专家|研究者|数据|统计|比例|百分比|样本|研究发现|研究表明|事实|案例|来源|文献|年份/.test(
-    directive
-  );
 }
 
 function getWebSearchMode(targetBlocks = []) {
@@ -1395,10 +1370,15 @@ async function generateValidatedBufferedBlocks({
       });
     }
 
+    const retryEvidenceInstruction =
+      getWebSearchMode(targetBlocks) === "disabled"
+        ? "Web search is disabled by the user. Use the supplied context and only knowledge you are confident about; do not claim that you searched or verified a source, and do not invent a paper title, year, or uncertain exact statistic. Still turn 数据 into a complete evidence sentence instead of repeating the directive."
+        : "Use the retrieved sources and write a complete, directly relevant quantitative evidence sentence containing the study population or sample and the key numerical finding.";
+
     const retryInstruction = lastInvalid.length
       ? `\n\nCORRECTION REQUIRED: The previous answer failed for target ids ${lastInvalid
           .map((item) => item.id)
-          .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose. If a directive asks for 数据 or the target is Evidence, use the retrieved sources and write a complete, directly relevant quantitative evidence sentence containing the study population or sample and the key numerical finding. Never output the word 数据 as the answer.`
+          .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose. If a directive asks for 数据 or the target is Evidence: ${retryEvidenceInstruction} Never output the word 数据 as the answer.`
       : "";
 
     lastResponse = await openai.responses.create(
