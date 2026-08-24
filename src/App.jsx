@@ -603,6 +603,11 @@ export default function App() {
               return {
                 id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
                 action,
+                rewriteScope: action === "revise" && item.rewriteScope === "full"
+                  ? "full"
+                  : action === "revise"
+                    ? "local"
+                    : "",
                 relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
                 category: String(item.category || t("app.contentReview")),
                 criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
@@ -870,6 +875,7 @@ export default function App() {
     try {
       await applyReviewInstructionStream({
         instruction: item.modificationInstruction || item.suggestion,
+        rewriteScope: item.rewriteScope,
         sourceBlock: liveSourceBlock,
         targetBlock: liveTargetBlock,
         contextBlocks: item.contextBlocks,

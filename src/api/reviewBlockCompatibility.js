@@ -81,8 +81,9 @@ export async function generateReviewInsertedBlockStream({
     `后一个模块：${String(targetBlock?.text || "").trim()}`,
     `审阅确认的补充要求：${normalizedInstruction}`,
     "生成能够真正补足这处论证缺口的正文，使前后模块在逻辑上成立并自然衔接。",
-    "只使用上下文已经出现的观点和材料；不得虚构数据、研究、来源、案例或外部事实。",
-    "如果是过渡模块，只写完成衔接所必需的短语或短句；如果是原因、论点、反论、对比或结论模块，则完成该类型真正承担的论证功能。",
+    "优先使用上下文已经出现的观点和材料，不得虚构数据、研究、理论名称、来源、案例或外部事实。",
+    "如果审阅要求补充真实理论、研究或数据，而上下文并未提供这些材料，不要假装已经找到内容；生成一个清楚的方括号材料槽，准确写明作者需要补充什么材料、它必须验证哪项判断，以及该材料与前后模块的逻辑关系。",
+    "如果是过渡模块，只写完成衔接所必需的短语或短句；如果是原因、理论分析、论点、反论、对比或结论模块，则完成该类型真正承担的论证功能。Evidence 模块有现成材料时写成证据正文，没有真实材料时必须使用材料槽。",
     "只输出可直接写入新模块的正文，不输出标签、解释、修改说明、Markdown或引号，也不得原样复述审阅指令。",
   ].join("\n");
 
@@ -168,6 +169,7 @@ export async function streamReviewEnhancementDetail({
 
 export async function applyReviewInstruction({
   instruction,
+  rewriteScope = "local",
   sourceBlock,
   targetBlock,
   contextBlocks = [],
@@ -176,7 +178,13 @@ export async function applyReviewInstruction({
   const response = await fetch(APPLY_REVIEW_INSTRUCTION_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction, sourceBlock, targetBlock, contextBlocks }),
+    body: JSON.stringify({
+      instruction,
+      rewriteScope: rewriteScope === "full" ? "full" : "local",
+      sourceBlock,
+      targetBlock,
+      contextBlocks,
+    }),
     signal,
   });
 
@@ -192,6 +200,7 @@ export async function applyReviewInstruction({
 
 export async function applyReviewInstructionStream({
   instruction,
+  rewriteScope = "local",
   sourceBlock,
   targetBlock,
   contextBlocks = [],
@@ -201,7 +210,13 @@ export async function applyReviewInstructionStream({
   const response = await fetch(APPLY_REVIEW_INSTRUCTION_STREAM_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction, sourceBlock, targetBlock, contextBlocks }),
+    body: JSON.stringify({
+      instruction,
+      rewriteScope: rewriteScope === "full" ? "full" : "local",
+      sourceBlock,
+      targetBlock,
+      contextBlocks,
+    }),
     signal,
   });
 

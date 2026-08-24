@@ -30,6 +30,19 @@ const checks = [
     "revision advice must be readable and must not invent unsupported scenarios",
   ],
   [
+    server.includes('"rewriteScope":"local或full') &&
+      server.includes('证据方向错误并使用 rewriteScope="full"') &&
+      app.includes("rewriteScope: item.rewriteScope") &&
+      reviewApi.includes('rewriteScope === "full" ? "full" : "local"'),
+    "evidence-direction errors must trigger a full rewrite through the complete request path",
+  ],
+  [
+    server.includes("理论依据、实证或数据支持、中间机制分析") &&
+      server.includes("主张没有可验证依据时选择 Evidence") &&
+      reviewApi.includes("方括号材料槽"),
+    "review must detect missing theory/evidence modules without fabricating external material",
+  ],
+  [
     server.includes("insertType 必须严格选用上方标签栏中的一个 type") &&
       server.includes("targetIndex !== sourceIndex + 1"),
     "server must validate the inserted type and the adjacent insertion gap",
