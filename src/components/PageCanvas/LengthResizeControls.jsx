@@ -7,6 +7,7 @@ import {
   normalizeId,
 } from "./semanticEditorUtils";
 import { useI18n } from "../../i18n.jsx";
+import QuickInstructionComposer from "./QuickInstructionComposer.jsx";
 
 /**
  * 绘制长度拉伸手柄和长度提示。
@@ -31,6 +32,8 @@ function LengthResizeControls({
   isLengthResizeDragging = false,
 
   beginLengthResize,
+  cancelLengthResize,
+  onApplyInstruction,
 
   isGenerating = false,
   isAdjustingLength = false,
@@ -46,6 +49,9 @@ function LengthResizeControls({
     hoveredBlockId,
     setHoveredBlockId,
   ] = useState(null);
+
+  const [quickActionBlockId, setQuickActionBlockId] = useState(null);
+  const [composer, setComposer] = useState(null);
 
   /**
    * AI 正在生成或正在执行长度调整时，
@@ -127,7 +133,8 @@ function LengthResizeControls({
            */
           const showHandleDot =
             isHovered ||
-            isCurrentDraft;
+            isCurrentDraft ||
+            normalizeId(quickActionBlockId) === blockId;
 
           /**
            * 长度提示只在按住鼠标拖动时显示。
@@ -256,6 +263,14 @@ function LengthResizeControls({
                   );
                 }}
 
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  cancelLengthResize?.();
+                  setHoveredBlockId(blockId);
+                  setQuickActionBlockId(blockId);
+                }}
+
                 style={{
                   position:
                     "absolute",
@@ -364,6 +379,59 @@ function LengthResizeControls({
                 />
               </button>
 
+              {normalizeId(quickActionBlockId) === blockId ? (
+                <button
+                  type="button"
+                  aria-label={t("quickInstruction.open")}
+                  title={t("quickInstruction.open")}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setComposer({
+                      block: handle.block,
+                      blockId,
+                      blockColor,
+                      anchorRect: {
+                        left: rect.left,
+                        right: rect.right,
+                        top: rect.top,
+                        bottom: rect.bottom,
+                      },
+                    });
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: 27,
+                    top: "50%",
+                    width: 29,
+                    height: 29,
+                    zIndex: 24,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                    border: `1.5px solid ${blockColor}55`,
+                    borderRadius: "50%",
+                    background: handle.block?.fill || "#ffffff",
+                    boxShadow: "0 3px 9px rgba(15,23,42,0.14)",
+                    color: "#374151",
+                    fontSize: 23,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    cursor: "pointer",
+                    pointerEvents: "auto",
+                    transform: "translateY(-50%)",
+                  }}
+                >
+                  +
+                </button>
+              ) : null}
+
               {showStatus && (
                 <LengthResizeStatus
                   draft={
@@ -378,6 +446,33 @@ function LengthResizeControls({
           );
         }
       )}
+
+      {composer ? (
+        <QuickInstructionComposer
+          anchorRect={composer.anchorRect}
+          blockColor={composer.blockColor}
+          onClose={() => setComposer(null)}
+          onSubmit={(instruction) => {
+            const target = composer;
+            setComposer(null);
+            setQuickActionBlockId(null);
+            Promise.resolve(
+              onApplyInstruction?.(
+                target.block,
+                {
+                  id: `quick-instruction-${Date.now()}`,
+                  label: instruction,
+                  instruction,
+                  color: target.blockColor,
+                  fill: target.block?.fill || "#f3f4f6",
+                }
+              )
+            ).catch((error) => {
+              console.error("[LengthResizeControls] quick instruction failed:", error);
+            });
+          }}
+        />
+      ) : null}
     </>
   );
 }

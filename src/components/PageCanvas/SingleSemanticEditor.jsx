@@ -932,6 +932,7 @@ const SingleSemanticEditor =
         lengthAdjustBlinkOn,
         isLengthResizeDragging,
         beginLengthResize,
+        cancelLengthResize,
       } = useLengthResize({
         editorRef,
         lineExtensions,
@@ -2124,6 +2125,8 @@ const SingleSemanticEditor =
               lengthResizePreview={lengthResizePreview}
               isLengthResizeDragging={isLengthResizeDragging}
               beginLengthResize={beginLengthResize}
+              cancelLengthResize={cancelLengthResize}
+              onApplyInstruction={onApplyInstruction}
               isGenerating={isGenerating}
               isAdjustingLength={isAdjustingLength}
               hasFocusedEditingBlock={hasFocusedEditingBlock}
