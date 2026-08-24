@@ -15,7 +15,6 @@ import {
 import InstructionPalette from "./InstructionPalette.jsx";
 import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
 import { useI18n } from "../i18n.jsx";
-import LanguageMenu from "./LanguageMenu.jsx";
 
 const BLOCK_TYPE_LABELS = {
   Title: "标题",
@@ -1617,26 +1616,15 @@ export default function Sidebar({
               "grab",
           }}
         >
-          <div
+          <span
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              minWidth: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#555",
             }}
           >
-            <LanguageMenu embedded />
-            <span
-              style={{
-                minWidth: 0,
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#555",
-              }}
-            >
-              {t("sidebar.labels")}
-            </span>
-          </div>
+            {t("sidebar.labels")}
+          </span>
 
           <button
             type="button"

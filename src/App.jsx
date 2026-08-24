@@ -10,6 +10,7 @@ import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ActiveReviewCurve from "./components/PageCanvas/ActiveReviewCurve.jsx";
 import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
+import LanguageMenu from "./components/LanguageMenu.jsx";
 import {
   applyReviewInstruction,
   reviewArgumentFrameworkStream,
@@ -841,6 +842,7 @@ export default function App() {
           "auto",
       }}
     >
+      <LanguageMenu />
       <div
         style={{
           display:

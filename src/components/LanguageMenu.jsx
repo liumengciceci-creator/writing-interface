@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.jsx";
 
-export default function LanguageMenu({ embedded = false }) {
+export default function LanguageMenu() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const { isEnglish, t, toggleLanguage } = useI18n();
@@ -29,11 +29,10 @@ export default function LanguageMenu({ embedded = false }) {
     <div
       ref={menuRef}
       style={{
-        position: embedded ? "relative" : "fixed",
-        top: embedded ? "auto" : 10,
-        left: embedded ? "auto" : 12,
+        position: "fixed",
+        top: 5,
+        left: 6,
         zIndex: 5200,
-        flex: "0 0 auto",
       }}
     >
       <button
@@ -43,8 +42,8 @@ export default function LanguageMenu({ embedded = false }) {
         aria-haspopup="menu"
         onClick={() => setOpen((current) => !current)}
         style={{
-          width: embedded ? 27 : 34,
-          height: embedded ? 24 : 30,
+          width: 28,
+          height: 24,
           padding: "0 0 5px",
           border: "1px solid rgba(17,24,39,0.12)",
           borderRadius: 8,
@@ -66,7 +65,7 @@ export default function LanguageMenu({ embedded = false }) {
           role="menu"
           style={{
             position: "absolute",
-            top: embedded ? 30 : 38,
+            top: 30,
             left: 0,
             width: 174,
             padding: 6,
