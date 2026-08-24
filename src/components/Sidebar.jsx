@@ -12,7 +12,6 @@ import {
   BLOCK_TYPES,
 } from "../constants";
 
-import InstructionPalette from "./InstructionPalette.jsx";
 import FloatingPaletteWindow from "./FloatingPaletteWindow.jsx";
 import { useI18n } from "../i18n.jsx";
 
@@ -61,9 +60,6 @@ const LEGACY_PALETTE_WIDTH_STORAGE_KEY =
 
 const LABEL_PALETTE_WIDTH_STORAGE_KEY =
   "writing-interface-label-palette-width";
-
-const INSTRUCTION_PALETTE_WIDTH_STORAGE_KEY =
-  "writing-interface-instruction-palette-width";
 
 const TEMPLATE_ORDER_STORAGE_KEY =
   "writing-interface-label-template-order";
@@ -961,15 +957,6 @@ export default function Sidebar({
   );
 
   const [
-    instructionPaletteWidth,
-    setInstructionPaletteWidth,
-  ] = useState(() =>
-    loadPaletteWidth(
-      INSTRUCTION_PALETTE_WIDTH_STORAGE_KEY
-    )
-  );
-
-  const [
     templateOrder,
     setTemplateOrder,
   ] = useState(
@@ -991,16 +978,9 @@ export default function Sidebar({
     setTemplateDropIndicatorPlacement,
   ] = useState("before");
 
-  /**
-   * 标签面板与指令面板共用同一个宽度。
-   * 调整任意一个面板时，另一块面板同步变化。
-   */
   const handleSharedPaletteWidthChange =
     (nextWidth) => {
       setLabelPaletteWidth(
-        nextWidth
-      );
-      setInstructionPaletteWidth(
         nextWidth
       );
     };
@@ -1036,17 +1016,6 @@ export default function Sidebar({
       // 浏览器禁止存储时继续使用当前宽度。
     }
   }, [labelPaletteWidth]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        INSTRUCTION_PALETTE_WIDTH_STORAGE_KEY,
-        String(instructionPaletteWidth)
-      );
-    } catch {
-      // 浏览器禁止存储时继续使用当前宽度。
-    }
-  }, [instructionPaletteWidth]);
 
   useEffect(() => {
     try {
@@ -2115,13 +2084,6 @@ export default function Sidebar({
       </div>
 
       </FloatingPaletteWindow>
-
-      <InstructionPalette
-        width={labelPaletteWidth}
-        onWidthChange={
-          handleSharedPaletteWidthChange
-        }
-      />
 
       {/* 新增标签面板 */}
       {showAddPanel &&

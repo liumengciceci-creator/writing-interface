@@ -116,10 +116,7 @@ export default function Toolbar({
       }`}
       style={{
         width: "100%",
-        minHeight:
-          centralStatus
-            ? 100
-            : 54,
+        minHeight: 100,
         position: "relative",
       }}
     >

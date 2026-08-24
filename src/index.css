@@ -165,10 +165,6 @@ body {
 
 @media (max-width: 1000px) {
   .toolbar-shell {
-    min-height: 106px !important;
-  }
-
-  .toolbar-shell.has-status {
     min-height: 142px !important;
   }
 

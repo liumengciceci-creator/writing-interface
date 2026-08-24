@@ -252,6 +252,7 @@ export default function QuickInstructionComposer({
       role="dialog"
       aria-label={t("quickInstruction.dialog")}
       onPointerDown={(event) => {
+        event.stopPropagation();
         if (
           showCustomForm &&
           !event.target.closest("[data-custom-instruction-form='true']") &&
@@ -261,6 +262,8 @@ export default function QuickInstructionComposer({
         }
         beginPanelDrag(event);
       }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       style={{
         position: "fixed",
         left: position.left,

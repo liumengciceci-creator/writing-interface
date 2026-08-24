@@ -964,6 +964,32 @@ const SingleSemanticEditor =
         ) ||
         hasFocusedEditingBlock;
 
+      const visualSelectedIdSet =
+        useMemo(() => {
+          const next =
+            new Set(
+              selectedIdSet
+            );
+
+          if (
+            quickInstructionTarget
+              ?.blockId
+          ) {
+            next.add(
+              normalizeId(
+                quickInstructionTarget
+                  .blockId
+              )
+            );
+          }
+
+          return next;
+        }, [
+          selectedIdSet,
+          quickInstructionTarget
+            ?.blockId,
+        ]);
+
       const {
         lineExtensions,
         measureLineExtensions,
@@ -2229,7 +2255,7 @@ const SingleSemanticEditor =
             <SemanticHighlightLayer
               lineExtensions={lineExtensions}
               blockById={blockById}
-              selectedIdSet={selectedIdSet}
+              selectedIdSet={visualSelectedIdSet}
               generatingIdSet={generatingIdSet}
               generatingBlinkOn={generatingBlinkOn}
               isAdjustingLength={isAdjustingLength}

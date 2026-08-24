@@ -1058,7 +1058,7 @@ export default function App() {
                 "100%",
 
               minHeight:
-                54,
+                100,
 
               zIndex:
                 30,
