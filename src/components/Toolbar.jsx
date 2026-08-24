@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   dividerStyle,
   toolbarButton,
@@ -28,6 +29,9 @@ export default function Toolbar({
   webSearchEnabled = false,
   onToggleWebSearch,
 
+  reviewPanelOpen = false,
+  reviewPanelStacked = false,
+
 }) {
   const normalizedGenerationStatus =
     String(
@@ -42,7 +46,7 @@ export default function Toolbar({
   const busy = isGenerating || isAdjustingLength || isReviewing;
   const normalizedReviewStatus =
     String(reviewStatus || "").trim();
-  const centralStatus =
+  const rawCentralStatus =
     normalizedStatusText ||
     (
       isReviewing
@@ -56,6 +60,26 @@ export default function Toolbar({
             : normalizedGenerationStatus ||
               normalizedReviewStatus
     );
+  const [centralStatus, setCentralStatus] = useState(rawCentralStatus);
+
+  useEffect(() => {
+    if (!rawCentralStatus) {
+      setCentralStatus("");
+      return undefined;
+    }
+
+    setCentralStatus(rawCentralStatus);
+
+    // 进行中的提示持续保留；操作结束后，完成或结果提示最多保留 4 秒。
+    if (busy) return undefined;
+
+    const timerId = window.setTimeout(() => {
+      setCentralStatus("");
+    }, 4000);
+
+    return () => window.clearTimeout(timerId);
+  }, [busy, rawCentralStatus]);
+
   const statusIsError =
     /错误|失败/.test(
       centralStatus
@@ -72,21 +96,35 @@ export default function Toolbar({
 
   return (
     <div
+      className={`toolbar-shell${
+        reviewPanelOpen
+          ? " review-panel-open"
+          : ""
+      }${
+        reviewPanelStacked
+          ? " review-panel-stacked"
+          : ""
+      }${
+        centralStatus
+          ? " has-status"
+          : ""
+      }`}
       style={{
         width: "100%",
         minHeight:
           centralStatus
-            ? 78
+            ? 100
             : 54,
         position: "relative",
       }}
     >
       <div
+        className="canvas-toolbar"
         style={{
           ...groupStyle,
           position: "absolute",
           top: 0,
-          left: "50%",
+          left: "var(--toolbar-center, 50%)",
           transform: "translateX(-50%)",
           zIndex: 1,
           whiteSpace: "nowrap",
@@ -137,6 +175,7 @@ export default function Toolbar({
       </div>
 
       <div
+        className="action-toolbar"
         style={{
           ...groupStyle,
           position: "absolute",
@@ -196,22 +235,23 @@ export default function Toolbar({
 
       {centralStatus ? (
         <div
+          className="canvas-status"
           aria-live="polite"
           title={centralStatus}
           style={{
             position: "absolute",
-            top: 50,
-            left: "50%",
+            top: 62,
+            left: "var(--toolbar-center, 50%)",
             zIndex: 3,
             maxWidth: "min(680px, 72%)",
             transform: "translateX(-50%)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             padding: "5px 12px",
-            border: "1px solid rgba(17,24,39,0.08)",
+            border: "1px solid rgba(79,127,216,0.2)",
             borderRadius: 9,
-            background: "#f8f8f8",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+            background: "#eef5ff",
+            boxShadow: "0 2px 8px rgba(79,127,216,0.1)",
             color: statusIsError
               ? "#b91c1c"
               : "#526078",

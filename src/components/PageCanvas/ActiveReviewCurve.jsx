@@ -1,6 +1,5 @@
 import {
   useLayoutEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -69,15 +68,13 @@ function createCurve(sourceRect, suggestionRect) {
   const firstControlX = startX + controlDistance * direction;
   const secondControlX = endX - controlDistance * direction;
 
-  return `M ${startX} ${startY} C ${firstControlX} ${startY}, ${secondControlX} ${endY}, ${endX} ${endY}`;
+  return {
+    path: `M ${startX} ${startY} C ${firstControlX} ${startY}, ${secondControlX} ${endY}, ${endX} ${endY}`,
+  };
 }
 
 export default function ActiveReviewCurve({ stageRef, issue }) {
   const [curve, setCurve] = useState(null);
-  const markerId = useMemo(
-    () => `review-arrow-${normalizeId(issue?.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`,
-    [issue?.id]
-  );
 
   useLayoutEffect(() => {
     const stage = stageRef?.current;
@@ -123,7 +120,7 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
       }
 
       setCurve({
-        path: createCurve(sourceRect, {
+        ...createCurve(sourceRect, {
           left: suggestionRect.left,
           right: suggestionRect.right,
           centerX: (suggestionRect.left + suggestionRect.right) / 2,
@@ -181,19 +178,6 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
         pointerEvents: "none",
       }}
     >
-      <defs>
-        <marker
-          id={markerId}
-          viewBox="0 0 10 10"
-          refX="8.2"
-          refY="5"
-          markerWidth="7"
-          markerHeight="7"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
-        </marker>
-      </defs>
       <path
         key={issue.id}
         d={curve.path}
@@ -201,14 +185,26 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
         stroke={color}
         strokeWidth="2.2"
         strokeLinecap="round"
-        markerEnd={`url(#${markerId})`}
         pathLength="1"
         style={{
           strokeDasharray: 1,
           strokeDashoffset: 0,
-          animation: "review-active-curve-draw 520ms ease-out both",
+          animation: "review-active-curve-draw 520ms linear both",
         }}
       />
+      <polygon
+        key={`${issue.id}-arrowhead`}
+        points="0,0 -10,-5 -10,5"
+        fill={color}
+      >
+        <animateMotion
+          path={curve.path}
+          dur="520ms"
+          fill="freeze"
+          rotate="auto"
+          calcMode="linear"
+        />
+      </polygon>
     </svg>
   );
 }

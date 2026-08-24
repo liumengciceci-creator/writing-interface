@@ -95,6 +95,16 @@ body {
   --review-panel-width: clamp(248px, 19vw, 340px);
 }
 
+.toolbar-shell {
+  --toolbar-center: 50%;
+}
+
+.toolbar-shell.review-panel-open:not(.review-panel-stacked) {
+  --toolbar-center: calc(
+    (100% - var(--review-panel-width) - 18px) / 2
+  );
+}
+
 .page-canvas-shell {
   padding-right: 0;
   box-sizing: border-box;
@@ -104,20 +114,39 @@ body {
 .page-canvas-shell.review-panel-open {
   padding-right: calc(
     var(--review-panel-width) +
-    var(--review-zoom-clearance, 0px) +
     18px
   );
 }
 
 .review-issues-panel {
   position: absolute;
-  top: 104px;
+  top: 122px;
   right: 18px;
   width: var(--review-panel-width);
-  max-height: calc(100dvh - 124px);
+  max-height: calc(100dvh - 142px);
+}
+
+.editor-main.review-panel-stacked
+  .page-canvas-shell.review-panel-open {
+  padding-right: 0;
+}
+
+.editor-main.review-panel-stacked .review-issues-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  align-self: flex-end;
+  width: min(340px, 100%);
+  max-height: 58dvh;
+  margin-top: 10px;
+  margin-bottom: 4px;
 }
 
 @media (max-width: 1180px) {
+  .toolbar-shell.review-panel-open {
+    --toolbar-center: 50%;
+  }
+
   .page-canvas-shell.review-panel-open {
     padding-right: 0;
   }
@@ -131,6 +160,24 @@ body {
     max-height: 58dvh;
     margin-top: 10px;
     margin-bottom: 4px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .toolbar-shell {
+    min-height: 106px !important;
+  }
+
+  .toolbar-shell.has-status {
+    min-height: 142px !important;
+  }
+
+  .action-toolbar {
+    top: 54px !important;
+  }
+
+  .canvas-status {
+    top: 112px !important;
   }
 }
 

@@ -826,6 +826,9 @@ export default function App() {
       );
     };
 
+  const reviewPanelStacked =
+    reviewPanelOpen && Number(zoom) > 1.001;
+
   return (
     <div
       style={{
@@ -1006,14 +1009,12 @@ export default function App() {
 
         {/* 中间编辑区 */}
         <main
-          className="editor-main"
+          className={`editor-main${
+            reviewPanelStacked
+              ? " review-panel-stacked"
+              : ""
+          }`}
           style={{
-            "--review-zoom-clearance":
-              `${Math.max(
-                0,
-                (Number(zoom) - 1) * 900
-              )}px`,
-
             minWidth:
               0,
 
@@ -1062,7 +1063,7 @@ export default function App() {
                 "100%",
 
               minHeight:
-                64,
+                54,
 
               zIndex:
                 30,
@@ -1147,6 +1148,9 @@ export default function App() {
   onToggleWebSearch={
     toggleWebSearch
   }
+
+  reviewPanelOpen={reviewPanelOpen}
+  reviewPanelStacked={reviewPanelStacked}
 
 />
           </div>
