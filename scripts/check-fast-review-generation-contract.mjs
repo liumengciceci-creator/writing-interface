@@ -46,14 +46,15 @@ const i18n = fs.readFileSync(path.join(root, "src/i18n.jsx"), "utf8");
 
 const checks = [
   {
-    name: "generation uses a strict structured block response",
+    name: "generation uses true tagged streaming instead of replaying buffered JSON",
     pass:
-      server.includes('name: "generated_blocks"') &&
-      server.includes('type: "json_schema"') &&
-	      server.includes('type: "string"') &&
-	      server.includes("enum: targetBlocks.map((block) => String(block.id))") &&
-	      !server.includes("enum: targetBlocks.map((block) => Number(block.id))") &&
-      server.includes("parseBufferedBlockOutput"),
+      server.includes("buildStreamingWritingRequestOptions") &&
+      server.includes('event.type === "response.output_text.delta"') &&
+      server.includes("parser.push(String(event.delta || \"\"))") &&
+      server.includes("[[BLOCK:id]]final block prose[[/BLOCK]]") &&
+      server.includes("generateValidatedStreamingBlocks") &&
+      !server.includes("emitBufferedBlocks") &&
+      !server.includes("parseBufferedBlockOutput"),
   },
 	{
 	  name: "review-insert string ids remain valid structured-output enum values",
@@ -66,8 +67,10 @@ const checks = [
   {
     name: "unchanged generated text is rejected",
     pass:
-      server.includes("normalizeGeneratedComparison(text)") &&
-      server.includes("unchanged") &&
+      server.includes("getBlockEchoCandidates") &&
+      server.includes("canReleaseGuardedText") &&
+      server.includes('reason: "unchanged_user_input"') &&
+      server.includes("Only regenerate target ids") &&
       generationHook.includes("consideredIdentical"),
   },
   {

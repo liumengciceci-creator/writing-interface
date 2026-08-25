@@ -8,6 +8,7 @@
     "prebuild": "node scripts/prepare-vite-entry.mjs && node scripts/check-i18n-scope.mjs",
     "build": "vite build",
     "check:generation-snapshot": "node scripts/check-generation-snapshot.mjs",
+    "check:true-generation-stream": "node scripts/check-true-generation-stream-contract.mjs",
     "check:research-logging": "node scripts/check-research-logging-contract.mjs",
     "logs:export": "node scripts/export-research-logs.mjs",
     "check:i18n-scope": "node scripts/check-i18n-scope.mjs",

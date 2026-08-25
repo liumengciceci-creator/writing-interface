@@ -764,7 +764,12 @@ function getWebSearchMode(targetBlocks = []) {
   return "disabled";
 }
 
-function buildWritingRequestOptions({
+/**
+ * 真流式接口不能使用完整 JSON Schema：JSON 只有全部闭合后才能可靠解析，
+ * 会把模型已经生成的第一个模块继续挡在服务器里。这里改用很小的纯文本
+ * 标签协议，正文 delta 到达时即可逐块解析和下发。
+ */
+function buildStreamingWritingRequestOptions({
   prompt,
   targetBlocks,
 }) {
@@ -781,31 +786,7 @@ function buildWritingRequestOptions({
     input: prompt,
     text: {
       format: {
-        type: "json_schema",
-        name: "generated_blocks",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            results: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  id: {
-	                    type: "string",
-	                    enum: targetBlocks.map((block) => String(block.id)),
-                  },
-                  text: { type: "string" },
-                },
-                required: ["id", "text"],
-              },
-            },
-          },
-          required: ["results"],
-        },
+        type: "text",
       },
     },
   };
@@ -817,15 +798,8 @@ function buildWritingRequestOptions({
         search_context_size: WEB_SEARCH_CONTEXT_SIZE,
       },
     ];
-
-    options.tool_choice =
-      webSearchMode === "required"
-        ? "required"
-        : "auto";
-
-    options.include = [
-      "web_search_call.action.sources",
-    ];
+    options.tool_choice = webSearchMode === "required" ? "required" : "auto";
+    options.include = ["web_search_call.action.sources"];
   }
 
   return options;
@@ -885,84 +859,6 @@ function getCompletedResponseText(response) {
   }
 
   return parts.join("").trim();
-}
-
-/**
- * Read the model response as an upstream stream, even though block text is
- * validated before it is exposed to the editor. This prevents a long silent
- * provider request from being cut off by an intermediary before any body data
- * is received.
- */
-async function createCompletedWritingResponse({
-  prompt,
-  targetBlocks,
-  signal,
-}) {
-  const stream = await openai.responses.create(
-    {
-      ...buildWritingRequestOptions({
-        prompt,
-        targetBlocks,
-      }),
-      stream: true,
-    },
-    signal ? { signal } : undefined
-  );
-
-  let outputText = "";
-  let completedResponse = null;
-
-  for await (const event of stream) {
-    if (signal?.aborted) {
-      const error = new Error("生成已取消");
-      error.name = "AbortError";
-      throw error;
-    }
-
-    if (event.type === "response.output_text.delta") {
-      outputText += String(event.delta || "");
-      continue;
-    }
-
-    if (event.type === "response.completed") {
-      completedResponse = event.response || null;
-      continue;
-    }
-
-    if (
-      event.type === "response.failed" ||
-      event.type === "response.incomplete" ||
-      event.type === "error"
-    ) {
-      const error = new Error(
-        event?.error?.message ||
-          event?.response?.error?.message ||
-          "模型流未能完整生成"
-      );
-      error.code = "UPSTREAM_STREAM_INCOMPLETE";
-      error.details = event;
-      throw error;
-    }
-  }
-
-  const response =
-    completedResponse ||
-    {
-      output_text: outputText,
-      output: [],
-    };
-  const rawText = outputText.trim() || getCompletedResponseText(response);
-
-  if (!rawText) {
-    const error = new Error("模型流结束但没有返回正文");
-    error.code = "EMPTY_MODEL_STREAM";
-    throw error;
-  }
-
-  return {
-    response,
-    rawText,
-  };
 }
 
 /**
@@ -1059,9 +955,16 @@ Your task:
 8. If searchPolicy is required, you MUST use web search before writing. Search specifically for material that answers userInput and supports the relevant contextual claim.
 9. Use a named scholar, quantitative value, study finding, date, or factual claim only when supported by a retrieved source. Never let a loosely related search result change the user's requested subject.
 10. Do not place raw URLs, a bibliography, source list, Markdown links, or task commentary inside the block text. Source metadata is returned separately by the API.
-11. Before writing any target, silently plan one coherent passage across ALL target blocks. Then return every requested target exactly once and in order. Never omit a target because its directive already contains text.
+11. Before writing any target, silently plan one coherent passage across ALL target blocks. Then write every requested target exactly once and in order. Never omit a target because its directive already contains text.
 12. Treat the directive as an instruction to follow, not as text to preserve. Returning it unchanged is a failed answer.
-13. Return the structured results required by the response schema. Required target ids: ${targetIds}. Each result text must contain only the final block prose, without labels, analysis, source lists, Markdown, or quotation marks around the answer.
+13. Required target ids, in exact output order: ${targetIds}.
+14. Use this exact streaming protocol and output nothing outside it:
+[[BLOCK:id]]final block prose[[/BLOCK]]
+Replace id with the requested id. Put each target in its own tag pair. Do not use JSON, Markdown fences, labels, analysis, source lists, or quotation marks around the answer. Never put the protocol tags inside block prose.
+
+Example shape only:
+[[BLOCK:1]]First block's final prose.[[/BLOCK]]
+[[BLOCK:2]]Second block's final prose.[[/BLOCK]]
 
 CONTEXT BLOCKS:
 ${formattedContext || "(none)"}
@@ -1330,60 +1233,133 @@ async function generateResultsFromRequest(body) {
   };
 }
 
+function getBlockEchoCandidates(block = {}) {
+  const rawCandidates = [
+    block.directive,
+    block.userInput,
+    block.originalText,
+    block.userInputMode === "completion" ? block.requiredPrefix : "",
+  ];
+  const seen = new Set();
+
+  return rawCandidates.flatMap((value) => {
+    const text = String(value || "").trim();
+    const normalized = normalizeGeneratedComparison(text);
+    if (!normalized || seen.has(normalized)) return [];
+    seen.add(normalized);
+    return [{ text, normalized }];
+  });
+}
+
+function validateStreamedBlockText(block, value) {
+  const text = String(value || "").trim();
+  const normalized = normalizeGeneratedComparison(text);
+  const echoCandidates = getBlockEchoCandidates(block);
+
+  if (!normalized) {
+    return { valid: false, reason: "empty" };
+  }
+
+  const echoedCandidate = echoCandidates.find(
+    (candidate) => candidate.normalized === normalized
+  );
+  if (echoedCandidate) {
+    return { valid: false, reason: "unchanged_user_input" };
+  }
+
+  const requiredPrefix = String(block?.requiredPrefix || "");
+  if (
+    block?.userInputMode === "completion" &&
+    requiredPrefix &&
+    !text.startsWith(requiredPrefix)
+  ) {
+    return { valid: false, reason: "missing_required_prefix" };
+  }
+
+  return { valid: true, reason: "" };
+}
+
 /**
- * 解析流式模块输出。
+ * 只有当当前正文已经不可能再变成“用户输入的原样副本”时才放行。
+ * 模型流只会在末尾追加字符，所以一旦规范化文本与每个候选输入都出现
+ * 实质分叉，之后就不可能重新变回完全相同的字符串。
  */
-function createBlockStreamParser({ res, expectedIds = [] }) {
+function canReleaseGuardedText(block, value) {
+  const text = String(value || "");
+  const normalized = normalizeGeneratedComparison(text);
+  if (!normalized) return false;
+
+  const requiredPrefix = String(block?.requiredPrefix || "");
+  if (block?.userInputMode === "completion" && requiredPrefix) {
+    if (requiredPrefix.startsWith(text)) return false;
+    if (!text.startsWith(requiredPrefix)) return false;
+  }
+
+  return getBlockEchoCandidates(block).every(
+    (candidate) => !candidate.normalized.startsWith(normalized)
+  );
+}
+
+/**
+ * 解析模型的标签协议，并在每个模块内部执行“禁止照抄”闸门。
+ */
+function createBlockStreamParser({
+  expectedBlocks = [],
+  onBlockStart = () => {},
+  onChunk = () => {},
+  onBlockDone = () => {},
+}) {
   const START_PREFIX = "[[BLOCK:";
   const END_TAG = "[[/BLOCK]]";
 
   let buffer = "";
   let currentBlockId = null;
-  const startedIds = new Set();
-  const completedIds = new Set();
-  const expectedIdSet = new Set(expectedIds.map(String));
-  const textById = new Map();
+  let discardCurrentBlock = false;
+  const expectedBlockById = new Map(
+    expectedBlocks.map((block) => [String(block.id), block])
+  );
+  const encounteredIds = new Set();
+  const validTextById = new Map();
+  const invalidReasonById = new Map();
+  let currentState = null;
 
-  function emitChunk(id, delta) {
-    if (!delta) return;
+  function appendCurrentText(delta) {
+    if (!delta || discardCurrentBlock || !currentState) return;
+    currentState.text += delta;
 
-    const key = String(id);
-    textById.set(key, `${textById.get(key) || ""}${delta}`);
-
-    writeLine(res, {
-      type: "chunk",
-      id,
-      delta,
-    });
-  }
-
-  function emitBlockStart(id) {
-    if (expectedIdSet.size && !expectedIdSet.has(String(id))) {
-      throw new Error(`Model returned unknown block id: ${id}`);
+    if (!currentState.released) {
+      if (!canReleaseGuardedText(currentState.block, currentState.text)) {
+        return;
+      }
+      currentState.released = true;
+      onBlockStart(currentBlockId);
+      onChunk(currentBlockId, currentState.text);
+      return;
     }
 
-    if (startedIds.has(id)) return;
-
-    startedIds.add(id);
-
-    writeLine(res, {
-      type: "block_start",
-      id,
-    });
+    onChunk(currentBlockId, delta);
   }
 
-  function emitBlockDone(id) {
-    const key = String(id);
-    if (!String(textById.get(key) || "").trim()) {
-      throw new Error(`Model returned empty block: ${id}`);
+  function finishCurrentBlock() {
+    if (discardCurrentBlock || !currentState) return;
+
+    const validation = validateStreamedBlockText(
+      currentState.block,
+      currentState.text
+    );
+    if (!validation.valid) {
+      invalidReasonById.set(String(currentBlockId), validation.reason);
+      return;
     }
 
-    completedIds.add(key);
+    if (!currentState.released) {
+      currentState.released = true;
+      onBlockStart(currentBlockId);
+      onChunk(currentBlockId, currentState.text);
+    }
 
-    writeLine(res, {
-      type: "block_done",
-      id,
-    });
+    validTextById.set(String(currentBlockId), currentState.text.trim());
+    onBlockDone(currentBlockId);
   }
 
   function push(deltaText) {
@@ -1429,22 +1405,26 @@ function createBlockStreamParser({ res, expectedIds = [] }) {
           closeIndex + 2
         );
 
-        const match = tagBody.match(
-          /^\[\[BLOCK:(\d+)\]\]$/
-        );
+        const match = tagBody.match(/^\[\[BLOCK:([^\]\r\n]+)\]\]$/);
 
         if (!match) {
           buffer = buffer.slice(1);
           continue;
         }
 
-        currentBlockId = Number(
-          match[1]
-        );
-
-        emitBlockStart(
-          currentBlockId
-        );
+        currentBlockId = String(match[1]).trim();
+        const block = expectedBlockById.get(currentBlockId);
+        discardCurrentBlock = !block || encounteredIds.has(currentBlockId);
+        if (!discardCurrentBlock) {
+          encounteredIds.add(currentBlockId);
+          currentState = {
+            block,
+            text: "",
+            released: false,
+          };
+        } else {
+          currentState = null;
+        }
 
         buffer = buffer.slice(
           closeIndex + 2
@@ -1457,23 +1437,7 @@ function createBlockStreamParser({ res, expectedIds = [] }) {
         buffer.indexOf(END_TAG);
 
       if (endIndex === -1) {
-        if (force) {
-          if (buffer.length > 0) {
-            emitChunk(
-              currentBlockId,
-              buffer
-            );
-
-            buffer = "";
-          }
-
-          emitBlockDone(
-            currentBlockId
-          );
-
-          currentBlockId = null;
-          continue;
-        }
+        if (force) return;
 
         const safeLength = Math.max(
           0,
@@ -1488,10 +1452,7 @@ function createBlockStreamParser({ res, expectedIds = [] }) {
               safeLength
             );
 
-          emitChunk(
-            currentBlockId,
-            safeText
-          );
+          appendCurrentText(safeText);
 
           buffer = buffer.slice(
             safeLength
@@ -1504,20 +1465,17 @@ function createBlockStreamParser({ res, expectedIds = [] }) {
       const textBeforeEnd =
         buffer.slice(0, endIndex);
 
-      emitChunk(
-        currentBlockId,
-        textBeforeEnd
-      );
+      appendCurrentText(textBeforeEnd);
 
       buffer = buffer.slice(
         endIndex + END_TAG.length
       );
 
-      emitBlockDone(
-        currentBlockId
-      );
+      finishCurrentBlock();
 
       currentBlockId = null;
+      currentState = null;
+      discardCurrentBlock = false;
     }
   }
 
@@ -1525,29 +1483,22 @@ function createBlockStreamParser({ res, expectedIds = [] }) {
     processBuffer(true);
   }
 
-  function hasOutput() {
-    return startedIds.size > 0;
-  }
-
-  function validate() {
-    const missingIds = Array.from(expectedIdSet).filter(
-      (id) =>
-        !completedIds.has(id) ||
-        !String(textById.get(id) || "").trim()
-    );
-
-    if (missingIds.length) {
-      throw new Error(
-        `Model omitted target blocks: ${missingIds.join(", ")}`
-      );
-    }
+  function getInvalidDetails() {
+    return expectedBlocks.flatMap((block) => {
+      const id = String(block.id);
+      if (validTextById.has(id)) return [];
+      return [{
+        id,
+        reason: invalidReasonById.get(id) || "missing_or_malformed",
+      }];
+    });
   }
 
   return {
     push,
     flush,
-    hasOutput,
-    validate,
+    getInvalidDetails,
+    getValidTextById: () => new Map(validTextById),
   };
 }
 
@@ -1572,178 +1523,205 @@ function sanitizeServerGeneratedText(value) {
     .trim();
 }
 
-function parseBufferedBlockOutput(rawText, targetBlocks) {
-  const result = new Map();
+/**
+ * 即使模型偶尔乱序返回，浏览器也只会按用户选中的模块顺序看到事件。
+ * 当前模块仍在实时输出；较后的模块若提前到达，则暂存在服务器内。
+ */
+function createOrderedBlockEmitter(res, targetBlocks) {
+  const orderedIds = targetBlocks.map((block) => String(block.id));
+  const stateById = new Map(
+    orderedIds.map((id) => [id, {
+      started: false,
+      done: false,
+      emittedStart: false,
+      pendingChunks: [],
+    }])
+  );
+  let nextIndex = 0;
 
-  try {
-    const parsed = JSON.parse(cleanModelJsonText(rawText));
-    const rows = Array.isArray(parsed?.results) ? parsed.results : [];
-    const expectedIds = new Set(targetBlocks.map((block) => String(block.id)));
+  function drain() {
+    while (nextIndex < orderedIds.length) {
+      const id = orderedIds[nextIndex];
+      const state = stateById.get(id);
+      if (!state?.started) return;
 
-    rows.forEach((row) => {
-      const id = String(row?.id ?? "");
-      if (!expectedIds.has(id) || result.has(id)) return;
-      result.set(id, sanitizeServerGeneratedText(row?.text || ""));
-    });
-  } catch (error) {
-    console.warn("结构化模块结果解析失败：", error?.message || error);
+      if (!state.emittedStart) {
+        state.emittedStart = true;
+        writeLine(res, { type: "block_start", id });
+      }
+
+      while (state.pendingChunks.length) {
+        writeLine(res, {
+          type: "chunk",
+          id,
+          delta: state.pendingChunks.shift(),
+        });
+      }
+
+      if (!state.done) return;
+      writeLine(res, { type: "block_done", id });
+      nextIndex += 1;
+    }
   }
 
-  return result;
+  return {
+    start(id) {
+      const state = stateById.get(String(id));
+      if (!state) return;
+      state.started = true;
+      drain();
+    },
+    chunk(id, delta) {
+      const state = stateById.get(String(id));
+      if (!state || !delta) return;
+      state.started = true;
+      state.pendingChunks.push(String(delta));
+      drain();
+    },
+    done(id) {
+      const state = stateById.get(String(id));
+      if (!state) return;
+      state.started = true;
+      state.done = true;
+      drain();
+    },
+  };
 }
 
-async function generateValidatedBufferedBlocks({
-  prompt,
+async function generateValidatedStreamingBlocks({
   targetBlocks,
+  contextBlocks,
   res,
   signal,
   isClientClosed = () => false,
 }) {
   const maxAttempts = 3;
+  const orderedEmitter = createOrderedBlockEmitter(res, targetBlocks);
+  const completedTextById = new Map();
+  const completedResponses = [];
+  let pendingBlocks = [...targetBlocks];
   let lastInvalid = [];
-  let lastResponse = null;
-  const validTextById = new Map();
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts && pendingBlocks.length; attempt += 1) {
     if (isClientClosed() || signal?.aborted) {
       const error = new Error("客户端已断开，生成已取消");
       error.name = "AbortError";
       throw error;
     }
 
-    if (getWebSearchMode(targetBlocks) !== "disabled") {
-      writeLine(res, {
-        type: "search_progress",
-        phase: "searching",
-        attempt,
-      });
+    const webSearchMode = getWebSearchMode(pendingBlocks);
+    if (webSearchMode !== "disabled") {
+      writeLine(res, { type: "search_progress", phase: "searching", attempt });
     }
 
-    const retryEvidenceInstruction =
-      getWebSearchMode(targetBlocks) === "disabled"
-        ? "Web search is disabled by the user. Use the supplied context and only knowledge you are confident about; do not claim that you searched or verified a source, and do not invent a paper title, year, or uncertain exact statistic. Still turn 数据 into a complete evidence sentence instead of repeating the directive."
-        : "Use the retrieved sources and write a complete, directly relevant quantitative evidence sentence containing the study population or sample and the key numerical finding.";
-
-    const retryInstruction = lastInvalid.length
-      ? `\n\nCORRECTION REQUIRED: The previous answer failed for target ids ${lastInvalid
-          .map((item) => item.id)
-          .join(", ")}. Each failed target was empty, missing, or merely repeated its directive. Regenerate ALL targets. Execute every directive and produce visibly new final prose. If a directive asks for 数据 or the target is Evidence: ${retryEvidenceInstruction} Never output the word 数据 as the answer.`
+    const completedTargets = targetBlocks.filter((block) =>
+      completedTextById.has(String(block.id))
+    );
+    const completedPassage = completedTargets.length
+      ? `\n\nALREADY GENERATED TARGETS (do not output these again; use them only to keep the retry coherent):\n${formatBlocks(
+          completedTargets.map((block) => ({
+            ...block,
+            text: completedTextById.get(String(block.id)),
+            directive: "",
+            userInput: "",
+            originalText: "",
+          }))
+        )}`
       : "";
+    const correctionInstruction = attempt > 1
+      ? `\n\nCORRECTION REQUIRED: Only regenerate target ids ${pendingBlocks
+          .map((block) => block.id)
+          .join(", ")}. Their previous output was missing, malformed, empty, or exactly echoed user-supplied text. Produce genuinely new final prose and follow the tag protocol exactly.`
+      : "";
+    const prompt = `${buildStreamingPrompt({
+      targetBlocks: pendingBlocks,
+      contextBlocks,
+    })}${completedPassage}${correctionInstruction}`;
 
-    const completed = await createCompletedWritingResponse({
-        prompt: `${prompt}${retryInstruction}`,
-        targetBlocks,
-        signal,
-      });
-
-    lastResponse = completed.response;
-
-    if (isClientClosed() || signal?.aborted) {
-      const error = new Error("客户端已断开，生成已取消");
-      error.name = "AbortError";
-      throw error;
-    }
-
-    if (getWebSearchMode(targetBlocks) !== "disabled") {
-      writeLine(res, {
-        type: "search_progress",
-        phase: "completed",
-        attempt,
-      });
-    }
-
-    const rawText = completed.rawText;
-    const textById = parseBufferedBlockOutput(rawText, targetBlocks);
-
-    lastInvalid = targetBlocks.flatMap((block) => {
-      const id = String(block.id);
-      const text = String(textById.get(id) || "").trim();
-      const directive = String(block.directive || block.userInput || "").trim();
-      const comparisonText = directive || String(block.originalText || "").trim();
-      const unchanged = Boolean(
-        comparisonText &&
-          normalizeGeneratedComparison(text) ===
-            normalizeGeneratedComparison(comparisonText)
-      );
-
-      return !text || unchanged
-        ? [{ id, empty: !text, unchanged, directive: comparisonText, returnedText: text }]
-        : [];
+    const parser = createBlockStreamParser({
+      expectedBlocks: pendingBlocks,
+      onBlockStart: (id) => orderedEmitter.start(id),
+      onChunk: (id, delta) => orderedEmitter.chunk(id, delta),
+      onBlockDone: (id) => orderedEmitter.done(id),
     });
 
-    const invalidIdSet = new Set(lastInvalid.map((item) => String(item.id)));
-    targetBlocks.forEach((block) => {
-      const id = String(block.id);
-      const text = String(textById.get(id) || "").trim();
-      if (!invalidIdSet.has(id) && text) {
-        validTextById.set(id, text);
+    const stream = await openai.responses.create(
+      {
+        ...buildStreamingWritingRequestOptions({ prompt, targetBlocks: pendingBlocks }),
+        stream: true,
+      },
+      signal ? { signal } : undefined
+    );
+    let completedResponse = null;
+
+    for await (const event of stream) {
+      if (isClientClosed() || signal?.aborted) {
+        const error = new Error("生成已取消");
+        error.name = "AbortError";
+        throw error;
       }
-    });
+
+      if (event.type === "response.output_text.delta") {
+        parser.push(String(event.delta || ""));
+        continue;
+      }
+      if (event.type === "response.completed") {
+        completedResponse = event.response || null;
+        continue;
+      }
+      if (
+        event.type === "response.failed" ||
+        event.type === "response.incomplete" ||
+        event.type === "error"
+      ) {
+        const error = new Error(
+          event?.error?.message ||
+            event?.response?.error?.message ||
+            "模型流未能完整生成"
+        );
+        error.code = "UPSTREAM_STREAM_INCOMPLETE";
+        error.details = event;
+        throw error;
+      }
+    }
+
+    parser.flush();
+    if (completedResponse) completedResponses.push(completedResponse);
+
+    const validTextById = parser.getValidTextById();
+    validTextById.forEach((text, id) => completedTextById.set(id, text));
+    lastInvalid = parser.getInvalidDetails();
+    const invalidIdSet = new Set(lastInvalid.map((item) => String(item.id)));
+    pendingBlocks = pendingBlocks.filter((block) => invalidIdSet.has(String(block.id)));
 
     writeLine(res, {
       type: "debug",
-      stage: "server_attempt_validated",
+      stage: "server_stream_attempt_validated",
       attempt,
+      completedIds: Array.from(validTextById.keys()),
       invalid: lastInvalid,
-      results: targetBlocks.map((block) => ({
-        id: block.id,
-        directive: String(block.directive || block.userInput || ""),
-        returnedText: String(textById.get(String(block.id)) || ""),
-      })),
     });
 
-    if (!lastInvalid.length) {
-      return { textById, response: lastResponse, attempt };
+    if (webSearchMode !== "disabled") {
+      writeLine(res, { type: "search_progress", phase: "completed", attempt });
     }
   }
 
-  const error = new Error(
-    `模型连续 ${maxAttempts} 次未执行模块指令：${lastInvalid
-      .map((item) => item.id)
-      .join(", ")}`
-  );
-  error.code = "GENERATION_VALIDATION_FAILED";
-  error.failedIds = lastInvalid.map((item) => String(item.id));
-  error.partialTextById = validTextById;
-  error.partialBlocks = targetBlocks.filter((block) =>
-    validTextById.has(String(block.id))
-  );
-  error.details = lastInvalid;
-  throw error;
-}
-
-async function emitBufferedBlocks(
-  res,
-  targetBlocks,
-  textById,
-  isClientClosed = () => false
-) {
-  for (const block of targetBlocks) {
-    if (isClientClosed() || !canWriteResponse(res)) {
-      return;
-    }
-
-    const text = String(textById.get(String(block.id)) || "");
-
-    writeLine(res, { type: "block_start", id: block.id });
-
-    const characters = Array.from(text);
-    for (let index = 0; index < characters.length; index += 6) {
-      if (isClientClosed() || !canWriteResponse(res)) {
-        return;
-      }
-
-      writeLine(res, {
-        type: "chunk",
-        id: block.id,
-        delta: characters.slice(index, index + 6).join(""),
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 8));
-    }
-
-    writeLine(res, { type: "block_done", id: block.id });
+  if (pendingBlocks.length) {
+    const failedIds = pendingBlocks.map((block) => String(block.id));
+    const error = new Error(
+      `模型连续 ${maxAttempts} 次仍未生成有效正文：${failedIds.join(", ")}`
+    );
+    error.code = "GENERATION_VALIDATION_FAILED";
+    error.failedIds = failedIds;
+    error.details = lastInvalid;
+    throw error;
   }
+
+  return {
+    textById: completedTextById,
+    responses: completedResponses,
+  };
 }
 
 /**
@@ -3938,12 +3916,6 @@ app.post(
         req.body
       );
 
-      const prompt =
-        buildStreamingPrompt({
-          targetBlocks,
-          contextBlocks,
-        });
-
       res.setHeader(
         "Content-Type",
         "application/x-ndjson; charset=utf-8"
@@ -4009,12 +3981,10 @@ app.post(
       }, 8000);
 
       const {
-        textById,
-        response: completedResponse,
-        attempt,
-      } = await generateValidatedBufferedBlocks({
-        prompt,
+        responses: completedResponses,
+      } = await generateValidatedStreamingBlocks({
         targetBlocks,
+        contextBlocks,
         res,
         signal: abortController.signal,
         isClientClosed: () => clientClosed,
@@ -4026,23 +3996,21 @@ app.post(
 
       writeLine(res, {
         type: "debug",
-        stage: "server_all_target_ids_validated",
+        stage: "server_all_target_ids_streamed_and_validated",
         expectedIds: targetBlocks.map((block) => block.id),
-        attempt,
       });
-
-      await emitBufferedBlocks(
-        res,
-        targetBlocks,
-        textById,
-        () => clientClosed
-      );
 
       if (clientClosed || !canWriteResponse(res)) {
         return;
       }
 
-      const sources = collectWebSources(completedResponse);
+      const sourcesByUrl = new Map();
+      completedResponses.forEach((response) => {
+        collectWebSources(response).forEach((source) => {
+          sourcesByUrl.set(source.url, source);
+        });
+      });
+      const sources = Array.from(sourcesByUrl.values()).slice(0, 5);
 
       if (sources.length) {
         writeLine(res, {
@@ -4068,21 +4036,6 @@ app.post(
           "ℹ️ generate-stream 因客户端断开而结束"
         );
         return;
-      }
-
-      if (
-        !wasAborted &&
-        Array.isArray(error?.partialBlocks) &&
-        error.partialBlocks.length > 0 &&
-        error?.partialTextById instanceof Map &&
-        canWriteResponse(res)
-      ) {
-        await emitBufferedBlocks(
-          res,
-          error.partialBlocks,
-          error.partialTextById,
-          () => clientClosed
-        );
       }
 
       console.error(
