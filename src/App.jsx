@@ -1473,6 +1473,7 @@ export default function App() {
       >
         {/* 左侧标签栏 */}
         <div
+          data-workspace-drop-zone="left-gutter"
           style={{
             position:
               "relative",
@@ -1510,6 +1511,7 @@ export default function App() {
 
           <div
             aria-live="polite"
+            data-workspace-drop-ignore="true"
             title={t("app.noSpaces")}
             style={{
               position: "fixed",

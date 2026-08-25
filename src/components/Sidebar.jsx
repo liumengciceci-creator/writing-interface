@@ -1699,13 +1699,16 @@ export default function Sidebar({
                   );
 
                 /**
-                 * 明显向右移动说明目标是画布。一旦锁定为 canvas，
+                 * 明显横向移出标签列说明目标是画布。左右两侧灰色区域
+                 * 都是合法放置区，因此不能只识别向右移动。一旦锁定为 canvas，
                  * 即使指针短暂经过其他 Sidebar 项也不再触发排序。
                  */
                 if (
                   gesture.intent ===
                     "canvas" ||
-                  horizontalDistance > 24
+                  Math.abs(
+                    horizontalDistance
+                  ) > 24
                 ) {
                   gesture.intent =
                     "canvas";
@@ -1873,9 +1876,10 @@ export default function Sidebar({
                   }
 
                   if (
-                    event.clientX -
-                      gesture.startX >
-                    24
+                    Math.abs(
+                      event.clientX -
+                        gesture.startX
+                    ) > 24
                   ) {
                     gesture.intent =
                       "canvas";

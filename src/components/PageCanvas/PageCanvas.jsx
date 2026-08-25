@@ -27,6 +27,59 @@ function normalizeId(value) {
     : String(value);
 }
 
+/**
+ * 判断原生拖拽是否携带 ArguWeave 模块。
+ * Sidebar 新标签和已有正文模块都会写入这两个 MIME 类型。
+ */
+function hasWorkspaceBlockPayload(
+  event
+) {
+  const types = Array.from(
+    event?.dataTransfer?.types ||
+      []
+  );
+
+  return (
+    types.includes(
+      "application/x-writing-block"
+    ) ||
+    types.includes(
+      "application/x-semantic-block"
+    )
+  );
+}
+
+/**
+ * PageCanvas 的 Stage 位于中间列，最左侧空白灰区属于独立网格列。
+ * 这里仅接收明确标记的空白灰区，避免工具栏、标签窗口和按钮误触发放置。
+ */
+function isLeftWorkspaceGutterTarget(
+  event
+) {
+  const target = event?.target;
+
+  if (
+    !target ||
+    !(target instanceof Element)
+  ) {
+    return false;
+  }
+
+  if (
+    target.closest(
+      "[data-workspace-drop-ignore='true'], button, input, textarea, select, a"
+    )
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "[data-workspace-drop-zone='left-gutter']"
+    )
+  );
+}
+
 function collectContinuousBlocks(
   sectionLayouts = []
 ) {
@@ -1009,6 +1062,84 @@ export default function PageCanvas(
 
       onDragEnd?.();
     };
+
+  /**
+   * 左侧空白灰区不在 Stage DOM 内，原生 dragover / drop 不会冒泡到
+   * handleStageDragOver / handleStageDrop。只在该灰区补一层 window 接收，
+   * 然后复用完全相同的放置函数，使左右灰区行为一致。
+   */
+  useEffect(() => {
+    const handleWindowDragOver =
+      (event) => {
+        if (
+          !isLeftWorkspaceGutterTarget(
+            event
+          ) ||
+          !hasWorkspaceBlockPayload(
+            event
+          )
+        ) {
+          return;
+        }
+
+        const activeBlockId =
+          nativeDraggingBlockIdRef.current ??
+          draggingBlockId;
+
+        event.preventDefault();
+
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect =
+            activeBlockId == null
+              ? "copy"
+              : "move";
+        }
+
+        if (activeBlockId != null) {
+          updateDragPointer(event);
+        }
+      };
+
+    const handleWindowDrop =
+      (event) => {
+        if (
+          !isLeftWorkspaceGutterTarget(
+            event
+          ) ||
+          !hasWorkspaceBlockPayload(
+            event
+          )
+        ) {
+          return;
+        }
+
+        handleStageDrop(event);
+      };
+
+    window.addEventListener(
+      "dragover",
+      handleWindowDragOver
+    );
+    window.addEventListener(
+      "drop",
+      handleWindowDrop
+    );
+
+    return () => {
+      window.removeEventListener(
+        "dragover",
+        handleWindowDragOver
+      );
+      window.removeEventListener(
+        "drop",
+        handleWindowDrop
+      );
+    };
+  }, [
+    draggingBlockId,
+    updateDragPointer,
+    handleStageDrop,
+  ]);
 
   /**
    * 画布松开。

@@ -25,6 +25,21 @@ const canvasDrop = fs.readFileSync(
   "utf8"
 );
 
+const sidebar = fs.readFileSync(
+  new URL("../src/components/Sidebar.jsx", import.meta.url),
+  "utf8"
+);
+
+const pageCanvas = fs.readFileSync(
+  new URL("../src/components/PageCanvas/PageCanvas.jsx", import.meta.url),
+  "utf8"
+);
+
+const app = fs.readFileSync(
+  new URL("../src/App.jsx", import.meta.url),
+  "utf8"
+);
+
 const checks = [
   {
 	  name: "paragraph heads expose one near drop line that becomes the new head",
@@ -62,6 +77,23 @@ const checks = [
       canvasDrop.includes("movingBlock.isDuplicatedCopy") &&
       canvasDrop.includes("movingBlock.hideResizeHandle =") &&
       canvasDrop.includes("movingBlock.hideFloatingResizeHandle ="),
+  },
+  {
+    name: "labels can leave sidebar toward either gray workspace side",
+    pass:
+      sidebar.includes("Math.abs(\n                    horizontalDistance") &&
+      sidebar.includes("Math.abs(\n                      event.clientX -"),
+  },
+  {
+    name: "left gray gutter reuses the canvas drop path for labels and blocks",
+    pass:
+      app.includes('data-workspace-drop-zone="left-gutter"') &&
+      app.includes('data-workspace-drop-ignore="true"') &&
+      pageCanvas.includes("function hasWorkspaceBlockPayload") &&
+      pageCanvas.includes("function isLeftWorkspaceGutterTarget") &&
+      pageCanvas.includes('window.addEventListener(\n      "dragover"') &&
+      pageCanvas.includes('window.addEventListener(\n      "drop"') &&
+      pageCanvas.includes("handleStageDrop(event)"),
   },
 ];
 
