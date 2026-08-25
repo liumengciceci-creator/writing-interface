@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useI18n } from "../i18n.jsx";
@@ -93,6 +94,7 @@ export default function ReviewIssuesPanel({
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   const [applyLoading, setApplyLoading] = useState(false);
   const [applyError, setApplyError] = useState("");
+  const criteriaListRef = useRef(null);
 
   const closeIssue = useCallback(() => {
     setSelectedIssueId(null);
@@ -118,6 +120,12 @@ export default function ReviewIssuesPanel({
     if (results.some((item) => item.id === selectedIssueId && !item.decision)) return;
     closeIssue();
   }, [closeIssue, results, selectedIssueId]);
+
+  useEffect(() => {
+    const list = criteriaListRef.current;
+    if (!list || criteria.length === 0) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+  }, [criteria.length]);
 
   if (!open) return null;
 
@@ -228,12 +236,16 @@ export default function ReviewIssuesPanel({
           </div>
         ) : (
           <div
+            ref={criteriaListRef}
             role="list"
             aria-label={t("review.criteriaHeading")}
             style={{
               display: "grid",
               gap: 0,
               padding: "0 14px 14px",
+              maxHeight: 300,
+              overflowY: "auto",
+              scrollBehavior: "smooth",
             }}
           >
             {criteria.map((criterion, index) => {

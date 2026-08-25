@@ -615,6 +615,35 @@ function buildWritingRequestOptions({
       effort: webSearchMode === "required" ? "medium" : "low",
     },
     input: prompt,
+    text: {
+      format: {
+        type: "json_schema",
+        name: "generated_blocks",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            results: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  id: {
+                    type: "integer",
+                    enum: targetBlocks.map((block) => Number(block.id)),
+                  },
+                  text: { type: "string" },
+                },
+                required: ["id", "text"],
+              },
+            },
+          },
+          required: ["results"],
+        },
+      },
+    },
   };
 
   if (webSearchMode !== "disabled") {
@@ -842,27 +871,7 @@ function buildStreamingPrompt({
   const formattedContext =
     formatBlocks(contextBlocks);
 
-  const targetIds = targetBlocks
-    .map((block) => block.id)
-    .join(", ");
-
-  const outputRules =
-    targetBlocks.length === 1
-      ? `
-Very important output rules:
-1. Output ONLY the final text for this one target block.
-2. Do not output block tags, JSON, Markdown, explanations, labels, source lists, or quotation marks around the answer.
-3. Start immediately with the block content and stop immediately after it.
-`
-      : `
-Very important output rules:
-1. Output PLAIN TEXT only. Do NOT output JSON, Markdown, or explanations.
-2. For each target block, use exactly this format: [[BLOCK:ID]]content[[/BLOCK]]
-3. Replace ID with the real block id and output every target in the requested order.
-4. Do not use block-tag strings inside content and do not add text outside the tags.
-
-Required target ids: ${targetIds}
-`;
+  const targetIds = targetBlocks.map((block) => block.id).join(", ");
 
   return `
 You are a careful academic writing assistant for a modular writing interface.
@@ -886,10 +895,9 @@ Your task:
 8. If searchPolicy is required, you MUST use web search before writing. Search specifically for material that answers userInput and supports the relevant contextual claim.
 9. Use a named scholar, quantitative value, study finding, date, or factual claim only when supported by a retrieved source. Never let a loosely related search result change the user's requested subject.
 10. Do not place raw URLs, a bibliography, source list, Markdown links, or task commentary inside the block text. Source metadata is returned separately by the API.
-11. Before writing any target, silently plan one coherent passage across ALL target blocks. Then output every requested target exactly once and in order. Never omit a target because its directive already contains text.
+11. Before writing any target, silently plan one coherent passage across ALL target blocks. Then return every requested target exactly once and in order. Never omit a target because its directive already contains text.
 12. Treat the directive as an instruction to follow, not as text to preserve. Returning it unchanged is a failed answer.
-
-${outputRules}
+13. Return the structured results required by the response schema. Required target ids: ${targetIds}. Each result text must contain only the final block prose, without labels, analysis, source lists, Markdown, or quotation marks around the answer.
 
 CONTEXT BLOCKS:
 ${formattedContext || "(none)"}
@@ -1403,19 +1411,18 @@ function sanitizeServerGeneratedText(value) {
 function parseBufferedBlockOutput(rawText, targetBlocks) {
   const result = new Map();
 
-  if (targetBlocks.length === 1) {
-    result.set(
-      String(targetBlocks[0].id),
-      sanitizeServerGeneratedText(rawText)
-    );
-    return result;
-  }
+  try {
+    const parsed = JSON.parse(cleanModelJsonText(rawText));
+    const rows = Array.isArray(parsed?.results) ? parsed.results : [];
+    const expectedIds = new Set(targetBlocks.map((block) => String(block.id)));
 
-  const blockPattern = /\[\[BLOCK:(\d+)\]\]([\s\S]*?)\[\[\/BLOCK\]\]/g;
-  let match;
-
-  while ((match = blockPattern.exec(String(rawText || ""))) !== null) {
-    result.set(String(match[1]), sanitizeServerGeneratedText(match[2]));
+    rows.forEach((row) => {
+      const id = String(row?.id ?? "");
+      if (!expectedIds.has(id) || result.has(id)) return;
+      result.set(id, sanitizeServerGeneratedText(row?.text || ""));
+    });
+  } catch (error) {
+    console.warn("结构化模块结果解析失败：", error?.message || error);
   }
 
   return result;
@@ -2250,10 +2257,11 @@ ${JSON.stringify(blocks, null, 2)}
 输出要求：
 - 使用模块正文的主要语言，界面语言不影响输出。
 - 只输出一段可直接显示的连续文字，不输出 JSON、Markdown、标题或分点。
-- 具体说明作者先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
-- 可参考“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”的语气，但不要机械套用。
+- 第一句必须以“你先”开头，并始终用“你”指代作者。
+- 具体说明你先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
+- 使用“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”这种自然的第二人称叙述，但不要机械套用。
 - 只概括现有内容与关系；不评价不足、不提修改建议、不列审阅标准、不使用箭头链。
-- 保持简洁，但不得只复述模块名称。`;
+- 保持为一个紧凑段落，不得只复述模块名称。`;
 
     const collectResponseText = async (input, effort) => {
       let output = "";
@@ -2271,8 +2279,38 @@ ${JSON.stringify(blocks, null, 2)}
       return output;
     };
 
+    const criteriaPlanPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在只为这篇具体文章制定第二阶段检查计划。
+
+模块：
+${JSON.stringify(blocks, null, 2)}
+
+可选的 GRE 论证检查维度：
+1. coreThesis：核心主张是否明确，并统领全文。
+2. claimDerivation：各级主张能否由前文推出。
+3. intermediateReasoning：是否缺少必要的中间推理。
+4. causalExplanation：原因是否真正解释了结果。
+5. theoryUse：理论是否被展开并用于分析。
+6. supportQuality：理由、例子或证据是否相关、充分，支持关系是否说明。
+7. counterargument：反论是否回应关键前提。
+8. conclusionCoverage：结论是否覆盖主要论证。
+9. logicalContinuity：段落或模块之间是否存在逻辑断层。
+
+这不是必须全部执行的固定清单。必须根据实际模块、论证层级和文章需求，只选择真正适用且重要的检查项：
+- 有原因或因果主张才检查 causalExplanation；有理论或该论证明显缺少理论解释才检查 theoryUse。
+- 有理由、例子或证据才检查 supportQuality；有反论，或核心主张必须处理关键反方前提时，才检查 counterargument。
+- 有结论才检查 conclusionCoverage；存在多段、多层主张或跨模块推进时，才检查相应的推导与连续性。
+- 不得为了显得完整而把九项全部列出，也不得因为某种模块缺失就默认它必须存在。
+- 若实际内容出现上述九项之外的重要论证问题，可增加 custom 检查项。
+
+严格只输出一个 JSON 对象：
+{"summaryHighlights":[],"criteria":[{"key":"上述9个key之一或custom-xxx","criterion":"不超过一个短句的检查名称，如‘核心主张是否统领全文’","relatedIds":["本项实际需要对照的模块id"]}]}
+
+criteria 按最合理的审阅顺序排列；relatedIds 可以包含不相邻模块，但不得包含未知 id。criterion 只命名正在检查的关系，不得预先写判断结果。不要输出代码块或额外文字。`;
+
     try {
       writeLine(res, { type: "phase", phase: "summary" });
+      // 第二阶段的检查选择与第一阶段总结并行准备，避免总结结束后再空等一次模型调用。
+      const criteriaPlanPromise = collectResponseText(criteriaPlanPrompt, "low");
       const summaryStream = await openai.responses.create({
         model: WRITING_MODEL,
         input: overallSummaryPrompt,
@@ -2292,42 +2330,9 @@ ${JSON.stringify(blocks, null, 2)}
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
-      const criteriaPlanPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在只为这篇具体文章制定第二阶段检查计划。
-
-模块：
-${JSON.stringify(blocks, null, 2)}
-
-可选的 GRE 论证检查维度：
-1. coreThesis：核心主张是否明确，并统领全文。
-2. claimDerivation：各级主张能否由前文推出。
-3. intermediateReasoning：是否缺少必要的中间推理。
-4. causalExplanation：原因是否真正解释了结果。
-5. theoryUse：理论是否被展开并用于分析。
-6. supportQuality：理由、例子或证据是否相关、充分，支持关系是否说明。
-7. counterargument：反论是否回应关键前提。
-8. conclusionCoverage：结论是否覆盖主要论证。
-9. logicalContinuity：段落或模块之间是否存在逻辑断层。
-
-这不是必须全部执行的固定清单。必须先根据实际模块、论证层级和文章需求选择真正适用的检查项：
-- 有原因或因果主张才检查 causalExplanation；有理论或该论证明显缺少理论解释才检查 theoryUse。
-- 有理由、例子或证据才检查 supportQuality；有反论，或核心主张必须处理关键反方前提时，才检查 counterargument。
-- 有结论才检查 conclusionCoverage；存在多段、多层主张或跨模块推进时，才检查相应的推导与连续性。
-- 不得为了显得完整而把九项全部列出，也不得因为某种模块缺失就默认它必须存在。
-- 若实际内容出现上述九项之外的重要论证问题，可增加 custom 检查项。
-
-严格只输出一个 JSON 对象：
-{"summaryHighlights":["能在整体概括中逐字找到的关键短语"],"criteria":[{"key":"上述9个key之一或custom-xxx","criterion":"与正文同语言的简短检查说明","relatedIds":["本项实际需要对照的模块id"]}]}
-
-criteria 按最合理的审阅顺序排列；relatedIds 可以包含不相邻模块，但不得包含未知 id。summaryHighlights 最多 5 项。不要输出代码块或额外文字。`;
-
-      const planText = await collectResponseText(criteriaPlanPrompt, "low");
+      const planText = await criteriaPlanPromise;
       const parsedPlan = JSON.parse(cleanModelJsonText(planText));
-      summaryHighlights = Array.isArray(parsedPlan?.summaryHighlights)
-        ? parsedPlan.summaryHighlights
-            .map((value) => String(value || "").replace(/\s+/g, " ").trim())
-            .filter((value) => value && overallSummary.includes(value))
-            .slice(0, 5)
-        : [];
+      summaryHighlights = [];
       const seenCriterionKeys = new Set();
       const plannedCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
         .map((item, index) => {
@@ -2386,8 +2391,9 @@ GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且�
 - 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
 - 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
 
-若本项通过，status="pass"，用 summary 直接说明文章已经建立了什么，不输出空洞的“符合要求”。
-若存在真正影响论证的问题，status="issue"，summary 直接说明当前哪一步不成立，并提供 issue。不要把补“可能”“也许”、调整语气或换词当成问题。
+若本项通过，status="pass"，summary 只用一句短判断说明文章已经建立了什么，例如“核心主张明确，能够统领正反两条论证路径”。
+若存在真正影响论证的问题，status="issue"，summary 只用一句短判断指出当前缺口，例如“现有原因解释了认知投入减少，但尚未说明它如何导致思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
+summary 是右侧逐条滚动显示的扫描结果，通常控制在一个完整短句内：不复述检查题目，不写建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
 问题数量没有上下限；只标记真正影响论证质量的根本问题，不得为了凑数输出次要建议。
 
 每个问题选择最合适的处理动作：
@@ -2529,7 +2535,9 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
       const diagnosticStream = await openai.responses.create({
         model: WRITING_MODEL,
         input: diagnosticPrompt,
-        reasoning: { effort: "medium" },
+        // 这里先做关系筛查并返回短判断；完整修改说明已限定在 issue 内，
+        // 低推理延迟能更快给出第一条可见结果。
+        reasoning: { effort: "low" },
         stream: true,
       });
       for await (const event of diagnosticStream) {
