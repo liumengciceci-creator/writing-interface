@@ -96,6 +96,15 @@ const checks = [
       server.includes("前置论证组与结论") &&
       server.includes("过渡与前后核心模块"),
   },
+	{
+	  name: "single-module first paragraph cannot be swallowed by title or later paragraphs",
+	  pass:
+	    server.includes("标题检查不能代替正文第一段检查") &&
+	    server.includes("即使该段只有一个模块") &&
+	    server.includes("relatedParagraphs.includes(requestedParagraph)") &&
+	    server.includes("Math.min(...relatedParagraphs)") &&
+	    !server.includes("? Math.max(...relatedParagraphs)"),
+	},
   {
     name: "review UI groups streamed checks by paragraph",
     pass:

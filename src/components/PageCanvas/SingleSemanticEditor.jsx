@@ -713,9 +713,9 @@ const SingleSemanticEditor =
 
             const newLineTop =
               event.clientY >
-              nearestRect.bottom
-                ? nearestRect.bottom + 10
-                : nearestRect.top;
+              nearestEntry.rect.bottom
+                ? nearestEntry.rect.bottom + 10
+                : nearestEntry.rect.top;
 
             const excludedBlockIds =
               Array.from(excludedIds);
@@ -763,7 +763,7 @@ const SingleSemanticEditor =
               return;
             }
 
-            const nearestRect =
+            const anchorRect =
               anchor.rect;
 
             dropPlacementRef.current = {
@@ -789,7 +789,7 @@ const SingleSemanticEditor =
                 (
                   (startsNewLine
                     ? newLineTop
-                    : nearestRect.top) -
+                    : anchorRect.top) -
                   rootRect.top
                 ) /
                 Math.max(
@@ -798,7 +798,7 @@ const SingleSemanticEditor =
                 ),
 
               height:
-                nearestRect.height /
+                anchorRect.height /
                 Math.max(
                   scaleY,
                   0.001
@@ -1907,7 +1907,7 @@ const SingleSemanticEditor =
               ) &&
               existingId != null;
 
-            const forceLineBreakBefore =
+            const requestedLineBreakBefore =
               indicatedPlacement
                 ?.forceLineBreakBefore ??
               shouldStartNewLine(
@@ -1929,7 +1929,49 @@ const SingleSemanticEditor =
                 isExistingBlock
                   ? draggedSelection
                   : null,
-                forceLineBreakBefore
+                requestedLineBreakBefore
+              );
+
+            /**
+             * 插到既有段首模块之前时，新模块必须继承该段的段首标记。
+             * 不能只依赖鼠标是否碰到“另起一行”热区，否则视觉位置虽在
+             * 段首之前，数据上却会被并入上一段末尾。
+             */
+            const draggedIdSet =
+              new Set(
+                isExistingBlock
+                  ? draggedSelection
+                  : []
+              );
+
+            const remainingBlocks =
+              isExistingBlock
+                ? blocks.filter(
+                    (block) =>
+                      !draggedIdSet.has(
+                        normalizeId(
+                          block.id
+                        )
+                      )
+                  )
+                : blocks;
+
+            const targetAtInsert =
+              remainingBlocks[
+                Math.max(
+                  0,
+                  Math.min(
+                    insertIndex,
+                    remainingBlocks.length
+                  )
+                )
+              ];
+
+            const forceLineBreakBefore =
+              Boolean(
+                requestedLineBreakBefore ||
+                targetAtInsert
+                  ?.forceLineBreakBefore
               );
 
             if (
@@ -1984,6 +2026,7 @@ const SingleSemanticEditor =
             onInsertBlock,
             onTemplateDropComplete,
             onReorderBlocks,
+            blocks,
             selectedIds,
           ]
         );

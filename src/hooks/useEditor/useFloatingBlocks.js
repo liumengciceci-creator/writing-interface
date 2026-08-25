@@ -703,13 +703,30 @@ export function useFloatingBlocks({
           block?.placement ===
           "floating"
         ) {
+          /**
+           * 普通 floating 模块首次拖动时以真实 DOM 位置为准。
+           * 副本刚创建后，React 状态与浏览器布局可能相差一帧；若直接
+           * 使用 floatingX/Y，鼠标偏移会在第一次移动时产生跳跃。
+           * Option+Shift 即时复制没有副本 DOM，因此继续使用显式快照。
+           */
+          const useExplicitSnapshot =
+            explicitBlocks.length > 0;
+
           const blockLeft =
-            block.floatingX ??
-            0;
+            !useExplicitSnapshot &&
+            sourceRect
+              ? sourceRect.left -
+                stageRect.left
+              : block.floatingX ??
+                0;
 
           const blockTop =
-            block.floatingY ??
-            0;
+            !useExplicitSnapshot &&
+            sourceRect
+              ? sourceRect.top -
+                stageRect.top
+              : block.floatingY ??
+                0;
 
           /**
            * floatingX / floatingY �� Stage 絮鎶�����鐚�

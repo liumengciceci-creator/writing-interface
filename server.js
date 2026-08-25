@@ -2294,7 +2294,10 @@ ${JSON.stringify(blocks, null, 2)}
 - 一个结论如果概括前三个模块，必须把前三个模块和结论一起放入 relatedIds，而不是只检查结论与紧邻模块。
 - criterion 只命名正在核对的具体关系，必须带段落序号，例如“第二段：论点与原因”“第二段：整段论证与结论”。
 - 不要输出“核心主张是否明确”“证据是否充分”等脱离实际模块组合的抽象清单。
-- 如果正文包含标题，第一项必须检查标题与核心主张，paragraph=0；其余项目按第一段、第二段、第三段及各段内部的论证推进顺序排列。
+	- 如果正文包含标题，第一项必须检查标题与核心主张，paragraph=0；其余项目按第一段、第二段、第三段及各段内部的论证推进顺序排列。
+	- 标题检查不能代替正文第一段检查。每一个非空正文段落都必须至少出现在一项属于该段的关系判断中，即使该段只有一个模块。
+	- 只有一个模块的段落也不能跳过：根据它的实际功能，检查它与标题／总论点、相邻段落或它实际支撑和承接的非相邻模块之间的关系。
+	- 跨段关系的 paragraph 归到“本项正在评价其论证作用”的正文段落。例如检查第一段如何引出第二段时使用 paragraph=1；不要因为 relatedIds 同时包含后一段模块就自动归到编号更大的段落。
 
 对每一项关系直接完成判断，不要只列计划：
 - relationStrength 是 0—100 的整数，只表示模块关系完成度。90—100 才能 pass；80—89 表示方向正确但仍需局部加强；65—79 表示存在显著断层；0—64 表示当前材料难以承担所需功能或方向错误。不得因为主题相同、顺序自然或语言流畅就给 90 分以上。
@@ -2394,7 +2397,7 @@ relation_map、整体评价与逐项结果必须基于同一次全文理解。�
         });
       };
 
-      const normalizeStreamedMeta = (value) => {
+	      const normalizeStreamedMeta = (value) => {
         const relatedIds = Array.from(new Set(
           (Array.isArray(value?.relatedIds) ? value.relatedIds : [])
             .map(String)
@@ -2408,15 +2411,18 @@ relation_map、整体评价与逐项结果必须基于同一次全文理解。�
         if (!key || !criterion || !relatedIds.length || streamedCriterionKeys.has(key)) {
           return null;
         }
-        const relatedParagraphs = relatedIds
+	        const relatedParagraphs = relatedIds
           .map((id) => blocks.find((block) => block.id === id)?.paragraph)
-          .map(Number)
-          .filter((paragraph) => Number.isFinite(paragraph) && paragraph > 0);
-        const paragraph = includesTitle
-          ? 0
-          : relatedParagraphs.length
-            ? Math.max(...relatedParagraphs)
-            : Math.max(1, Number(value?.paragraph) || 1);
+	          .map(Number)
+	          .filter((paragraph) => Number.isFinite(paragraph) && paragraph > 0);
+	        const requestedParagraph = Math.max(1, Math.round(Number(value?.paragraph) || 1));
+	        const paragraph = includesTitle
+	          ? 0
+	          : relatedParagraphs.includes(requestedParagraph)
+	            ? requestedParagraph
+	            : relatedParagraphs.length
+	              ? Math.min(...relatedParagraphs)
+	              : requestedParagraph;
         const requestedStatus = value?.status === "issue" ? "issue" : "pass";
         const parsedStrength = Number(value?.relationStrength);
         const relationStrength = Math.max(0, Math.min(100,
@@ -2603,13 +2609,18 @@ relation_map、整体评价与逐项结果必须基于同一次全文理解。�
           ));
           if (!criterion || !relatedIds.length || seenCriterionKeys.has(key)) return null;
           seenCriterionKeys.add(key);
-          const relatedParagraphs = relatedIds
+	          const relatedParagraphs = relatedIds
             .map((id) => blocks.find((block) => block.id === id)?.paragraph)
-            .map(Number)
-            .filter((value) => Number.isFinite(value) && value > 0);
-          const paragraph = includesTitle
-            ? 0
-            : relatedParagraphs.length ? Math.max(...relatedParagraphs) : 1;
+	            .map(Number)
+	            .filter((value) => Number.isFinite(value) && value > 0);
+	          const requestedParagraph = Math.max(1, Math.round(Number(item?.paragraph) || 1));
+	          const paragraph = includesTitle
+	            ? 0
+	            : relatedParagraphs.includes(requestedParagraph)
+	              ? requestedParagraph
+	              : relatedParagraphs.length
+	                ? Math.min(...relatedParagraphs)
+	                : requestedParagraph;
           return {
             key,
             criterion,
