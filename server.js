@@ -2495,12 +2495,19 @@ GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且�
 - 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
 - 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
 
-若本项通过，status="pass"，summary 只用一句容易理解的关系概括，例如：
+每一项必须先给出 relationStrength（0—100 的整数），表示当前模块关系已经完成到什么程度。它不是语言质量分，也不是模型置信度，而是论证关系强度。按以下标准评分：
+- 90—100：关系不仅方向正确，而且支持、解释、限定、回应或归纳已经明确且完整，没有值得单独提出的实质增强点。只有这一档可以 status="pass"。
+- 80—89：关系基本成立，但支持作用、推理桥梁、理论运用或覆盖范围仍有可见缺口；必须 status="issue"，通常局部加强。
+- 65—79：方向有关联，但存在显著推理断层、遗漏独立环节或支撑不足；必须 status="issue"，根据缺口选择 revise 或 insert。
+- 0—64：当前材料很难承担所需功能，或方向明显错误；必须 status="issue"，根据真实情况选择 insert 或 replace。
+不得因为两个模块主题相同、顺序自然或措辞流畅就给 90 分以上。评分时分别检查：前一模块是否真正完成后一模块需要的功能、关键中间推理是否显式存在、支持范围是否覆盖后续判断、多个模块共同指向结论时是否遗漏主要分支。分数只帮助判断强弱，不能机械决定动作。
+
+若本项达到 90 分并通过，status="pass"，summary 只用一句容易理解的关系概括，例如：
 - “第二段：原因解释了论点，二者关系成立”
 - “第二段：证据进一步支持了该论点”
 - “第二段：结论概括了前面的论点、原因和证据”
 - “第三段：过渡承接前一观点并引出了后续反论”
-若存在真正影响论证的问题，status="issue"，summary 也只写一句关系判断，例如“第二段：原因说明了认知投入减少，但还不能推出思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
+若 relationStrength 低于 90，必须 status="issue" 并提供完整 issue；summary 也只写一句关系判断，例如“第二段：原因说明了认知投入减少，但还不能推出思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
 summary 必须以 criterion 的分组前缀开头：标题检查使用“标题：”，段落检查使用“第几段：”（英文正文使用对应英文前缀）。随后直接说明哪些模块形成了什么关系或哪一步没有接上。只显示一个完整短句，不写 GRE 术语，不复述模块正文，不写修改建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
 问题数量没有上下限；只标记真正影响论证质量的根本问题，不得为了凑数输出次要建议。
 
@@ -2527,9 +2534,9 @@ summary 必须以 criterion 的分组前缀开头：标题检查使用“标题�
 replace 也采用开放类型。若只是把方向错误的例子换成更合适的证据，replaceType／replaceLabel 可以仍是原证据类型；若需要把例子或证据改为理论、分析、机制、推理等不同功能，则填写新的 replaceType 与 replaceLabel。不得仅因数据看起来更正式就用数据替换例子，也不得虚构数据、理论、研究或来源。
 
 严格按计划顺序，每项只输出一行：
-{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的模块类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
+{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","relationStrength":0到100的整数,"status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的模块类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
 
-status="pass" 时 issue 必须是 null；status="issue" 时 issue 必须完整。不输出代码块、数组外壳或额外文字。
+relationStrength>=90 且 status="pass" 时 issue 必须是 null；relationStrength<90 时 status 必须是 "issue" 且 issue 必须完整。不输出代码块、数组外壳或额外文字。
 
 suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完整要点：
 - 第一条直接写“当前 A 模块说明了什么，但还没有解释／支持／推出 B 模块中的什么判断”，明确指出缺失的模块关系。
@@ -2758,7 +2765,20 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
           const expected = plannedCriteria[completedCriteria.length];
           if (!expected || String(parsed.key || "") !== expected.key) return;
 
-          const status = parsed.status === "issue" ? "issue" : "pass";
+          const requestedStatus = parsed.status === "issue" ? "issue" : "pass";
+          const parsedStrength = Number(parsed.relationStrength);
+          const relationStrength = Math.max(
+            0,
+            Math.min(
+              100,
+              Number.isFinite(parsedStrength)
+                ? Math.round(parsedStrength)
+                : requestedStatus === "issue" ? 75 : 90
+            )
+          );
+          const status = requestedStatus === "issue" || relationStrength < 90
+            ? "issue"
+            : "pass";
           const relatedIds = Array.from(new Set(
             (Array.isArray(parsed.relatedIds) ? parsed.relatedIds : expected.relatedIds)
               .map(String)
@@ -2793,6 +2813,9 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
             criterion: expected.criterion,
             paragraph: expected.paragraph,
             status: normalizedStatus,
+            relationStrength: normalizedStatus === "issue"
+              ? Math.min(relationStrength, 89)
+              : relationStrength,
             summary,
             relatedIds: relatedIds.length ? relatedIds : expected.relatedIds,
             issue,

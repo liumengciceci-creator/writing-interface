@@ -730,6 +730,7 @@ export default function App() {
               paragraph: Math.max(0, Number(event.paragraph) || 0),
               summary: "",
               status: "checking",
+              relationStrength: null,
               relatedIds,
               issueId: null,
             };
@@ -767,6 +768,9 @@ export default function App() {
               paragraph: Math.max(0, Number(event.paragraph) || 0),
               summary: String(event.summary || "").trim(),
               status: issue ? "issue" : "pass",
+              relationStrength: Number.isFinite(Number(event.relationStrength))
+                ? Math.max(0, Math.min(100, Math.round(Number(event.relationStrength))))
+                : null,
               relatedIds: (Array.isArray(event.relatedIds) ? event.relatedIds : []).map(String),
               issueId: issue?.id || null,
             };
@@ -1207,7 +1211,8 @@ export default function App() {
   };
 
   const handleReviewReject = (item) => {
-    setReviewState((state) => ({ ...state, results: state.results.map((result) => result.id === item.id ? { ...result, decision: "rejected" } : result) }));
+    // “暂时不改”只关闭当前建议，不把它标记为已处理。
+    // 修改点圆圈会继续保留，用户之后仍可再次打开并接受。
     clearReviewIssueFocus();
   };
 

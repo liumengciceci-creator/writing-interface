@@ -19,6 +19,20 @@ const checks = [
     "dynamic criterion review must allow revise/insert without fixed issue or word counts",
   ],
   [
+      server.includes('"relationStrength":0到100的整数') &&
+      server.includes('relationStrength<90 时 status 必须是 "issue"') &&
+      server.includes("const relationStrength = Math.max(") &&
+      app.includes("relationStrength: Number.isFinite") &&
+      !reviewPanel.includes("criterion.relationStrength") &&
+      !i18n.includes('"review.relationStrength"'),
+    "every relationship must use an internal strength threshold without exposing the score in the UI",
+  ],
+  [
+    app.includes('“暂时不改”只关闭当前建议') &&
+      !app.includes('{ ...result, decision: "rejected" }'),
+    "temporarily skipped review points must remain available for later reopening",
+  ],
+  [
     server.includes("你先写了……；随后从……角度说明") &&
       server.includes("只概括现有内容与关系") &&
       server.includes('type: "summary_delta"'),
