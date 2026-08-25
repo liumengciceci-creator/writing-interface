@@ -51,6 +51,11 @@ const blockActions = fs.readFileSync(
   "utf8"
 );
 
+const templateDrag = fs.readFileSync(
+  new URL("../src/utils/templateDrag.js", import.meta.url),
+  "utf8"
+);
+
 const checks = [
   {
 	  name: "paragraph boundary drops distinguish the previous end from the next head",
@@ -118,17 +123,47 @@ const checks = [
       pageCanvas.includes('window.addEventListener(\n      "drop"') &&
       pageCanvas.includes("handleStageDrop(event)") &&
       pageCanvas.includes("isDraggingTemplate ||") &&
-      app.includes("isDraggingTemplate={") &&
-      pageCanvas.includes('data-template-drop-cue="true"'),
+      app.includes("isDraggingTemplate={"),
   },
   {
-    name: "template gestures show copy feedback and cannot leak stale drag state",
+    name: "template gestures use native copy feedback and cannot leak stale drag state",
     pass:
-      sidebar.includes('data-template-copy-cue="true"') &&
+      sidebar.includes('event.dataTransfer.effectAllowed =\n        "copy"') &&
+      !sidebar.includes('data-template-copy-cue="true"') &&
+      !pageCanvas.includes('data-template-drop-cue="true"') &&
+      !sidebar.includes("setDragImage(") &&
       sidebar.includes("onTemplateDragEnd?.()") &&
       canvasDrop.includes("const cancelTemplateDrag =") &&
       app.includes("onTemplateDragEnd={") &&
       app.includes("cancelTemplateDrag"),
+  },
+  {
+    name: "template drops recover payload data and recreate an empty editing target",
+    pass:
+      canvasDrop.includes("function readTemplateDragPayload(event)") &&
+      canvasDrop.includes("draggingType ||\n          readTemplateDragPayload(event)") &&
+      canvasDrop.includes("getActiveTemplateDragData()") &&
+      templateDrag.includes("let activeTemplateDragData = null") &&
+      sidebar.includes("setActiveTemplateDragData(") &&
+      canvasDrop.includes("!draggedTemplate") &&
+      canvasDrop.includes("normalizeSections(\n                  previousSections") &&
+      canvasDrop.includes("if (draggedTemplate)"),
+  },
+  {
+    name: "floating modules commit when released outside the stage",
+    pass:
+      pageCanvas.includes('window.addEventListener(\n      "mouseup"') &&
+      pageCanvas.includes("stageRef.current.contains(") &&
+      pageCanvas.includes("handleFloatingDrop(\n            event,\n            activeBlockId") &&
+      pageCanvas.includes("onDragEnd?.()"),
+  },
+  {
+    name: "floating drag preview keeps the type badge anchored",
+    pass:
+      pageCanvas.includes('const isTitleBlock =\n    block.type === "Title"') &&
+      pageCanvas.includes("left: 7") &&
+      pageCanvas.includes("isTitleBlock\n              ? -14\n              : -12") &&
+      !pageCanvas.includes('matchesInlineAppearance\n              ? 7\n              : 0'),
   },
   {
     name: "inline drag preview keeps the real pointer anchor instead of a fixed offset",
