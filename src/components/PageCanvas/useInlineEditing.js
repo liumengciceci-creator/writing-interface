@@ -833,11 +833,19 @@ export default function useInlineEditing({
             previousText !==
             undefined
           ) {
-            event.currentTarget.textContent =
+            const contentElement =
+              event.currentTarget.querySelector(
+                "[data-semantic-block-content='true']"
+              );
+
+            const editableTextElement =
+              contentElement || event.currentTarget;
+
+            editableTextElement.textContent =
               previousText;
 
             placeCaret(
-              event.currentTarget
+              editableTextElement
             );
 
             dirtyRef.current =

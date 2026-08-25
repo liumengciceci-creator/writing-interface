@@ -847,6 +847,11 @@ export function useStreamingGenerate({
 
         return {
           ...block,
+          // 手动编辑、换行或浏览器原生撤销可能会移除 contentEditable
+          // 内部的正文标记。每次开始生成时强制重挂载该模块的 DOM，
+          // 确保后续流式文字写入真实的正文节点，而不是留在旧文本节点上。
+          generationRenderRevision:
+            (Number(block.generationRenderRevision) || 0) + 1,
           generationDirective: directiveByRealId.get(blockId) || "",
           generationError: null,
         };

@@ -1203,14 +1203,34 @@ const SingleSemanticEditor =
                 : null
             );
 
-          if (!textElement) {
-            continue;
-          }
-
           const expectedText =
             String(
               block.text ?? ""
             ) || EMPTY_TEXT;
+
+          if (!textElement) {
+            const actualText = String(
+              blockElement.textContent ?? ""
+            );
+
+            if (actualText !== expectedText) {
+              repaired.push({
+                blockId,
+                expectedText: String(block.text ?? ""),
+                actualText:
+                  actualText === EMPTY_TEXT ? "" : actualText,
+                restoredWithoutContentMarker: true,
+              });
+
+              // 旧的 contentEditable DOM 已被浏览器压平成纯文本时，
+              // 不能继续跳过，否则 React state 正确但页面永远保留旧文字。
+              // 先保证可见文本与 state 一致；下一次生成开始时的
+              // generationRenderRevision 会完整重挂载模块并恢复正文标记。
+              blockElement.textContent = expectedText;
+            }
+
+            continue;
+          }
 
           const actualText =
             String(
@@ -2609,7 +2629,7 @@ const SingleSemanticEditor =
 
                 return (
                   <Fragment
-                    key={blockId}
+                    key={`${blockId}-${Number(block.generationRenderRevision) || 0}`}
                   >
                     {block.forceLineBreakBefore && (
                       <span

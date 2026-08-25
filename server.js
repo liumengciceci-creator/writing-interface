@@ -2207,6 +2207,9 @@ app.post(
             id: String(block.id),
             type: String(block.type || "Unknown"),
             text: String(block.text || "").trim(),
+            paragraph: Math.max(0, Number(block.reviewParagraphIndex) || 0),
+            order: Math.max(0, Number(block.reviewDocumentIndex) || 0),
+            startsParagraph: block.forceLineBreakBefore === true,
           }))
       : [];
 
@@ -2279,33 +2282,38 @@ ${JSON.stringify(blocks, null, 2)}
       return output;
     };
 
-    const criteriaPlanPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在只为这篇具体文章制定第二阶段检查计划。
+    const criteriaPlanPrompt = `你是一名以 GRE 论证逻辑标准审阅模块化文章的高级编辑。现在只制定第二阶段的“模块关系检查计划”。
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
 
-可选的 GRE 论证检查维度：
-1. coreThesis：核心主张是否明确，并统领全文。
-2. claimDerivation：各级主张能否由前文推出。
-3. intermediateReasoning：是否缺少必要的中间推理。
-4. causalExplanation：原因是否真正解释了结果。
-5. theoryUse：理论是否被展开并用于分析。
-6. supportQuality：理由、例子或证据是否相关、充分，支持关系是否说明。
-7. counterargument：反论是否回应关键前提。
-8. conclusionCoverage：结论是否覆盖主要论证。
-9. logicalContinuity：段落或模块之间是否存在逻辑断层。
+任务不是逐项念 GRE 标准，而是根据文章真实结构，找出必须核对的模块依赖关系。paragraph 是画布按真实换行位置给出的段落编号；在同一段内仍要根据模块的实际论证功能判断关系，不能默认只检查相邻模块。
 
-这不是必须全部执行的固定清单。必须根据实际模块、论证层级和文章需求，只选择真正适用且重要的检查项：
-- 有原因或因果主张才检查 causalExplanation；有理论或该论证明显缺少理论解释才检查 theoryUse。
-- 有理由、例子或证据才检查 supportQuality；有反论，或核心主张必须处理关键反方前提时，才检查 counterargument。
-- 有结论才检查 conclusionCoverage；存在多段、多层主张或跨模块推进时，才检查相应的推导与连续性。
-- 不得为了显得完整而把九项全部列出，也不得因为某种模块缺失就默认它必须存在。
-- 若实际内容出现上述九项之外的重要论证问题，可增加 custom 检查项。
+为每一段建立必要但不重复的关系检查：
+- 论点与原因：原因是否真正解释该论点为何成立。
+- 论点与证据：证据、例子或材料是否真正支持该论点。
+- 原因与证据：只有证据确实用于验证或呈现该原因／机制时才检查，不能机械加入。
+- 前置论证组与结论：把该段的论点、原因、证据等共同作为前件，检查结论是否由整组内容推出并完成概括。
+- 反论与它回应的论点或前提：可以跨越不相邻模块。
+- 过渡与前后核心模块：过渡本身不提供理由；若过渡位于模块 1 与模块 3 之间，应把三者放进同一检查项，判断它是否准确连接两侧内容。
+- 对比、理论、分析、推理等其他类型，按它在当前论证中实际承担的关系检查。
+
+关系选择示例只用于说明判断方法，不是固定模板：
+- 若一段依次为“论点 1、原因 2、证据 3、结论 4”，通常检查 1 与 2 是否构成解释关系、1 与 3 是否构成支持关系；只有 3 确实用于验证 2 的机制时，才额外检查 2 与 3；最后把 1、2、3 共同作为前件检查它们能否推出并被 4 概括。
+- 若第 2 个模块是过渡，则不要检查它能否证明第 1 个模块；应把 1、2、3 放在一起，检查 2 是否准确承接 1 并引向 3。
+- 若证据、反论或结论直接回应更早的主张，即使中间隔着其他模块，也要检查这组非相邻关系；不要为了保持顺序而把它错误地连到最近模块。
+
+重要限制：
+- 不要检查所有两两组合，只保留对论证成立真正有意义的关系。
+- relatedIds 可以是两个、三个或更多模块，也可以包含不相邻模块。
+- 一个结论如果概括前三个模块，必须把前三个模块和结论一起放入 relatedIds，而不是只检查结论与紧邻模块。
+- criterion 只命名正在核对的具体关系，必须带段落序号，例如“第二段：论点与原因”“第二段：整段论证与结论”。
+- 不要输出“核心主张是否明确”“证据是否充分”等脱离实际模块组合的抽象清单。
 
 严格只输出一个 JSON 对象：
-{"summaryHighlights":[],"criteria":[{"key":"上述9个key之一或custom-xxx","criterion":"不超过一个短句的检查名称，如‘核心主张是否统领全文’","relatedIds":["本项实际需要对照的模块id"]}]}
+{"summaryHighlights":[],"criteria":[{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","relatedIds":["本项需要共同核对的全部模块id"]}]}
 
-criteria 按最合理的审阅顺序排列；relatedIds 可以包含不相邻模块，但不得包含未知 id。criterion 只命名正在检查的关系，不得预先写判断结果。不要输出代码块或额外文字。`;
+criteria 先按段落、再按论证推进顺序排列；不得包含未知 id，不得重复同一关系，不得预先写判断结果。不要输出代码块或额外文字。`;
 
     try {
       writeLine(res, { type: "phase", phase: "summary" });
@@ -2368,7 +2376,7 @@ criteria 按最合理的审阅顺序排列；relatedIds 可以包含不相邻模
         return res.end();
       }
 
-      const diagnosticPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在执行已根据文章内容制定的第二阶段检查。严格按计划顺序，每完成一项就立即输出一行 NDJSON，不要等待全部检查完成。
+      const diagnosticPrompt = `你是一名以 GRE 论证逻辑标准审阅模块化文章的高级编辑。现在逐一检查计划中的真实模块关系。严格按计划顺序，每完成一项就立即输出一行 NDJSON，不要等待全部检查完成。
 
 语言规则：所有 category、criterion、summary、suggestion 和 insertLabel 必须使用模块正文的主要语言。
 
@@ -2385,15 +2393,23 @@ ${JSON.stringify(plannedCriteria, null, 2)}
 ${JSON.stringify(templates, null, 2)}
 
 GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且有说服力的理由和例子；它不要求每个主张都配实证数据。必须遵守：
+- 检查重点是 relatedIds 中各模块能否形成真实的解释、支持、限定、回应、衔接或归纳关系，而不是分别评价每个模块写得好不好。
+- 两个模块时明确判断前者是否承担了后者需要的关系；多个模块时判断它们组成的前置论证是否共同推出最后一个模块。
+- 对过渡模块，检查它是否准确承接前一核心内容并引向后一核心内容；不能把过渡当作原因或证据。
+- 对非相邻模块，只有它们确实存在直接论证依赖时才判断支持关系。
 - 能靠补足推理、机制、理论运用或解释支持关系解决的问题，不得建议新增 Evidence/数据模块。
 - 原文已有材料但没有解释它为什么支持主张时，应加强分析或推理，不得再添加一份证据。
 - 只有涉及事实、因果、范围推广或效果判断，并且确实需要外部可验证材料才能成立时，才可建议新增证据或数据；此时 supportNeeded 必须为 "empirical"。
 - 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
 - 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
 
-若本项通过，status="pass"，summary 只用一句短判断说明文章已经建立了什么，例如“核心主张明确，能够统领正反两条论证路径”。
-若存在真正影响论证的问题，status="issue"，summary 只用一句短判断指出当前缺口，例如“现有原因解释了认知投入减少，但尚未说明它如何导致思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
-summary 是右侧逐条滚动显示的扫描结果，通常控制在一个完整短句内：不复述检查题目，不写建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
+若本项通过，status="pass"，summary 只用一句容易理解的关系概括，例如：
+- “第二段：原因解释了论点，二者关系成立”
+- “第二段：证据进一步支持了该论点”
+- “第二段：结论概括了前面的论点、原因和证据”
+- “第三段：过渡承接前一观点并引出了后续反论”
+若存在真正影响论证的问题，status="issue"，summary 也只写一句关系判断，例如“第二段：原因说明了认知投入减少，但还不能推出思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
+summary 必须以 criterion 中的“第几段：”开头，随后直接说明哪些模块形成了什么关系或哪一步没有接上。只显示一个完整短句，不写 GRE 术语，不复述模块正文，不写修改建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
 问题数量没有上下限；只标记真正影响论证质量的根本问题，不得为了凑数输出次要建议。
 
 每个问题选择最合适的处理动作：
@@ -2498,8 +2514,19 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
               .map(String)
               .filter((id) => validIds.has(id))
           ));
-          const summary = String(parsed.summary || "").replace(/\s+/g, " ").trim();
-          if (!summary) return;
+          const rawSummary = String(parsed.summary || "").replace(/\s+/g, " ").trim();
+          if (!rawSummary) return;
+          const paragraphPrefix = String(expected.criterion || "").match(
+            /^(第[^：:]{1,8}段)[：:]/
+          )?.[1];
+          const prefixedSummary = paragraphPrefix && !rawSummary.startsWith(paragraphPrefix)
+            ? `${paragraphPrefix}：${rawSummary.replace(/^第[^：:]{1,8}段[：:]\s*/, "")}`
+            : rawSummary;
+          const containsCjk = /[\u3400-\u9fff]/.test(prefixedSummary);
+          const softLimit = containsCjk ? 64 : 150;
+          const summary = prefixedSummary.length > softLimit
+            ? `${prefixedSummary.slice(0, softLimit).replace(/[，,；;：:\s]+$/u, "")}…`
+            : prefixedSummary;
 
           const issue = status === "issue"
             ? normalizeEnhancement(parsed.issue, expected)

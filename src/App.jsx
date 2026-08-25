@@ -173,26 +173,48 @@ function countDocumentCharacters(
 
 function getReviewableBlocksFromSections(sourceSections) {
   const blocks = [];
+  let paragraphIndex = 1;
+  let paragraphHasBody = false;
+
+  const appendReviewBlock = (block) => {
+    if (
+      !block ||
+      block.placement === "floating" ||
+      !String(block.text || "").trim()
+    ) {
+      return;
+    }
+
+    const isTitle = block.type === "Title";
+
+    // forceLineBreakBefore 是编辑器与 Word 导出共同使用的真实段落边界。
+    // 先按这个边界编号，再让模型判断段内哪些关系值得检查。
+    if (!isTitle && block.forceLineBreakBefore && paragraphHasBody) {
+      paragraphIndex += 1;
+      paragraphHasBody = false;
+    }
+
+    const reviewParagraphIndex = isTitle ? 0 : paragraphIndex;
+
+    blocks.push({
+      ...block,
+      reviewParagraphIndex,
+      reviewDocumentIndex: blocks.length,
+    });
+
+    if (!isTitle) paragraphHasBody = true;
+
+  };
 
   (Array.isArray(sourceSections) ? sourceSections : []).forEach((section) => {
     (Array.isArray(section?.blocks) ? section.blocks : []).forEach((block) => {
       if (block?.isCompletedParagraph) {
         (Array.isArray(block.completedBlocks) ? block.completedBlocks : [])
-          .filter(
-            (sourceBlock) =>
-              sourceBlock?.placement !== "floating" &&
-              String(sourceBlock?.text || "").trim()
-          )
-          .forEach((sourceBlock) => blocks.push(sourceBlock));
+          .forEach(appendReviewBlock);
         return;
       }
 
-      if (
-        block?.placement !== "floating" &&
-        String(block?.text || "").trim()
-      ) {
-        blocks.push(block);
-      }
+      appendReviewBlock(block);
     });
   });
 

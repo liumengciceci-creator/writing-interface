@@ -58,8 +58,9 @@ const checks = [
     "review must separate streamed overall assessment from dynamic criterion diagnosis",
   ],
   [
-    server.includes("这不是必须全部执行的固定清单") &&
-      server.includes("不得为了显得完整而把九项全部列出") &&
+    server.includes("找出必须核对的模块依赖关系") &&
+      server.includes("不要检查所有两两组合") &&
+      server.includes("若第 2 个模块是过渡") &&
       app.includes('event.type === "criterion_start"') &&
       app.includes('event.type === "criterion_result"') &&
       reviewPanel.includes("criteria.map"),

@@ -7,6 +7,14 @@ const generationHook = fs.readFileSync(
   path.join(root, "src/hooks/useEditor/useStreamingGenerate.js"),
   "utf8"
 );
+const semanticEditor = fs.readFileSync(
+  path.join(root, "src/components/PageCanvas/SingleSemanticEditor.jsx"),
+  "utf8"
+);
+const inlineEditing = fs.readFileSync(
+  path.join(root, "src/components/PageCanvas/useInlineEditing.js"),
+  "utf8"
+);
 
 const checks = [
   {
@@ -31,6 +39,20 @@ const checks = [
       generationHook.includes("generationError: error?.message"),
   },
   {
+    name: "generation remounts contentEditable DOM flattened by manual editing",
+    pass:
+      generationHook.includes("generationRenderRevision") &&
+      semanticEditor.includes("block.generationRenderRevision") &&
+      semanticEditor.includes("restoredWithoutContentMarker"),
+  },
+  {
+    name: "inline undo preserves the semantic content element",
+    pass:
+      inlineEditing.includes("const editableTextElement") &&
+      inlineEditing.includes("data-semantic-block-content='true'") &&
+      !inlineEditing.includes("event.currentTarget.textContent =\n              previousText"),
+  },
+  {
     name: "review planning starts in parallel with the streaming summary",
     pass:
       server.indexOf("const criteriaPlanPromise") > -1 &&
@@ -41,7 +63,17 @@ const checks = [
     name: "overall summary is second-person and criterion results stay concise",
     pass:
       server.includes('第一句必须以“你先”开头') &&
-      server.includes("summary 只用一句短判断"),
+      server.includes("summary 只用一句容易理解的关系概括") &&
+      server.includes("softLimit"),
+  },
+  {
+    name: "second-phase review checks real module dependencies by paragraph",
+    pass:
+      server.includes("模块关系检查计划") &&
+      server.includes("论点与原因") &&
+      server.includes("论点与证据") &&
+      server.includes("前置论证组与结论") &&
+      server.includes("过渡与前后核心模块"),
   },
 ];
 
