@@ -440,10 +440,11 @@ export default function InstructionPalette({
             nextInstruction,
             color:
               selectedColor,
-            fill:
+          fill:
               createInstructionFill(
                 selectedColor
               ),
+          isUserEdited: true,
       };
 
       if (editingInstruction) {

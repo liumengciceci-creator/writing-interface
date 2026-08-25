@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.jsx";
 import {
   dividerStyle,
@@ -55,6 +55,68 @@ export default function Toolbar({
   const busy = isGenerating || isAdjustingLength || isAdjustingStyle || isReviewing;
   const normalizedReviewStatus =
     String(localizeStatus(reviewStatus) || "").trim();
+  const wasReviewingRef = useRef(isReviewing);
+  const reviewCompletionTimerRef = useRef(null);
+  const [recentReviewCompletion, setRecentReviewCompletion] = useState("");
+
+  useEffect(() => {
+    const wasReviewing = wasReviewingRef.current;
+    wasReviewingRef.current = isReviewing;
+
+    if (reviewCompletionTimerRef.current) {
+      window.clearTimeout(reviewCompletionTimerRef.current);
+      reviewCompletionTimerRef.current = null;
+    }
+
+    if (isReviewing) {
+      setRecentReviewCompletion("");
+      return undefined;
+    }
+
+    // 审阅完成文案只响应一次 running: true -> false 的状态转换。
+    // reviewState.status 会长期保留，不能在后续模块修改结束后再次拿它兜底。
+    if (!wasReviewing || !normalizedReviewStatus) return undefined;
+
+    setRecentReviewCompletion(normalizedReviewStatus);
+    reviewCompletionTimerRef.current = window.setTimeout(() => {
+      setRecentReviewCompletion("");
+      reviewCompletionTimerRef.current = null;
+    }, 4000);
+
+    return () => {
+      if (reviewCompletionTimerRef.current) {
+        window.clearTimeout(reviewCompletionTimerRef.current);
+        reviewCompletionTimerRef.current = null;
+      }
+    };
+  }, [isReviewing, normalizedReviewStatus]);
+
+  useEffect(() => {
+    const anotherOperationStarted =
+      !isReviewing &&
+      (
+        isGenerating ||
+        isAdjustingLength ||
+        isAdjustingStyle ||
+        normalizedStatusText ||
+        normalizedGenerationStatus
+      );
+    if (!anotherOperationStarted) return;
+
+    setRecentReviewCompletion("");
+    if (reviewCompletionTimerRef.current) {
+      window.clearTimeout(reviewCompletionTimerRef.current);
+      reviewCompletionTimerRef.current = null;
+    }
+  }, [
+    isAdjustingLength,
+    isAdjustingStyle,
+    isGenerating,
+    isReviewing,
+    normalizedGenerationStatus,
+    normalizedStatusText,
+  ]);
+
   const rawCentralStatus =
     normalizedStatusText ||
     (
@@ -68,8 +130,7 @@ export default function Toolbar({
 	          ? t("status.resizing")
 	          : isAdjustingStyle
 	            ? normalizedStatusText || t("status.generating")
-	          : normalizedGenerationStatus ||
-              normalizedReviewStatus
+	          : normalizedGenerationStatus || recentReviewCompletion
     );
   const [centralStatus, setCentralStatus] = useState(rawCentralStatus);
 

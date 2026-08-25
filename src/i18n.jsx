@@ -505,11 +505,13 @@ export function LanguageProvider({ children }) {
       BLOCK_LABELS[language]?.[type] || fallback || type || t("app.module");
 
     const instructionLabel = (instruction) => {
+      if (instruction?.isUserEdited === true) return instruction?.label || "";
       if (language !== "en") return instruction?.label || "";
       return BUILTIN_INSTRUCTIONS[instruction?.id]?.enLabel || instruction?.label || "";
     };
 
     const instructionText = (instruction) => {
+      if (instruction?.isUserEdited === true) return instruction?.instruction || "";
       if (language !== "en") return instruction?.instruction || "";
       return BUILTIN_INSTRUCTIONS[instruction?.id]?.enInstruction || instruction?.instruction || "";
     };

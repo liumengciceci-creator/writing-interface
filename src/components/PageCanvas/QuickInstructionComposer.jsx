@@ -10,6 +10,9 @@ import { useI18n } from "../../i18n.jsx";
 
 const INSTRUCTIONS_STORAGE_KEY = "writing-interface-block-instructions";
 const INSTRUCTIONS_UPDATED_EVENT = "writing-interface-instructions-updated";
+const INSTRUCTIONS_DEFAULT_VERSION_KEY =
+  "writing-interface-block-instructions-default-version";
+const CURRENT_DEFAULT_VERSION = "2";
 
 const FALLBACK_INSTRUCTIONS = [
   {
@@ -47,7 +50,7 @@ function readInstructions() {
     const parsed = JSON.parse(
       window.localStorage.getItem(INSTRUCTIONS_STORAGE_KEY) || "null"
     );
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
       return parsed.filter((item) => item?.id && item?.label && item?.instruction);
     }
   } catch {
@@ -58,6 +61,10 @@ function readInstructions() {
 
 function saveInstructions(instructions) {
   try {
+    window.localStorage.setItem(
+      INSTRUCTIONS_DEFAULT_VERSION_KEY,
+      CURRENT_DEFAULT_VERSION
+    );
     window.localStorage.setItem(
       INSTRUCTIONS_STORAGE_KEY,
       JSON.stringify(instructions)
@@ -92,6 +99,7 @@ export default function QuickInstructionComposer({
   const [selectedInstructionId, setSelectedInstructionId] = useState(null);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customText, setCustomText] = useState("");
+  const [editingInstructionId, setEditingInstructionId] = useState(null);
   const inputRef = useRef(null);
   const panelRef = useRef(null);
   const dragRef = useRef(null);
@@ -288,27 +296,66 @@ export default function QuickInstructionComposer({
     });
   };
 
-  const addCustomInstruction = () => {
+  const closeCustomForm = () => {
+    setShowCustomForm(false);
+    setCustomText("");
+    setEditingInstructionId(null);
+  };
+
+  const saveCustomInstruction = () => {
     const instruction = customText.trim();
     if (!instruction) return;
     const label =
       Array.from(instruction).length > 14
         ? `${Array.from(instruction).slice(0, 14).join("")}…`
         : instruction;
-    const nextInstruction = {
-      id: createInstructionId(),
-      label,
-      instruction,
-      color: "#ef4444",
-      fill: "#feecec",
-    };
-    const next = [...instructions, nextInstruction];
+    const existingInstruction = instructions.find(
+      (item) => item.id === editingInstructionId
+    );
+    const nextInstruction = existingInstruction
+      ? {
+          ...existingInstruction,
+          label,
+          instruction,
+          isUserEdited: true,
+        }
+      : {
+          id: createInstructionId(),
+          label,
+          instruction,
+          color: "#ef4444",
+          fill: "#feecec",
+          isUserEdited: true,
+        };
+    const next = existingInstruction
+      ? instructions.map((item) =>
+          item.id === existingInstruction.id ? nextInstruction : item
+        )
+      : [...instructions, nextInstruction];
     setInstructions(next);
     saveInstructions(next);
-    setShowCustomForm(false);
-    setCustomText("");
+    closeCustomForm();
     setSelectedInstructionId(nextInstruction.id);
     setValue(instruction);
+    inputRef.current?.focus();
+  };
+
+  const beginEditInstruction = (instruction) => {
+    setEditingInstructionId(instruction.id);
+    setCustomText(instructionText(instruction));
+    setShowCustomForm(true);
+  };
+
+  const deleteInstruction = (instructionId) => {
+    const next = instructions.filter((item) => item.id !== instructionId);
+    setInstructions(next);
+    saveInstructions(next);
+
+    if (selectedInstructionId === instructionId) {
+      setSelectedInstructionId(null);
+      setValue("");
+    }
+    if (editingInstructionId === instructionId) closeCustomForm();
     inputRef.current?.focus();
   };
 
@@ -326,7 +373,7 @@ export default function QuickInstructionComposer({
           !event.target.closest("[data-custom-instruction-form='true']") &&
           !event.target.closest("[data-custom-instruction-toggle='true']")
         ) {
-          setShowCustomForm(false);
+          closeCustomForm();
         }
         beginPanelDrag(event);
       }}
@@ -418,32 +465,94 @@ export default function QuickInstructionComposer({
           const text = instructionText(instruction);
           const selected = selectedInstructionId === instruction.id;
           return (
-            <button
+            <div
               key={instruction.id}
-              type="button"
-              title={text}
-              onClick={() => {
-                setSelectedInstructionId(instruction.id);
-                setValue(text);
-                inputRef.current?.focus();
-              }}
               style={{
                 height: 23,
                 flex: "0 0 auto",
                 display: "inline-flex",
                 alignItems: "center",
-                padding: "0 9px",
+                padding: "0 3px 0 8px",
                 border: `1px solid ${selected ? "#6b7280" : "rgba(55,65,81,0.38)"}`,
                 borderRadius: 999,
                 background: selected ? "#f1f3f5" : "#ffffff",
                 color: "#5f6670",
                 fontSize: 10,
                 whiteSpace: "nowrap",
-                cursor: "pointer",
               }}
             >
-              {label}
-            </button>
+              <button
+                type="button"
+                title={text}
+                onClick={() => {
+                  setSelectedInstructionId(instruction.id);
+                  setValue(text);
+                  inputRef.current?.focus();
+                }}
+                style={{
+                  height: "100%",
+                  minWidth: 0,
+                  padding: "0 3px 0 0",
+                  border: 0,
+                  background: "transparent",
+                  color: "inherit",
+                  font: "inherit",
+                  whiteSpace: "nowrap",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
+                data-custom-instruction-toggle="true"
+                aria-label={t("instruction.editTitle", { label })}
+                title={t("instruction.edit")}
+                onClick={() => beginEditInstruction(instruction)}
+                style={{
+                  width: 15,
+                  height: 15,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  border: 0,
+                  borderRadius: "50%",
+                  background: "transparent",
+                  color: "#8a9099",
+                  cursor: "pointer",
+                }}
+              >
+                <svg aria-hidden="true" width="9" height="9" viewBox="0 0 12 12">
+                  <path d="m2 8.8.35-2.05L7.9 1.2l1.9 1.9-5.55 5.55L2 8.8Z" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
+                  <path d="m6.9 2.2 1.9 1.9" fill="none" stroke="currentColor" strokeWidth="1.15" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                data-custom-instruction-toggle="true"
+                aria-label={`${t("instruction.delete")} ${label}`}
+                title={t("instruction.delete")}
+                onClick={() => deleteInstruction(instruction.id)}
+                style={{
+                  width: 15,
+                  height: 15,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  border: 0,
+                  borderRadius: "50%",
+                  background: "transparent",
+                  color: "#8a9099",
+                  fontSize: 13,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
           );
         })}
 
@@ -452,7 +561,15 @@ export default function QuickInstructionComposer({
           data-custom-instruction-toggle="true"
           aria-label={t("instruction.add")}
           title={t("instruction.add")}
-          onClick={() => setShowCustomForm((current) => !current)}
+          onClick={() => {
+            if (showCustomForm && editingInstructionId == null) {
+              closeCustomForm();
+              return;
+            }
+            setEditingInstructionId(null);
+            setCustomText("");
+            setShowCustomForm(true);
+          }}
           style={{
             width: 23,
             height: 23,
@@ -491,7 +608,7 @@ export default function QuickInstructionComposer({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                addCustomInstruction();
+                saveCustomInstruction();
               }
             }}
             style={{
@@ -508,7 +625,7 @@ export default function QuickInstructionComposer({
           <button
             type="button"
             disabled={!customText.trim()}
-            onClick={addCustomInstruction}
+            onClick={saveCustomInstruction}
             style={{
               width: 29,
               height: 29,

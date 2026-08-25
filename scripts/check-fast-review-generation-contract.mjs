@@ -34,6 +34,11 @@ const aiActions = fs.readFileSync(
   path.join(root, "src/hooks/useEditor/useAIActions.js"),
   "utf8"
 );
+const toolbar = fs.readFileSync(
+  path.join(root, "src/components/Toolbar.jsx"),
+  "utf8"
+);
+const i18n = fs.readFileSync(path.join(root, "src/i18n.jsx"), "utf8");
 
 const checks = [
   {
@@ -118,7 +123,22 @@ const checks = [
 	    generationHook.includes('setGenerationStatus("")') &&
 	    !generationHook.includes('setGenerationStatus(`生成完成 ${targets.length}/${targets.length}`)') &&
 	    aiActions.includes('"正在根据指令内容修改"') &&
-	    aiActions.includes('setStatusText("")'),
+	    aiActions.includes('setStatusText("")') &&
+      toolbar.includes("wasReviewingRef") &&
+      toolbar.includes("recentReviewCompletion") &&
+      toolbar.includes("!wasReviewing || !normalizedReviewStatus") &&
+      !toolbar.includes("normalizedGenerationStatus ||\n              normalizedReviewStatus"),
+	},
+	{
+	  name: "quick instructions are editable, deletable, and persist an empty library",
+	  pass:
+	    quickInstructionComposer.includes("if (Array.isArray(parsed))") &&
+	    quickInstructionComposer.includes("editingInstructionId") &&
+	    quickInstructionComposer.includes("beginEditInstruction") &&
+	    quickInstructionComposer.includes("deleteInstruction") &&
+	    quickInstructionComposer.includes("isUserEdited: true") &&
+	    quickInstructionComposer.includes("INSTRUCTIONS_DEFAULT_VERSION_KEY") &&
+	    i18n.includes("instruction?.isUserEdited === true"),
 	},
   {
     name: "second-phase review checks real module dependencies by paragraph",
