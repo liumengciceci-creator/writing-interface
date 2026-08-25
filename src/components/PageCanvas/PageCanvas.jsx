@@ -135,6 +135,7 @@ function collectContinuousBlocks(
 function InlineDragPreview({
   preview,
   zIndex = 1200,
+  visualScale = 1,
 }) {
   // The preview is rendered in a separate branch from PageCanvas. Keep the
   // localized label resolver in this component's own scope so external drops
@@ -142,6 +143,15 @@ function InlineDragPreview({
   const {
     blockTypeLabel: getPreviewTypeLabel,
   } = useI18n();
+
+  const previewScale =
+    Number.isFinite(
+      Number(visualScale)
+    ) &&
+    Number(visualScale) > 0
+      ? Number(visualScale)
+      : 1;
+
   if (!preview?.block) {
     return null;
   }
@@ -162,6 +172,7 @@ function InlineDragPreview({
         <InlineDragPreview
           preview={primaryPreview}
           zIndex={zIndex}
+          visualScale={previewScale}
         />
 
         {preview.groupPreviews.map(
@@ -170,6 +181,7 @@ function InlineDragPreview({
               key={`group-drag-${item.block?.id}`}
               preview={item}
               zIndex={zIndex}
+              visualScale={previewScale}
             />
           )
         )}
@@ -209,6 +221,10 @@ function InlineDragPreview({
           zIndex,
           pointerEvents: "none",
           opacity: 0.96,
+          transform:
+            `scale(${previewScale})`,
+          transformOrigin:
+            "top left",
         }}
       >
         {lineFragments.map(
@@ -341,6 +357,11 @@ function InlineDragPreview({
 
   userSelect: "none",
   WebkitUserSelect: "none",
+
+  transform:
+    `scale(${previewScale})`,
+  transformOrigin:
+    "top left",
 }}
     >
       <div
@@ -1668,6 +1689,7 @@ export default function PageCanvas(
           draggingFloatingPreview
         }
         zIndex={9999}
+        visualScale={zoom}
       />
 
       {floatingBlocks

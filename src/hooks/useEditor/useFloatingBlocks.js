@@ -48,7 +48,8 @@ function getStandardFloatingWidth(
  */
 function collectInlineDragLineFragments(
   element,
-  overallRect
+  overallRect,
+  zoom = 1
 ) {
   if (
     !element ||
@@ -57,6 +58,12 @@ function collectInlineDragLineFragments(
   ) {
     return [];
   }
+
+  const visualZoom =
+    Number.isFinite(Number(zoom)) &&
+    Number(zoom) > 0
+      ? Number(zoom)
+      : 1;
 
   const contentElement =
     element.querySelector?.(
@@ -136,20 +143,32 @@ function collectInlineDragLineFragments(
     .map((line) => ({
       text: line.text,
       x:
-        line.left -
-        overallRect.left -
+        (
+          line.left -
+          overallRect.left
+        ) /
+          visualZoom -
         8,
       y:
-        line.top -
-        overallRect.top -
+        (
+          line.top -
+          overallRect.top
+        ) /
+          visualZoom -
         2,
       width:
-        line.right -
-        line.left +
+        (
+          line.right -
+          line.left
+        ) /
+          visualZoom +
         16,
       height:
-        line.bottom -
-        line.top +
+        (
+          line.bottom -
+          line.top
+        ) /
+          visualZoom +
         4,
     }));
 }
@@ -602,7 +621,8 @@ export function useFloatingBlocks({
                 groupBlock.placement !== "floating"
                   ? collectInlineDragLineFragments(
                       element,
-                      rect
+                      rect,
+                      zoom
                     )
                   : Array.isArray(
                       groupBlock.floatingLineFragments
@@ -632,13 +652,9 @@ export function useFloatingBlocks({
                       rect.top - stageRect.top
                     : rect.top - stageRect.top,
                 width:
-                  groupBlock.placement === "floating"
-                    ? rect.width / zoom
-                    : rect.width,
+                  rect.width / zoom,
                 height:
-                  groupBlock.placement === "floating"
-                    ? rect.height / zoom
-                    : rect.height,
+                  rect.height / zoom,
               };
             })
             .filter(Boolean);
@@ -646,10 +662,11 @@ export function useFloatingBlocks({
         const inlineLineFragments =
           block?.placement !== "floating" &&
           sourceRect
-            ? collectInlineDragLineFragments(
-                sourceElement,
-                sourceRect
-              )
+          ? collectInlineDragLineFragments(
+              sourceElement,
+              sourceRect,
+              zoom
+            )
             : [];
 
         dragBlockSnapshotRef.current =
@@ -695,9 +712,11 @@ export function useFloatingBlocks({
           sourceRect.height > 0
             ? {
                 width:
-                  sourceRect.width,
+                  sourceRect.width /
+                  zoom,
                 height:
-                  sourceRect.height,
+                  sourceRect.height /
+                  zoom,
               }
             : null;
 
@@ -775,6 +794,7 @@ export function useFloatingBlocks({
         stageRef,
         selectedIds,
         getBlockById,
+        zoom,
       ]
     );
 

@@ -608,7 +608,13 @@ export default function ReviewIssuesPanel({
                   setApplyLoading(true);
                   setApplyError("");
                   try {
-                    await onAccept?.(selectedItem);
+                    await onAccept?.(
+                      selectedItem,
+                      {
+                        onApplyStart:
+                          closeIssue,
+                      }
+                    );
                     closeIssue();
                   } catch (error) {
                     setApplyLoading(false);

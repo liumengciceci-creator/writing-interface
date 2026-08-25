@@ -188,6 +188,24 @@ const checks = [
       reviewPanel.includes('t("review.checking")'),
   },
   {
+    name: "review panel waits for concrete overall judgment content",
+    pass:
+      app.includes("let streamedOverallSummary =") &&
+      app.includes("const revealReviewPanelWhenSummaryReady =") &&
+      app.includes("revealReviewPanelWhenSummaryReady(streamedOverallSummary)") &&
+      app.includes("setReviewPanelOpen(false)") &&
+      !app.includes("第一阶段的总结从第一个字开始就在右侧显示"),
+  },
+  {
+    name: "accepted suggestion details close when canvas blinking starts",
+    pass:
+      app.includes("const notifyReviewApplyStart =") &&
+      app.includes("lifecycle.onApplyStart?.()") &&
+      app.includes("notifyReviewApplyStart();") &&
+      reviewPanel.includes("onApplyStart:") &&
+      reviewPanel.includes("closeIssue"),
+  },
+  {
     name: "first relationship does not absorb model reasoning latency",
     pass:
       server.indexOf('type: "criterion_start",\n              ...activeCriterionMeta') <

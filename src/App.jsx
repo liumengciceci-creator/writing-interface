@@ -621,8 +621,8 @@ export default function App() {
       { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
     );
 
-    // 第一阶段的总结从第一个字开始就在右侧显示。
-    setReviewPanelOpen(true);
+    // 请求发出后先保持画布完整；等整体判断真正返回内容时再显示窗口。
+    setReviewPanelOpen(false);
     setReviewState({
       running: true,
       phase: "summary",
@@ -640,6 +640,20 @@ export default function App() {
       overallSummary: "",
       summaryHighlights: [],
     });
+
+    let streamedOverallSummary = "";
+    let reviewPanelRevealed = false;
+    const revealReviewPanelWhenSummaryReady = (value) => {
+      if (
+        reviewPanelRevealed ||
+        !String(value || "").trim()
+      ) {
+        return;
+      }
+
+      reviewPanelRevealed = true;
+      setReviewPanelOpen(true);
+    };
 
     const blockById = new Map(blocks.map((block) => [String(block.id), block]));
     const summaries = new Map();
@@ -776,10 +790,13 @@ export default function App() {
         interfaceLanguage: language,
         onEvent: async (event) => {
           if (event.type === "summary_delta") {
+            const summaryDelta = String(event.delta || "");
+            streamedOverallSummary += summaryDelta;
+            revealReviewPanelWhenSummaryReady(streamedOverallSummary);
             setReviewState((state) => ({
               ...state,
               phase: "summary",
-              overallSummary: `${state.overallSummary}${String(event.delta || "")}`,
+              overallSummary: `${state.overallSummary}${summaryDelta}`,
               activeIds: blocks.map((block) => String(block.id)),
               activeGraphId: "overall-review",
               status: t("app.reviewWhole"),
@@ -788,6 +805,13 @@ export default function App() {
           }
 
           if (event.type === "summary_done") {
+            const completedOverallSummary = String(
+              event.overallSummary || streamedOverallSummary
+            ).trim();
+            if (completedOverallSummary) {
+              streamedOverallSummary = completedOverallSummary;
+            }
+            revealReviewPanelWhenSummaryReady(completedOverallSummary);
             logResearchEvent(
               "review_overall_evaluation_completed",
               {
@@ -804,7 +828,7 @@ export default function App() {
             setReviewState((state) => ({
               ...state,
               phase: "summary",
-              overallSummary: String(event.overallSummary || state.overallSummary).trim(),
+              overallSummary: completedOverallSummary || state.overallSummary,
               summaryHighlights: Array.isArray(event.summaryHighlights)
                 ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
                 : [],
@@ -1048,6 +1072,13 @@ export default function App() {
           }
 
           if (event.type === "final") {
+            const finalOverallSummary = String(
+              event.overallSummary || streamedOverallSummary
+            ).trim();
+            if (finalOverallSummary) {
+              streamedOverallSummary = finalOverallSummary;
+            }
+            revealReviewPanelWhenSummaryReady(finalOverallSummary);
             setReviewState((state) => ({
               ...state,
               phase: "done",
@@ -1055,7 +1086,7 @@ export default function App() {
               activeGraphId: null,
               activeIssue: null,
               blinkOn: false,
-              overallSummary: String(event.overallSummary || state.overallSummary).trim(),
+              overallSummary: finalOverallSummary || state.overallSummary,
               summaryHighlights: Array.isArray(event.summaryHighlights)
                 ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
                 : state.summaryHighlights,
@@ -1078,7 +1109,7 @@ export default function App() {
           ? t("app.reviewDoneIssues", { count: state.results.length })
           : t("app.reviewDoneChecks", { count: state.criteria.length }),
       }));
-      setReviewPanelOpen(true);
+      revealReviewPanelWhenSummaryReady(streamedOverallSummary);
       logResearchEvent(
         "review_completed",
         { duration_ms: Math.round(performance.now() - reviewStartedAt) },
@@ -1150,9 +1181,15 @@ export default function App() {
     }));
   };
 
-  const handleReviewAccept = async (item) => {
+  const handleReviewAccept = async (item, lifecycle = {}) => {
     const suggestionActionId = createResearchActionId("review-suggestion");
     const suggestionStartedAt = performance.now();
+    let reviewApplyStarted = false;
+    const notifyReviewApplyStart = () => {
+      if (reviewApplyStarted) return;
+      reviewApplyStarted = true;
+      lifecycle.onApplyStart?.();
+    };
     logResearchEvent(
       "review_suggestion_accept_started",
       {
@@ -1212,6 +1249,7 @@ export default function App() {
         activeGraphId: applyGraphId,
         blinkOn: true,
       }));
+      notifyReviewApplyStart();
 
       const blinkTimer = window.setInterval(() => {
         setReviewState((state) =>
@@ -1363,6 +1401,7 @@ export default function App() {
       activeGraphId: applyGraphId,
       blinkOn: true,
     }));
+    notifyReviewApplyStart();
 
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) =>

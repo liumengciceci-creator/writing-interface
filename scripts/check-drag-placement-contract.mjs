@@ -147,6 +147,16 @@ const checks = [
       floating.includes("rect.width / zoom") &&
       floating.includes("rect.height / zoom"),
   },
+  {
+    name: "drag previews preserve the active canvas zoom for the whole gesture",
+    pass:
+      pageCanvas.includes("visualScale = 1") &&
+      pageCanvas.includes("`scale(${previewScale})`") &&
+      pageCanvas.includes("visualScale={zoom}") &&
+      floating.includes("collectInlineDragLineFragments(") &&
+      floating.includes("sourceRect.width /\n                  zoom") &&
+      floating.includes("sourceRect.height /\n                  zoom"),
+  },
 ];
 
 const failed = checks.filter((check) => !check.pass);
