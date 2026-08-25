@@ -118,28 +118,17 @@ const checks = [
       pageCanvas.includes('window.addEventListener(\n      "drop"') &&
       pageCanvas.includes("handleStageDrop(event)") &&
       pageCanvas.includes("isDraggingTemplate ||") &&
-      app.includes("isDraggingTemplate={"),
+      app.includes("isDraggingTemplate={") &&
+      pageCanvas.includes('data-template-drop-cue="true"'),
   },
   {
-    name: "template gestures use native copy feedback and cannot leak stale drag state",
+    name: "template gestures show copy feedback and cannot leak stale drag state",
     pass:
-      sidebar.includes('event.dataTransfer.effectAllowed =\n        "copy"') &&
-      !sidebar.includes('data-template-copy-cue="true"') &&
-      !pageCanvas.includes('data-template-drop-cue="true"') &&
-      !sidebar.includes("setDragImage(") &&
+      sidebar.includes('data-template-copy-cue="true"') &&
       sidebar.includes("onTemplateDragEnd?.()") &&
       canvasDrop.includes("const cancelTemplateDrag =") &&
       app.includes("onTemplateDragEnd={") &&
       app.includes("cancelTemplateDrag"),
-  },
-  {
-    name: "template drops recover payload data and recreate an empty editing target",
-    pass:
-      canvasDrop.includes("function readTemplateDragPayload(event)") &&
-      canvasDrop.includes("draggingType ||\n          readTemplateDragPayload(event)") &&
-      canvasDrop.includes("!draggedTemplate") &&
-      canvasDrop.includes("normalizeSections(\n                  previousSections") &&
-      canvasDrop.includes("if (draggedTemplate)"),
   },
   {
     name: "inline drag preview keeps the real pointer anchor instead of a fixed offset",

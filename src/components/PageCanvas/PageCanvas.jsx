@@ -485,6 +485,29 @@ export default function PageCanvas(
     onDeleteInlineBlock,
   } = props;
 
+  const [templateDropCue, setTemplateDropCue] =
+    useState(null);
+
+  const updateTemplateDropCue = (event) => {
+    const pageRect =
+      pageRef?.current?.getBoundingClientRect?.();
+    const insidePage =
+      pageRect &&
+      event.clientX >= pageRect.left &&
+      event.clientX <= pageRect.right &&
+      event.clientY >= pageRect.top &&
+      event.clientY <= pageRect.bottom;
+
+    setTemplateDropCue(
+      insidePage
+        ? null
+        : {
+            x: event.clientX + 14,
+            y: event.clientY + 14,
+          }
+    );
+  };
+
   const continuousEditorRef =
     useRef(null);
 
@@ -1009,6 +1032,18 @@ export default function PageCanvas(
             : "move";
       }
 
+      if (
+        activeBlockId == null &&
+        (
+          isDraggingTemplate ||
+          hasWorkspaceBlockPayload(event)
+        )
+      ) {
+        updateTemplateDropCue(event);
+      } else {
+        setTemplateDropCue(null);
+      }
+
       /**
        * 只有拖动已有模块时才更新 floating 预览。
        * Sidebar 新模板由 useCanvasDrop 在 drop 时直接创建。
@@ -1030,6 +1065,7 @@ export default function PageCanvas(
 
       event.preventDefault();
       event.stopPropagation();
+      setTemplateDropCue(null);
 
       /**
        * activeBlockId 为空时，说明拖入的是 Sidebar 新模板。
@@ -1119,6 +1155,8 @@ export default function PageCanvas(
 
         if (activeBlockId != null) {
           updateDragPointer(event);
+        } else {
+          updateTemplateDropCue(event);
         }
       };
 
@@ -1142,6 +1180,10 @@ export default function PageCanvas(
         handleStageDrop(event);
       };
 
+    const handleWindowDragEnd = () => {
+      setTemplateDropCue(null);
+    };
+
     window.addEventListener(
       "dragover",
       handleWindowDragOver
@@ -1149,6 +1191,10 @@ export default function PageCanvas(
     window.addEventListener(
       "drop",
       handleWindowDrop
+    );
+    window.addEventListener(
+      "dragend",
+      handleWindowDragEnd
     );
 
     return () => {
@@ -1159,6 +1205,10 @@ export default function PageCanvas(
       window.removeEventListener(
         "drop",
         handleWindowDrop
+      );
+      window.removeEventListener(
+        "dragend",
+        handleWindowDragEnd
       );
     };
   }, [
@@ -1697,6 +1747,35 @@ export default function PageCanvas(
         zIndex={9999}
         visualScale={zoom}
       />
+
+      {templateDropCue && (
+        <div
+          aria-hidden="true"
+          data-template-drop-cue="true"
+          style={{
+            position: "fixed",
+            left: templateDropCue.x,
+            top: templateDropCue.y,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            display: "grid",
+            placeItems: "center",
+            background: "#2563eb",
+            border: "2px solid #fff",
+            color: "#fff",
+            fontSize: 20,
+            fontWeight: 700,
+            lineHeight: 1,
+            boxShadow:
+              "0 4px 12px rgba(37,99,235,0.30)",
+            pointerEvents: "none",
+            zIndex: 20000,
+          }}
+        >
+          +
+        </div>
+      )}
 
       {floatingBlocks
         .filter(
