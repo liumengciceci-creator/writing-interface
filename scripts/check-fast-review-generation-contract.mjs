@@ -30,6 +30,10 @@ const quickInstructionComposer = fs.readFileSync(
 );
 const styles = fs.readFileSync(path.join(root, "src/index.css"), "utf8");
 const sidebar = fs.readFileSync(path.join(root, "src/components/Sidebar.jsx"), "utf8");
+const aiActions = fs.readFileSync(
+  path.join(root, "src/hooks/useEditor/useAIActions.js"),
+  "utf8"
+);
 
 const checks = [
   {
@@ -102,6 +106,18 @@ const checks = [
       server.includes("summary 只用一句容易理解的关系概括") &&
       server.includes("softLimit"),
   },
+	{
+	  name: "top status distinguishes overall review and instruction-driven revision",
+	  pass:
+	    app.includes('status: t("app.reviewWhole")') &&
+	    styles.length > 0 &&
+	    generationHook.includes('instructionDrivenGeneration') &&
+	    generationHook.includes('"正在根据指令内容修改"') &&
+	    generationHook.includes('setGenerationStatus("")') &&
+	    !generationHook.includes('setGenerationStatus(`生成完成 ${targets.length}/${targets.length}`)') &&
+	    aiActions.includes('"正在根据指令内容修改"') &&
+	    aiActions.includes('setStatusText("")'),
+	},
   {
     name: "second-phase review checks real module dependencies by paragraph",
     pass:

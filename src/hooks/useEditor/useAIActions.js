@@ -612,7 +612,7 @@ export function useAIActions({
         clearStatusTimer?.();
 
         setStatusText(
-          "正在调整文本风格..."
+          "正在根据指令内容修改"
         );
 
         try {
@@ -651,9 +651,7 @@ export function useAIActions({
             controller.signal
           );
 
-          showTemporaryStatus(
-            "文本风格调整完成"
-          );
+          setStatusText("");
 
           setAdjustStyleError("");
 
@@ -703,8 +701,7 @@ export function useAIActions({
       [
         getBlockById,
         revealGeneratedText,
-        showTemporaryStatus,
-        setStatusText,
+	        setStatusText,
         clearStatusTimer,
       ]
     );

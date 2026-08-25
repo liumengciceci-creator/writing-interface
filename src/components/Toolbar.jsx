@@ -24,6 +24,7 @@ export default function Toolbar({
 
   isGenerating = false,
   isAdjustingLength = false,
+  isAdjustingStyle = false,
   isReviewing = false,
   reviewStatus = "",
 
@@ -51,7 +52,7 @@ export default function Toolbar({
       localizeStatus(statusText) || ""
     ).trim();
 
-  const busy = isGenerating || isAdjustingLength || isReviewing;
+  const busy = isGenerating || isAdjustingLength || isAdjustingStyle || isReviewing;
   const normalizedReviewStatus =
     String(localizeStatus(reviewStatus) || "").trim();
   const rawCentralStatus =
@@ -63,9 +64,11 @@ export default function Toolbar({
         : isGenerating
           ? normalizedGenerationStatus ||
             t("status.generating")
-          : isAdjustingLength
-            ? t("status.resizing")
-            : normalizedGenerationStatus ||
+	        : isAdjustingLength
+	          ? t("status.resizing")
+	          : isAdjustingStyle
+	            ? normalizedStatusText || t("status.generating")
+	          : normalizedGenerationStatus ||
               normalizedReviewStatus
     );
   const [centralStatus, setCentralStatus] = useState(rawCentralStatus);

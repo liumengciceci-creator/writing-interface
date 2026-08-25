@@ -75,7 +75,7 @@ const MESSAGES = {
     "app.needTwoReview": "全文至少需要两个非空模块才能进行审阅。",
     "app.selectTwoReview": "请至少选择两个模块；清除选择后可直接审阅全文。",
     "app.nothingToComplete": "当前没有可以完成的模块。",
-    "app.reviewWhole": "正在整体判断所选模块之间的关系…",
+	    "app.reviewWhole": "正在进行整体判断",
     "app.reviewPreparingCriteria": "正在根据当前内容确定需要检查的论证关系…",
     "app.reviewCheckingCriterion": "正在检查：{criterion}",
     "app.reviewSuggestions": "正在生成潜在修改建议…",
@@ -259,7 +259,7 @@ const MESSAGES = {
     "app.needTwoReview": "At least two non-empty modules are required to review the full text.",
     "app.selectTwoReview": "Select at least two modules, or clear the selection to review the full text.",
     "app.nothingToComplete": "There are no modules available to complete.",
-    "app.reviewWhole": "Assessing the overall relationships among the selected modules…",
+	    "app.reviewWhole": "Assessing the overall argument",
     "app.reviewPreparingCriteria": "Selecting the argument checks that apply to the current content…",
     "app.reviewCheckingCriterion": "Checking: {criterion}",
     "app.reviewSuggestions": "Generating potential revision suggestions…",
@@ -493,7 +493,8 @@ export function LanguageProvider({ children }) {
         return "Web search complete. Organizing the full paragraph…";
       }
       if (text === "模块长度调整完成") return "Module length adjusted";
-      if (text === "文本风格调整完成") return "Text style adjusted";
+	      if (text === "文本风格调整完成") return "Text style adjusted";
+	      if (text === "正在根据指令内容修改") return "Revising according to the instruction";
       return text;
     };
 

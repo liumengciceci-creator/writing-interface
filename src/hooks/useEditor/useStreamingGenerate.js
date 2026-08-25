@@ -778,6 +778,11 @@ export function useStreamingGenerate({
             : "disabled",
       };
     });
+    const instructionDrivenGeneration = requestTargetBlocks.some(
+      (target) =>
+        target.userInputMode === "instruction" &&
+        Boolean(String(target.directive || "").trim())
+    );
 
     const requestContextBlocks = entries
       .filter((entry) => {
@@ -838,7 +843,9 @@ export function useStreamingGenerate({
     setIsGenerating(true);
     setGeneratingBlockIds(targetIds);
     setGenerationStatus(
-      `正在整体分析 ${targets.length} 个模块及其上下文…`
+      instructionDrivenGeneration
+        ? "正在根据指令内容修改"
+        : `正在整体分析 ${targets.length} 个模块及其上下文…`
     );
     setSections((previous) =>
       patchBlocks(previous, (block) => {
@@ -895,11 +902,13 @@ export function useStreamingGenerate({
             return;
           }
 
-          if (event.type === "search_progress") {
-            setGenerationStatus(
-              event.phase === "completed"
-                ? "网页搜索完成，正在整体组织段落…"
-                : "正在搜索网页并核对资料…"
+	          if (event.type === "search_progress") {
+	            setGenerationStatus(
+	              instructionDrivenGeneration
+	                ? "正在根据指令内容修改"
+	                : event.phase === "completed"
+	                ? "网页搜索完成，正在整体组织段落…"
+	                : "正在搜索网页并核对资料…"
             );
             return;
           }
@@ -941,7 +950,9 @@ export function useStreamingGenerate({
             startedRequestIds.add(requestId);
             generatedTextByRequestId.set(requestId, "");
             setGenerationStatus(
-              `已完成校验，正在接收 ${targetIndex + 1}/${targets.length} 个模块…`
+              instructionDrivenGeneration
+                ? "正在根据指令内容修改"
+                : `已完成校验，正在接收 ${targetIndex + 1}/${targets.length} 个模块…`
             );
           }
 
@@ -1079,7 +1090,7 @@ export function useStreamingGenerate({
         })
       );
 
-      setGenerationStatus(`生成完成 ${targets.length}/${targets.length}`);
+      setGenerationStatus("");
       aiDebug("06 generation succeeded", {
         targetIds,
         completedRequestIds: Array.from(completedRequestIds),
@@ -1194,9 +1205,9 @@ export function useStreamingGenerate({
     flushPendingDeltas,
     startBlinking,
     stopBlinking,
-    clearPendingFrame,
-    webSearchEnabled,
-  ]);
+	    clearPendingFrame,
+	    webSearchEnabled,
+	  ]);
 
   return {
     isGenerating,

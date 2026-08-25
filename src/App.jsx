@@ -1690,6 +1690,10 @@ export default function App() {
     isAdjustingLength
   }
 
+  isAdjustingStyle={
+    isAdjustingStyle
+  }
+
 
   generatingBlockIds={
     generatingBlockIds

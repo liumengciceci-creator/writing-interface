@@ -1932,47 +1932,16 @@ const SingleSemanticEditor =
                 requestedLineBreakBefore
               );
 
-            /**
-             * 插到既有段首模块之前时，新模块必须继承该段的段首标记。
-             * 不能只依赖鼠标是否碰到“另起一行”热区，否则视觉位置虽在
-             * 段首之前，数据上却会被并入上一段末尾。
-             */
-            const draggedIdSet =
-              new Set(
-                isExistingBlock
-                  ? draggedSelection
-                  : []
-              );
-
-            const remainingBlocks =
-              isExistingBlock
-                ? blocks.filter(
-                    (block) =>
-                      !draggedIdSet.has(
-                        normalizeId(
-                          block.id
-                        )
-                      )
-                  )
-                : blocks;
-
-            const targetAtInsert =
-              remainingBlocks[
-                Math.max(
-                  0,
-                  Math.min(
-                    insertIndex,
-                    remainingBlocks.length
-                  )
-                )
-              ];
-
-            const forceLineBreakBefore =
-              Boolean(
-                requestedLineBreakBefore ||
-                targetAtInsert
-                  ?.forceLineBreakBefore
-              );
+	            /**
+	             * 相同的 insertIndex 既可能表示“上一段末尾”，也可能表示
+	             * “下一段开头”。不能因为该索引后的旧模块是段首，就把拖入
+	             * 模块强制变成下一段段首；换行只服从蓝色落点的真实意图。
+	             * 指针位于下一段左上方时 shouldStartNewLine 会返回 true，
+	             * 位于上一段行尾时则保持 false，后一个旧段首标记继续保留。
+	             */
+	            const forceLineBreakBefore = Boolean(
+	              requestedLineBreakBefore
+	            );
 
             if (
               isExistingBlock
@@ -2026,8 +1995,7 @@ const SingleSemanticEditor =
             onInsertBlock,
             onTemplateDropComplete,
             onReorderBlocks,
-            blocks,
-            selectedIds,
+	            selectedIds,
           ]
         );
 

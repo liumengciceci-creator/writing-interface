@@ -12,11 +12,12 @@ const floating = fs.readFileSync(
 
 const checks = [
   {
-    name: "dropping before a paragraph head inherits its line break",
-    pass:
-      editor.includes("targetAtInsert") &&
-      editor.includes("requestedLineBreakBefore ||") &&
-      editor.includes("targetAtInsert\n                  ?.forceLineBreakBefore"),
+	  name: "paragraph-end drops do not inherit the next paragraph head",
+	  pass:
+	    editor.includes("换行只服从蓝色落点的真实意图") &&
+	    /const forceLineBreakBefore = Boolean\(\s*requestedLineBreakBefore\s*\)/.test(editor) &&
+	    !editor.includes("targetAtInsert") &&
+	    !editor.includes("requestedLineBreakBefore ||"),
   },
   {
     name: "floating copy drop indicator uses an initialized rectangle",
