@@ -621,10 +621,24 @@ export function useFloatingBlocks({
                   floatingLineFragments:
                     lineFragments,
                 },
-                x: rect.left - stageRect.left,
-                y: rect.top - stageRect.top,
-                width: rect.width,
-                height: rect.height,
+                x:
+                  groupBlock.placement === "floating"
+                    ? groupBlock.floatingX ??
+                      rect.left - stageRect.left
+                    : rect.left - stageRect.left,
+                y:
+                  groupBlock.placement === "floating"
+                    ? groupBlock.floatingY ??
+                      rect.top - stageRect.top
+                    : rect.top - stageRect.top,
+                width:
+                  groupBlock.placement === "floating"
+                    ? rect.width / zoom
+                    : rect.width,
+                height:
+                  groupBlock.placement === "floating"
+                    ? rect.height / zoom
+                    : rect.height,
               };
             })
             .filter(Boolean);

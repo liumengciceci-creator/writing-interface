@@ -122,6 +122,18 @@ const checks = [
       blockActions.includes("bounds.floatingX") &&
       blockActions.includes("bounds.floatingY"),
   },
+  {
+    name: "floating blocks follow canvas zoom without compounding resize measurements",
+    pass:
+      pageCanvas.includes("zoom={zoom}") &&
+      floatingBlock.includes("const visualZoom =") &&
+      floatingBlock.includes("`scale(${visualZoom})`") &&
+      floatingBlock.includes("resizing.zoom") &&
+      floatingBlock.includes("rootRect.width /") &&
+      floatingBlock.includes("rootRect.height /") &&
+      floating.includes("rect.width / zoom") &&
+      floating.includes("rect.height / zoom"),
+  },
 ];
 
 const failed = checks.filter((check) => !check.pass);

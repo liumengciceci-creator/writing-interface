@@ -1734,6 +1734,8 @@ export default function PageCanvas(
 
               block={block}
 
+              zoom={zoom}
+
               isSelected={
                 isSelected
               }

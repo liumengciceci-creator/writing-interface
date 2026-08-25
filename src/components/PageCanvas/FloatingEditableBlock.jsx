@@ -126,6 +126,7 @@ function isEnglishText(text) {
 
 export default function FloatingEditableBlock({
   block,
+  zoom = 1,
   isSelected,
   isGenerating = false,
   generatingBlinkOn = false,
@@ -140,6 +141,16 @@ export default function FloatingEditableBlock({
   const { blockTypeLabel } = useI18n();
   const isTitleBlock =
     block.type === "Title";
+
+  /**
+   * 灰色工作区中的浮动模块与白色画布使用同一缩放倍率。
+   * 坐标仍以 Stage 为基准保存；只缩放模块自身，避免缩放时横向漂移。
+   */
+  const visualZoom =
+    Number.isFinite(Number(zoom)) &&
+    Number(zoom) > 0
+      ? Number(zoom)
+      : 1;
 
   const matchesInlineAppearance =
     block
@@ -315,12 +326,14 @@ export default function FloatingEditableBlock({
         }
 
         const deltaX =
-          event.clientX -
-          resizing.startX;
+          (event.clientX -
+            resizing.startX) /
+          resizing.zoom;
 
         const deltaY =
-          event.clientY -
-          resizing.startY;
+          (event.clientY -
+            resizing.startY) /
+          resizing.zoom;
 
         const direction =
           resizing.direction;
@@ -452,6 +465,7 @@ export default function FloatingEditableBlock({
     };
   }, [
     onUpdateWidth,
+    visualZoom,
   ]);
 
   const beginResize = (
@@ -478,11 +492,21 @@ export default function FloatingEditableBlock({
         event.clientY,
       startWidth:
         block.floatingWidth ??
-        rootRect?.width ??
+        (
+          rootRect?.width != null
+            ? rootRect.width /
+              visualZoom
+            : null
+        ) ??
         220,
       startHeight:
         block.floatingHeight ??
-        rootRect?.height ??
+        (
+          rootRect?.height != null
+            ? rootRect.height /
+              visualZoom
+            : null
+        ) ??
         block.height ??
         40,
       startLeft:
@@ -491,6 +515,8 @@ export default function FloatingEditableBlock({
       startTop:
         block.floatingY ??
         0,
+      zoom:
+        visualZoom,
     };
 
     document.body.style.cursor =
@@ -1013,6 +1039,12 @@ export default function FloatingEditableBlock({
 
         boxSizing:
           "border-box",
+
+        transform:
+          `scale(${visualZoom})`,
+
+        transformOrigin:
+          "top left",
 
         padding:
           usesLineFragments
