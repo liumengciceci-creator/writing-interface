@@ -885,6 +885,7 @@ export default function Sidebar({
   customTemplates = [],
 
   onTemplateMouseDown,
+  onTemplateDragEnd,
 
   onAddCustomTemplate,
   onDeleteCustomTemplate,
@@ -992,6 +993,34 @@ export default function Sidebar({
    */
   const templateDragGestureRef =
     useRef(null);
+
+  const templateHoldTimerRef =
+    useRef(null);
+
+  const [heldTemplateKey, setHeldTemplateKey] =
+    useState(null);
+
+  const clearTemplateHoldCue = () => {
+    if (templateHoldTimerRef.current) {
+      window.clearTimeout(
+        templateHoldTimerRef.current
+      );
+      templateHoldTimerRef.current = null;
+    }
+
+    setHeldTemplateKey(null);
+  };
+
+  useEffect(
+    () => () => {
+      if (templateHoldTimerRef.current) {
+        window.clearTimeout(
+          templateHoldTimerRef.current
+        );
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     try {
@@ -1842,7 +1871,29 @@ export default function Sidebar({
                   onTemplateMouseDown?.(
                     item
                   );
+
+                  if (templateHoldTimerRef.current) {
+                    window.clearTimeout(
+                      templateHoldTimerRef.current
+                    );
+                  }
+
+                  const templateKey =
+                    getTemplateOrderKey(item);
+
+                  templateHoldTimerRef.current =
+                    window.setTimeout(() => {
+                      setHeldTemplateKey(
+                        templateKey
+                      );
+                      templateHoldTimerRef.current =
+                        null;
+                    }, 180);
                 }}
+
+                onMouseUp={
+                  clearTemplateHoldCue
+                }
 
                 /**
                  * 向新的 SingleSemanticEditor
@@ -1855,6 +1906,16 @@ export default function Sidebar({
                     getTemplateOrderKey(
                       item
                     )
+                  );
+                  if (templateHoldTimerRef.current) {
+                    window.clearTimeout(
+                      templateHoldTimerRef.current
+                    );
+                    templateHoldTimerRef.current =
+                      null;
+                  }
+                  setHeldTemplateKey(
+                    getTemplateOrderKey(item)
                   );
                   handleNativeDragStart(
                     event,
@@ -1925,7 +1986,13 @@ export default function Sidebar({
                     400,
 
                   cursor:
-                    "grab",
+                    heldTemplateKey ===
+                    getTemplateOrderKey(item)
+                      ? "copy"
+                      : "grab",
+
+                  position:
+                    "relative",
 
                   overflow:
                     "hidden",
@@ -1957,11 +2024,42 @@ export default function Sidebar({
                   );
                   templateDragGestureRef.current =
                     null;
+                  clearTemplateHoldCue();
+                  onTemplateDragEnd?.();
                   event.currentTarget.style.cursor =
                     "grab";
                 }}
               >
                 {getDisplayTypeLabel(item)}
+
+                {heldTemplateKey ===
+                  getTemplateOrderKey(item) && (
+                  <span
+                    aria-hidden="true"
+                    data-template-copy-cue="true"
+                    style={{
+                      position: "absolute",
+                      right: 52,
+                      top: "50%",
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      transform: "translateY(-50%)",
+                      display: "grid",
+                      placeItems: "center",
+                      background: item.color,
+                      color: "#fff",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      boxShadow:
+                        "0 2px 6px rgba(15,23,42,0.18)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    +
+                  </span>
+                )}
               </button>
 
               <button

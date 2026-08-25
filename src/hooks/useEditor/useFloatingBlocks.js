@@ -779,13 +779,20 @@ export function useFloatingBlocks({
             };
         } else {
           /**
-           * inline 罔≦�����咲ゝ�∽�駈�
-           * 莅��茹�罅��後�藜���篆������九�霡祉��
+           * inline 预览必须使用用户在模块上的真实按下位置。
+           * 固定偏移会在原模块隐藏、预览接管的一瞬间产生横向跳动，
+           * 标签小方块也会跟着左右晃动。
            */
           pointerOffsetRef.current =
             {
-              x: 24,
-              y: 20,
+              x: sourceRect
+                ? event.clientX -
+                  sourceRect.left
+                : 24,
+              y: sourceRect
+                ? event.clientY -
+                  sourceRect.top
+                : 20,
             };
         }
       },

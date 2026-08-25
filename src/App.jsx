@@ -340,6 +340,7 @@ export default function App() {
     contentRef,
 
     draggingBlockId,
+    isDraggingTemplate,
     endBlockDrag,
 
     editableBlockCount,
@@ -357,6 +358,7 @@ export default function App() {
      * 模块拖入与放置。
      */
     handleTemplateMouseDown,
+    cancelTemplateDrag,
     handleCanvasMouseUp,
     handleExternalDrop,
 
@@ -1746,6 +1748,9 @@ export default function App() {
             onTemplateMouseDown={
               handleTemplateMouseDown
             }
+            onTemplateDragEnd={
+              cancelTemplateDrag
+            }
             onAddCustomTemplate={
               handleAddCustomTemplate
             }
@@ -2098,6 +2103,10 @@ export default function App() {
 
               draggingBlockId={
                 draggingBlockId
+              }
+
+              isDraggingTemplate={
+                isDraggingTemplate
               }
 
               onDragEnd={

@@ -152,6 +152,15 @@ export function useCanvasDrop({
     );
 
   /**
+   * 原生 dragend 无论是成功放置、取消，还是浏览器拒绝 drop 都会触发。
+   * 这里只清除 Sidebar 模板，避免一次失败的拖拽污染下一次手势。
+   */
+  const cancelTemplateDrag =
+    useCallback(() => {
+      setDraggingType(null);
+    }, [setDraggingType]);
+
+  /**
    * 开始拖动已有模块。
    */
   const handleBlockDragStart =
@@ -984,6 +993,7 @@ export function useCanvasDrop({
 
   return {
     handleTemplateMouseDown,
+    cancelTemplateDrag,
 
     handleBlockDragStart,
     endBlockDrag,

@@ -701,6 +701,7 @@ export function useEditor() {
    */
   const {
     handleTemplateMouseDown,
+    cancelTemplateDrag,
     handleBlockDragStart,
 
     endBlockDrag,
@@ -1903,6 +1904,8 @@ export function useEditor() {
      * 拖拽状态。
      */
     draggingBlockId,
+    isDraggingTemplate:
+      draggingType != null,
 
     endBlockDrag,
 
@@ -1919,6 +1922,7 @@ export function useEditor() {
      * 左侧模块和页面拖拽。
      */
     handleTemplateMouseDown,
+    cancelTemplateDrag,
     handleCanvasMouseUp,
     handleBlockDragStart,
     handleExternalDrop,

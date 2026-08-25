@@ -116,7 +116,26 @@ const checks = [
       pageCanvas.includes("function isLeftWorkspaceGutterTarget") &&
       pageCanvas.includes('window.addEventListener(\n      "dragover"') &&
       pageCanvas.includes('window.addEventListener(\n      "drop"') &&
-      pageCanvas.includes("handleStageDrop(event)"),
+      pageCanvas.includes("handleStageDrop(event)") &&
+      pageCanvas.includes("isDraggingTemplate ||") &&
+      app.includes("isDraggingTemplate={") &&
+      pageCanvas.includes('data-template-drop-cue="true"'),
+  },
+  {
+    name: "template gestures show copy feedback and cannot leak stale drag state",
+    pass:
+      sidebar.includes('data-template-copy-cue="true"') &&
+      sidebar.includes("onTemplateDragEnd?.()") &&
+      canvasDrop.includes("const cancelTemplateDrag =") &&
+      app.includes("onTemplateDragEnd={") &&
+      app.includes("cancelTemplateDrag"),
+  },
+  {
+    name: "inline drag preview keeps the real pointer anchor instead of a fixed offset",
+    pass:
+      floating.includes("event.clientX -\n                  sourceRect.left") &&
+      floating.includes("event.clientY -\n                  sourceRect.top") &&
+      !floating.includes("x: 24,\n              y: 20,"),
   },
   {
     name: "floating labels align with inline labels and resize from every edge",
