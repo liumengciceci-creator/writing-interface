@@ -1382,60 +1382,63 @@ export default function FloatingEditableBlock({
       />
 
       {/* 宽度调整手柄 */}
-      <div
-        data-floating-resize-handle="true"
-        onMouseDown={(
-          event
-        ) => {
-          event.stopPropagation();
-          event.preventDefault();
+      {!block.hideResizeHandle &&
+        !block.hideFloatingResizeHandle && (
+          <div
+            data-floating-resize-handle="true"
+            onMouseDown={(
+              event
+            ) => {
+              event.stopPropagation();
+              event.preventDefault();
 
-          resizingRef.current =
-            {
-              blockId:
-                block.id,
+              resizingRef.current =
+                {
+                  blockId:
+                    block.id,
 
-              startX:
-                event.clientX,
+                  startX:
+                    event.clientX,
 
-              startWidth:
-                block.floatingWidth ??
-                220,
-            };
-        }}
-        style={{
-          display:
-            usesLineFragments
-              ? "none"
-              : "block",
-          position:
-            "absolute",
+                  startWidth:
+                    block.floatingWidth ??
+                    220,
+                };
+            }}
+            style={{
+              display:
+                usesLineFragments
+                  ? "none"
+                  : "block",
+              position:
+                "absolute",
 
-          right:
-            4,
+              right:
+                4,
 
-          bottom:
-            4,
+              bottom:
+                4,
 
-          width:
-            12,
+              width:
+                12,
 
-          height:
-            12,
+              height:
+                12,
 
-          borderRadius:
-            3,
+              borderRadius:
+                3,
 
-          background:
-            block.color,
+              background:
+                block.color,
 
-          cursor:
-            "ew-resize",
+              cursor:
+                "ew-resize",
 
-          zIndex:
-            2,
-        }}
-      />
+              zIndex:
+                2,
+            }}
+          />
+        )}
     </div>
   );
 }

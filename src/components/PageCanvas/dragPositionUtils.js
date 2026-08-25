@@ -2,7 +2,7 @@
 import {
   BLOCK_SELECTOR,
   normalizeId,
-} from "./semanticEditorUtils";
+} from "./semanticEditorUtils.js";
 
 /**
  * 获取编辑器中的所有语义模块元素。
@@ -334,13 +334,7 @@ export function getDropIndex(
     clientY <
     firstLine.top
   ) {
-    return startsNewLine
-      ? 0
-      : Math.min(
-          elements.length,
-          firstLine.fragments[0]
-            .blockIndex + 1
-        );
+    return 0;
   }
 
   /**
@@ -396,9 +390,8 @@ export function getDropIndex(
   }
 
   /**
-   * 选择鼠标横向位置命中的模块，但插入位置始终是该模块之后。
-   * 不再使用“左半边插入到模块前”的规则，否则视觉提示在模块
-   * 前方时容易与 inline 模块本身重叠。
+   * 左半边表示插到当前模块之前，右半边表示插到之后。
+   * 这使已有首模块之前仍然存在可达的索引 0。
    */
   for (
     let index = 0;
@@ -416,9 +409,9 @@ export function getDropIndex(
     if (
       clientX < midpoint
     ) {
-      return Math.min(
-        elements.length,
-        fragment.blockIndex + 1
+      return Math.max(
+        0,
+        fragment.blockIndex
       );
     }
   }

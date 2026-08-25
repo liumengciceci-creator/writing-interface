@@ -596,6 +596,7 @@ export function useBlockDuplicate({
   zoom = 1,
 
   setSections,
+  selectedIds = [],
   setSelectedIds,
   setDraggingBlockId,
 
@@ -873,12 +874,10 @@ export function useBlockDuplicate({
         } = options;
 
         const cascadeX =
-          offsetX +
-          index * 12;
+          offsetX;
 
         const cascadeY =
-          offsetY +
-          index * 12;
+          offsetY;
 
         const stageElement =
           stageRef?.current;
@@ -948,13 +947,12 @@ export function useBlockDuplicate({
         if (domBounds) {
           return {
             x:
-              domBounds.right +
-              12 +
-              index * 12,
+              domBounds.x +
+              cascadeX,
 
             y:
               domBounds.y +
-              index * 12,
+              cascadeY,
           };
         }
 
@@ -1253,6 +1251,71 @@ export function useBlockDuplicate({
 
         const copies = [];
 
+        /**
+         * 先锁定整组源模块的共同参考点。随后所有副本只做同一个
+         * 平移，不再按 index 级联错开，因此多选复制会完整保留
+         * 原来的横向、纵向和跨行相对位置。
+         */
+        const primarySourceId =
+          normalizedIds[0];
+
+        const primarySourceBlock =
+          getBlockById?.(
+            primarySourceId
+          );
+
+        const primarySourceBounds =
+          getSourceLayoutBounds(
+            primarySourceId
+          );
+
+        const primarySourceDomBounds =
+          primarySourceBlock
+            ?.placement ===
+            "floating"
+            ? null
+            : getSourceDomBounds(
+                primarySourceId
+              );
+
+        const primaryBasePosition =
+          primarySourceBlock
+            ? getSourceStagePosition(
+                primarySourceBlock,
+                primarySourceBounds,
+                {
+                  offsetX: 0,
+                  offsetY: 0,
+                  domBounds:
+                    primarySourceDomBounds,
+                }
+              )
+            : null;
+
+        const stageRect =
+          stageRef?.current
+            ?.getBoundingClientRect();
+
+        const pointerPrimaryPosition =
+          stageRect &&
+          Number.isFinite(
+            Number(clientX)
+          ) &&
+          Number.isFinite(
+            Number(clientY)
+          )
+            ? {
+                x:
+                  Number(clientX) -
+                  stageRect.left -
+                  24,
+                y:
+                  Number(clientY) -
+                  stageRect.top -
+                  20,
+              }
+            : null;
+
         normalizedIds.forEach(
           (
             sourceId,
@@ -1302,28 +1365,42 @@ export function useBlockDuplicate({
                   normalizedZoom,
               });
 
-            const rawPosition =
+            const sourceBasePosition =
               getSourceStagePosition(
                 sourceBlock,
                 sourceBounds,
                 {
-                  clientX,
-                  clientY,
-
-                  offsetX,
-                  offsetY,
-
-                  index,
+                  offsetX: 0,
+                  offsetY: 0,
                   domBounds:
                     sourceDomBounds,
                 }
               );
 
             const position =
-              clampPositionInsidePage(
-                rawPosition,
-                sourceWidth
-              );
+              sourceBasePosition &&
+              pointerPrimaryPosition &&
+              primaryBasePosition
+                ? {
+                    x:
+                      pointerPrimaryPosition.x +
+                      sourceBasePosition.x -
+                      primaryBasePosition.x,
+                    y:
+                      pointerPrimaryPosition.y +
+                      sourceBasePosition.y -
+                      primaryBasePosition.y,
+                  }
+                : sourceBasePosition
+                  ? {
+                      x:
+                        sourceBasePosition.x +
+                        offsetX,
+                      y:
+                        sourceBasePosition.y +
+                        offsetY,
+                    }
+                  : null;
 
             if (!position) {
               console.warn(
@@ -1460,6 +1537,13 @@ export function useBlockDuplicate({
             copiedBlock.isDragging =
               false;
 
+            /** 副本不显示右下角的长度/宽度拉伸手柄。 */
+            copiedBlock.hideResizeHandle =
+              true;
+
+            copiedBlock.hideFloatingResizeHandle =
+              true;
+
             copies.push({
               block:
                 copiedBlock,
@@ -1480,6 +1564,102 @@ export function useBlockDuplicate({
               null,
             primaryId: null,
           };
+        }
+
+        /**
+         * 用同一位移把整组副本约束到页面内。逐个 clamp 会破坏相对
+         * 位置，并在下方已有模块时造成首拖落点偏移。
+         */
+        const pageRect =
+          pageRef?.current
+            ?.getBoundingClientRect();
+
+        if (
+          stageRect &&
+          pageRect
+        ) {
+          const margin = 12;
+          const minX =
+            pageRect.left -
+            stageRect.left +
+            margin;
+          const minY =
+            pageRect.top -
+            stageRect.top +
+            margin;
+          const maxRight =
+            pageRect.right -
+            stageRect.left -
+            margin;
+          const maxBottom =
+            pageRect.bottom -
+            stageRect.top -
+            margin;
+
+          const groupLeft =
+            Math.min(
+              ...copies.map(
+                ({ block }) =>
+                  block.floatingX
+              )
+            );
+          const groupTop =
+            Math.min(
+              ...copies.map(
+                ({ block }) =>
+                  block.floatingY
+              )
+            );
+          const groupRight =
+            Math.max(
+              ...copies.map(
+                ({ block }) =>
+                  block.floatingX +
+                  (block.floatingWidth || 1)
+              )
+            );
+          const groupBottom =
+            Math.max(
+              ...copies.map(
+                ({ block }) =>
+                  block.floatingY +
+                  (block.floatingHeight ||
+                    block.height ||
+                    40)
+              )
+            );
+
+          let translateX = 0;
+          let translateY = 0;
+
+          if (groupLeft < minX) {
+            translateX =
+              minX - groupLeft;
+          } else if (
+            groupRight > maxRight
+          ) {
+            translateX =
+              maxRight - groupRight;
+          }
+
+          if (groupTop < minY) {
+            translateY =
+              minY - groupTop;
+          } else if (
+            groupBottom > maxBottom
+          ) {
+            translateY =
+              maxBottom - groupBottom;
+          }
+
+          copies.forEach(
+            ({ block }) => {
+              block.floatingX +=
+                translateX;
+              block.floatingY +=
+                translateY;
+            }
+          );
         }
 
         setSections?.(
@@ -1663,8 +1843,35 @@ export function useBlockDuplicate({
           };
         }
 
+        const normalizedBlockId =
+          normalizeId(blockId);
+
+        const selectedBlockIds =
+          Array.from(
+            new Set(
+              (selectedIds || [])
+                .map(normalizeId)
+                .filter(Boolean)
+            )
+          );
+
+        const sourceIds =
+          selectedBlockIds.length > 1 &&
+          selectedBlockIds.includes(
+            normalizedBlockId
+          )
+            ? [
+                normalizedBlockId,
+                ...selectedBlockIds.filter(
+                  (id) =>
+                    id !==
+                    normalizedBlockId
+                ),
+              ]
+            : [blockId];
+
         return duplicateBlocks(
-          [blockId],
+          sourceIds,
           {
             clientX:
               event.clientX,
@@ -1680,7 +1887,10 @@ export function useBlockDuplicate({
           }
         );
       },
-      [duplicateBlocks]
+      [
+        duplicateBlocks,
+        selectedIds,
+      ]
     );
 
   return {

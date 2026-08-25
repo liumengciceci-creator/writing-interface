@@ -196,8 +196,8 @@ function getElementVisualUnionRect(
 }
 
 /**
- * 灰色区域中的组合采用紧凑流式布局。
- * 每个模块仍是独立文本框，但不再沿用正文中可能横跨整页的间距。
+ * 整组拖拽始终保持开始时的相对位置和尺寸。
+ * 只以主模块为锚点做统一平移，不重新换行或压缩布局。
  */
 function buildCompactFloatingGroupLayout(
   snapshots,
@@ -205,70 +205,36 @@ function buildCompactFloatingGroupLayout(
   primaryX,
   primaryY
 ) {
-  const horizontalGap = 10;
-  const verticalGap = 10;
-  const maximumRowWidth = 520;
-
-  let cursorX = 0;
-  let cursorY = 0;
-  let rowHeight = 0;
-
-  const items = snapshots.map(
-    (snapshot) => {
-      const width =
-        getStandardFloatingWidth(
-          snapshot.block.text
-        );
-      const height = 40;
-
-      if (
-        cursorX > 0 &&
-        cursorX + width >
-          maximumRowWidth
-      ) {
-        cursorX = 0;
-        cursorY +=
-          rowHeight + verticalGap;
-        rowHeight = 0;
-      }
-
-      const item = {
-        ...snapshot,
-        layoutX: cursorX,
-        layoutY: cursorY,
-        layoutWidth: width,
-        layoutHeight: height,
-      };
-
-      cursorX +=
-        width + horizontalGap;
-      rowHeight = Math.max(
-        rowHeight,
-        height
-      );
-
-      return item;
-    }
-  );
-
   const primaryItem =
-    items.find(
+    snapshots.find(
       (item) =>
         String(item.id) ===
         String(primaryId)
-    ) || items[0];
+    ) || snapshots[0];
 
   const offsetX =
     primaryX -
-    (primaryItem?.layoutX || 0);
+    (primaryItem?.x || 0);
   const offsetY =
     primaryY -
-    (primaryItem?.layoutY || 0);
+    (primaryItem?.y || 0);
 
-  return items.map((item) => ({
+  return snapshots.map((item) => ({
     ...item,
-    x: offsetX + item.layoutX,
-    y: offsetY + item.layoutY,
+    layoutX: item.x,
+    layoutY: item.y,
+    layoutWidth:
+      item.width ||
+      item.block?.floatingWidth ||
+      item.block?.width ||
+      180,
+    layoutHeight:
+      item.height ||
+      item.block?.floatingHeight ||
+      item.block?.height ||
+      40,
+    x: offsetX + item.x,
+    y: offsetY + item.y,
   }));
 }
 
@@ -486,7 +452,8 @@ export function useFloatingBlocks({
     useCallback(
       (
         event,
-        block
+        block,
+        explicitGroupBlocks = null
       ) => {
         const point =
           getStagePoint(
@@ -516,11 +483,24 @@ export function useFloatingBlocks({
         const activeId =
           String(block?.id ?? "");
 
+        const explicitBlocks =
+          Array.isArray(
+            explicitGroupBlocks
+          )
+            ? explicitGroupBlocks.filter(
+                Boolean
+              )
+            : [];
+
         const selectedKeys =
           new Set(
-            selectedIds.map(
-              (id) => String(id)
-            )
+            (
+              explicitBlocks.length > 0
+                ? explicitBlocks.map(
+                    (item) => item.id
+                  )
+                : selectedIds
+            ).map((id) => String(id))
           );
 
         const groupKeys =
@@ -541,7 +521,42 @@ export function useFloatingBlocks({
           );
 
         dragGroupSnapshotRef.current =
-          Array.from(groupKeys)
+          explicitBlocks.length > 0
+            ? explicitBlocks.map(
+                (groupBlock) => ({
+                  id: String(
+                    groupBlock.id
+                  ),
+                  block: {
+                    ...groupBlock,
+                    floatingLineFragments:
+                      Array.isArray(
+                        groupBlock.floatingLineFragments
+                      )
+                        ? groupBlock.floatingLineFragments.map(
+                            (fragment) => ({
+                              ...fragment,
+                            })
+                          )
+                        : [],
+                  },
+                  x:
+                    groupBlock.floatingX ||
+                    0,
+                  y:
+                    groupBlock.floatingY ||
+                    0,
+                  width:
+                    groupBlock.floatingWidth ||
+                    groupBlock.width ||
+                    180,
+                  height:
+                    groupBlock.floatingHeight ||
+                    groupBlock.height ||
+                    40,
+                })
+              )
+            : Array.from(groupKeys)
             .map((id) => {
               const groupBlock =
                 String(block?.id) === id
@@ -646,8 +661,22 @@ export function useFloatingBlocks({
               }
             : null;
 
+        const explicitPrimary =
+          dragGroupSnapshotRef.current.find(
+            (item) =>
+              String(item.id) ===
+              activeId
+          );
+
         dragVisualSizeRef.current =
-          sourceRect &&
+          explicitPrimary
+            ? {
+                width:
+                  explicitPrimary.width,
+                height:
+                  explicitPrimary.height,
+              }
+            : sourceRect &&
           sourceRect.width > 0 &&
           sourceRect.height > 0
             ? {
@@ -851,19 +880,41 @@ export function useFloatingBlocks({
   const shouldHideInlineBlock =
     useCallback(
       (blockId) => {
+        const normalizedBlockId =
+          String(blockId);
+
+        const draggingSelection =
+          selectedIds.length > 1 &&
+          selectedIds.some(
+            (id) =>
+              String(id) ===
+              String(draggingBlockId)
+          );
+
         return (
           draggingBlockId !=
             null &&
-          String(blockId) ===
-            String(
-              draggingBlockId
-            ) &&
+          (
+            normalizedBlockId ===
+              String(
+                draggingBlockId
+              ) ||
+            (
+              draggingSelection &&
+              selectedIds.some(
+                (id) =>
+                  String(id) ===
+                  normalizedBlockId
+              )
+            )
+          ) &&
           isDraggingOutsidePage
         );
       },
       [
         draggingBlockId,
         isDraggingOutsidePage,
+        selectedIds,
       ]
     );
 
@@ -1190,11 +1241,65 @@ export function useFloatingBlocks({
           )
         );
 
-      return {
+      const primaryPreview = {
         block,
         width,
         x: clampedX,
         y: clampedY,
+      };
+
+      const groupSnapshots =
+        dragGroupSnapshotRef.current;
+
+      const primarySnapshot =
+        groupSnapshots.find(
+          (item) =>
+            String(item.id) ===
+            String(draggingBlockId)
+        );
+
+      if (
+        !primarySnapshot ||
+        groupSnapshots.length <= 1
+      ) {
+        return primaryPreview;
+      }
+
+      return {
+        ...primaryPreview,
+        groupPreviews:
+          groupSnapshots
+            .filter(
+              (item) =>
+                String(item.id) !==
+                String(draggingBlockId)
+            )
+            .map((item) => ({
+              block: item.block,
+              width:
+                Math.min(
+                  item.width ||
+                    item.block?.floatingWidth ||
+                    item.block?.width ||
+                    180,
+                  CONTENT_WIDTH
+                ),
+              height:
+                item.height ||
+                item.block?.floatingHeight ||
+                item.block?.height ||
+                40,
+              x:
+                clampedX +
+                (item.x -
+                  primarySnapshot.x) /
+                  zoom,
+              y:
+                clampedY +
+                (item.y -
+                  primarySnapshot.y) /
+                  zoom,
+            })),
       };
     }, [
       draggingBlockId,
@@ -1242,9 +1347,24 @@ export function useFloatingBlocks({
           };
         }
 
-        const block =
+        const stateBlock =
           getBlockById?.(
             blockId
+          );
+
+        const snapshotBlock =
+          dragBlockSnapshotRef.current;
+
+        const block =
+          stateBlock ||
+          (
+            snapshotBlock &&
+            String(
+              snapshotBlock.id
+            ) ===
+              String(blockId)
+              ? snapshotBlock
+              : null
           );
 
         if (!block) {
@@ -1365,7 +1485,8 @@ export function useFloatingBlocks({
                     floatingLineFragments:
                       [],
                     floatingHeight: null,
-                    height: 40,
+                    height:
+                      item.layoutHeight,
                   },
                 })
               );

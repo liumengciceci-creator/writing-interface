@@ -273,6 +273,8 @@ export default function useLengthResize({
         if (
           !block ||
           block.isCompletedParagraph ||
+          block.hideResizeHandle === true ||
+          block.hideFloatingResizeHandle === true ||
           !String(
             block.text || ""
           ).trim()

@@ -739,7 +739,8 @@ export default function PageCanvas(
 
             beginDragTracking(
               moveEvent,
-              copiedBlock
+              copiedBlock,
+              duplicateResult?.blocks
             );
 
             return;
@@ -1331,7 +1332,8 @@ export default function PageCanvas(
 
                     beginDragTracking(
                       event,
-                      copiedBlock
+                      copiedBlock,
+                      duplicateResult?.blocks
                     );
 
                     return;
@@ -1390,7 +1392,8 @@ export default function PageCanvas(
 
                 beginDragTracking(
                   event,
-                  copiedBlock
+                  copiedBlock,
+                  duplicateResult?.blocks
                 );
 
                 return duplicateResult;
@@ -1684,7 +1687,8 @@ export default function PageCanvas(
 
                     beginDragTracking(
                       event,
-                      copiedBlock
+                      copiedBlock,
+                      duplicateResult?.blocks
                     );
 
                     return;

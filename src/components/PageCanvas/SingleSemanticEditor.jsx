@@ -48,9 +48,10 @@ import {
  * 命中的片段，提示线可能落在同一模块的中间。因此先找到该模块
  * 最后一个视觉片段，再把蓝线放到它的右侧或与下一模块的间隙中。
  */
-function getAfterBlockDropAnchor(
+function getBlockDropAnchor(
   visualEntries,
-  nearestEntry
+  nearestEntry,
+  placeBefore = false
 ) {
   if (!nearestEntry) {
     return null;
@@ -73,7 +74,9 @@ function getAfterBlockDropAnchor(
       });
 
   const anchorRect =
-    blockRects[blockRects.length - 1];
+    placeBefore
+      ? blockRects[0]
+      : blockRects[blockRects.length - 1];
 
   if (!anchorRect) {
     return null;
@@ -82,6 +85,14 @@ function getAfterBlockDropAnchor(
   const anchorCenterY =
     anchorRect.top +
     anchorRect.height / 2;
+
+  if (placeBefore) {
+    return {
+      clientX:
+        anchorRect.left - 4,
+      rect: anchorRect,
+    };
+  }
 
   const nextRect =
     visualEntries
@@ -677,20 +688,6 @@ const SingleSemanticEditor =
               return;
             }
 
-            const afterAnchor =
-              getAfterBlockDropAnchor(
-                visualEntries,
-                nearestEntry
-              );
-
-            if (!afterAnchor) {
-              setDropIndicator(null);
-              return;
-            }
-
-            const nearestRect =
-              afterAnchor.rect;
-
             const rootRect =
               root.getBoundingClientRect();
 
@@ -723,37 +720,54 @@ const SingleSemanticEditor =
             const excludedBlockIds =
               Array.from(excludedIds);
 
-            dropPlacementRef.current = {
-              insertIndex:
+            const insertIndex =
+              getDropIndex(
+                root,
+                event.clientX,
+                event.clientY,
+                excludedBlockIds,
                 startsNewLine
-                  ? getDropIndex(
-                      root,
-                      event.clientX,
-                      event.clientY,
-                      excludedBlockIds,
-                      true
-                    )
-                  : Math.max(
-                      0,
-                      Array.from(
-                        root.querySelectorAll(
-                          "[data-semantic-block-id]"
-                        )
+              );
+
+            const candidateElements =
+              Array.from(
+                root.querySelectorAll(
+                  "[data-semantic-block-id]"
+                )
+              ).filter(
+                (element) =>
+                  !excludedIds.has(
+                    normalizeId(
+                      element.getAttribute(
+                        "data-semantic-block-id"
                       )
-                        .filter(
-                          (element) =>
-                            !excludedIds.has(
-                              normalizeId(
-                                element.getAttribute(
-                                  "data-semantic-block-id"
-                                )
-                              )
-                            )
-                        )
-                        .indexOf(
-                          nearestEntry.element
-                        ) + 1
-                    ),
+                    )
+                  )
+              );
+
+            const nearestElementIndex =
+              candidateElements.indexOf(
+                nearestEntry.element
+              );
+
+            const anchor =
+              getBlockDropAnchor(
+                visualEntries,
+                nearestEntry,
+                insertIndex <=
+                  nearestElementIndex
+              );
+
+            if (!anchor) {
+              setDropIndicator(null);
+              return;
+            }
+
+            const nearestRect =
+              anchor.rect;
+
+            dropPlacementRef.current = {
+              insertIndex,
               forceLineBreakBefore:
                 startsNewLine,
             };
@@ -763,7 +777,7 @@ const SingleSemanticEditor =
                 startsNewLine
                   ? 0
                   : (
-                      afterAnchor.clientX -
+                      anchor.clientX -
                       rootRect.left
                     ) /
                 Math.max(
@@ -1574,20 +1588,6 @@ const SingleSemanticEditor =
             return;
           }
 
-          const afterAnchor =
-            getAfterBlockDropAnchor(
-              visualEntries,
-              nearestEntry
-            );
-
-          if (!afterAnchor) {
-            setDropIndicator(null);
-            return;
-          }
-
-          const nearestRect =
-            afterAnchor.rect;
-
           const rootRect =
             root.getBoundingClientRect();
 
@@ -1613,26 +1613,42 @@ const SingleSemanticEditor =
 
           const newLineTop =
             pointerY >
-            nearestRect.bottom
-              ? nearestRect.bottom + 10
-              : nearestRect.top;
+            nearestEntry.rect.bottom
+              ? nearestEntry.rect.bottom + 10
+              : nearestEntry.rect.top;
+
+          const insertIndex =
+            getDropIndex(
+              root,
+              pointerX,
+              pointerY,
+              Array.from(excludedIds),
+              startsNewLine
+            );
+
+          const nearestElementIndex =
+            candidates.indexOf(
+              nearestEntry.element
+            );
+
+          const anchor =
+            getBlockDropAnchor(
+              visualEntries,
+              nearestEntry,
+              insertIndex <=
+                nearestElementIndex
+            );
+
+          if (!anchor) {
+            setDropIndicator(null);
+            return;
+          }
+
+          const nearestRect =
+            anchor.rect;
 
           dropPlacementRef.current = {
-            insertIndex:
-              startsNewLine
-                ? getDropIndex(
-                    root,
-                    pointerX,
-                    pointerY,
-                    Array.from(excludedIds),
-                    true
-                  )
-                : Math.max(
-                    0,
-                    candidates.indexOf(
-                      nearestEntry.element
-                    ) + 1
-                  ),
+            insertIndex,
             forceLineBreakBefore:
               startsNewLine,
           };
@@ -1642,7 +1658,7 @@ const SingleSemanticEditor =
               startsNewLine
                 ? 0
                 : (
-                    afterAnchor.clientX -
+                    anchor.clientX -
                     rootRect.left
                   ) /
               Math.max(scaleX, 0.001),

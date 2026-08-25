@@ -591,6 +591,7 @@ export function useEditor() {
   zoom,
 
   setSections,
+  selectedIds,
   setSelectedIds,
   setDraggingBlockId,
 

@@ -923,6 +923,67 @@ export default function useInlineEditing({
     );
 
   /**
+   * 在浏览器把焦点移出 contentEditable 之前先提交当前 DOM。
+   *
+   * 仅依赖 blur 会存在一个事件顺序竞态：用户点击其他模块时，
+   * 外层的 selection/mousedown 更新可能先触发 React 重渲染，
+   * 旧的 block.text 随之覆盖尚未提交的 DOM，随后 blur 读到的也
+   * 变成旧文字。全选后替换文字时这个问题尤其容易复现。
+   */
+  useEffect(() => {
+    if (
+      !editingBlockId ||
+      typeof document === "undefined"
+    ) {
+      return undefined;
+    }
+
+    const handleDocumentPointerDown =
+      (event) => {
+        const blockElement =
+          findBlockById(
+            editorRef?.current,
+            editingBlockId
+          );
+
+        if (
+          !blockElement ||
+          isNodeInside(
+            event.target,
+            blockElement
+          )
+        ) {
+          return;
+        }
+
+        commitBlock(
+          normalizeId(
+            editingBlockId
+          ),
+          blockElement
+        );
+      };
+
+    document.addEventListener(
+      "pointerdown",
+      handleDocumentPointerDown,
+      true
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handleDocumentPointerDown,
+        true
+      );
+    };
+  }, [
+    commitBlock,
+    editingBlockId,
+    editorRef,
+  ]);
+
+  /**
    * 主动结束当前编辑。
    */
   const stopEditing =
