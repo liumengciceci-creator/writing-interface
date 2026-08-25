@@ -7,6 +7,10 @@ import {
 
 import { generateBlocksStream } from "../../api/generateBlocksStream";
 import {
+  createResearchActionId,
+  logResearchEvent,
+} from "../../research/researchLogger.js";
+import {
   getGenerationSnapshotText,
   inspectRenderedGenerationBlock,
 } from "./generationSnapshot";
@@ -738,6 +742,9 @@ export function useStreamingGenerate({
     }
 
     const targetIds = targets.map((entry) => String(entry.block.id));
+    const researchActionId = createResearchActionId("generation");
+    const generationStartedAt = performance.now();
+    let firstTextAt = null;
     const selectedIdSet = new Set(targetIds);
     const requestIdToTarget = new Map(
       targets.map((entry, index) => [String(index + 1), entry])
@@ -789,6 +796,22 @@ export function useStreamingGenerate({
         ...entry.block,
         id: targets.length + index + 1,
       }));
+
+    logResearchEvent(
+      "ai_generation_started",
+      {
+        web_search_enabled: webSearchEnabled,
+        targets: requestTargetBlocks.map((target, index) => ({
+          block_id: String(targets[index].block.id),
+          type: target.type,
+          directive: target.directive,
+          original_text: target.originalText,
+          search_policy: target.searchPolicy,
+        })),
+        context_block_ids: requestContextBlocks.map((block) => String(block.id)),
+      },
+      { actionId: researchActionId, targetBlockIds: targetIds }
+    );
 
     aiDebug("02 request prepared", {
       targetCount: requestTargetBlocks.length,
@@ -943,6 +966,17 @@ export function useStreamingGenerate({
 
           if (event.type === "chunk") {
             const delta = String(event.delta || "");
+            if (firstTextAt == null) {
+              firstTextAt = performance.now();
+              logResearchEvent(
+                "ai_generation_first_text",
+                {
+                  latency_ms: Math.round(firstTextAt - generationStartedAt),
+                  first_block_id: realBlockId,
+                },
+                { actionId: researchActionId, targetBlockIds: targetIds }
+              );
+            }
             generatedTextByRequestId.set(
               requestId,
               `${generatedTextByRequestId.get(requestId) || ""}${delta}`
@@ -1080,8 +1114,25 @@ export function useStreamingGenerate({
         targetIds,
         completedRequestIds: Array.from(completedRequestIds),
       });
+      logResearchEvent(
+        "ai_generation_completed",
+        {
+          duration_ms: Math.round(performance.now() - generationStartedAt),
+          first_text_latency_ms:
+            firstTextAt == null ? null : Math.round(firstTextAt - generationStartedAt),
+          outputs: Array.from(cleanedTextByRealId.entries()).map(
+            ([blockId, text]) => ({ block_id: blockId, text })
+          ),
+        },
+        { actionId: researchActionId, targetBlockIds: targetIds }
+      );
     } catch (error) {
       if (error?.name === 'AbortError') {
+        logResearchEvent(
+          "ai_generation_cancelled",
+          { duration_ms: Math.round(performance.now() - generationStartedAt) },
+          { actionId: researchActionId, targetBlockIds: targetIds }
+        );
         return;
       }
       console.error("[useStreamingGenerate] 整体生成失败：", error);
@@ -1171,6 +1222,18 @@ export function useStreamingGenerate({
       setSelectedIds?.(failedTargetIds);
       setGenerationStatus(
         `错误：${failedTargetIds.length || targets.length} 个模块生成失败，已保留用户输入并明确标记失败。${error?.message || "生成失败"}`
+      );
+      logResearchEvent(
+        "ai_generation_failed",
+        {
+          duration_ms: Math.round(performance.now() - generationStartedAt),
+          error: error?.message || "generation failed",
+          failed_block_ids: failedTargetIds,
+          partial_outputs: Array.from(validTextByRealId.entries()).map(
+            ([blockId, text]) => ({ block_id: blockId, text })
+          ),
+        },
+        { actionId: researchActionId, targetBlockIds: targetIds }
       );
     } finally {
       stopBlinking();

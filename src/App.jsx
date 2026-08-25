@@ -25,6 +25,18 @@ import {
   exportDocumentToWord,
 } from "./utils/exportDocumentToWord.js";
 import { useI18n } from "./i18n.jsx";
+import {
+  createResearchActionId,
+  finishResearchSession,
+  getResearchSessionInfo,
+  initializeResearchSession,
+  logResearchEvent,
+  subscribeResearchSession,
+} from "./research/researchLogger.js";
+import {
+  serializeResearchDocument,
+  useResearchDocumentLogger,
+} from "./research/useResearchDocumentLogger.js";
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
@@ -223,6 +235,9 @@ function getReviewableBlocksFromSections(sourceSections) {
 
 export default function App() {
   const { blockTypeLabel, language, t } = useI18n();
+  const [researchSession, setResearchSession] = useState(
+    getResearchSessionInfo
+  );
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [isApplyingReviewSuggestion, setIsApplyingReviewSuggestion] =
     useState(false);
@@ -401,6 +416,27 @@ export default function App() {
     beginDuplicateDrag,
 } = useEditor();
 
+  useEffect(() => {
+    initializeResearchSession({ language });
+    return subscribeResearchSession(setResearchSession);
+  }, []);
+
+  useResearchDocumentLogger(sections);
+
+  useEffect(() => {
+    if (!researchSession.enabled) return;
+    logResearchEvent("interface_language_changed", { language });
+  }, [language, researchSession.enabled]);
+
+  useEffect(() => {
+    if (!researchSession.enabled) return;
+    logResearchEvent(
+      "selection_changed",
+      { selected_block_ids: selectedIds.map(String) },
+      { targetBlockIds: selectedIds }
+    );
+  }, [selectedIds, researchSession.enabled]);
+
   const totalCharacterCount =
     useMemo(
       () =>
@@ -453,6 +489,11 @@ export default function App() {
     }
 
     showTemporaryStatus("", 0);
+    logResearchEvent(
+      "ai_generation_requested",
+      { web_search_enabled: webSearchEnabled },
+      { targetBlockIds: selectedIds }
+    );
     generateFromSelectedBlocks();
   };
 
@@ -470,6 +511,12 @@ export default function App() {
     }
 
     showTemporaryStatus("", 0);
+    logResearchEvent("review_requested", {
+      scope: selectedIds.length >= 2 ? "selection" : "document",
+      selected_block_ids: selectedIds.map(String),
+    }, {
+      targetBlockIds: selectedIds,
+    });
     handleReview();
   };
 
@@ -482,13 +529,26 @@ export default function App() {
     }
 
     showTemporaryStatus("", 0);
+    logResearchEvent("paragraph_completed", {
+      editable_block_count: editableBlockCount,
+    });
     handleComplete();
   };
 
   const handleExportWord = () => {
+    logResearchEvent("word_exported", {
+      character_count: totalCharacterCount,
+      document: serializeResearchDocument(sections),
+    });
     exportDocumentToWord(
       sections
     );
+  };
+
+  const handleFinishResearchSession = async () => {
+    const documentSnapshot = serializeResearchDocument(sections);
+    await finishResearchSession({ documentSnapshot });
+    showTemporaryStatus(t("research.exported"), 4000);
   };
 
   const buildReviewRelations = (blocks) => {
@@ -545,6 +605,21 @@ export default function App() {
         : allReviewableBlocks;
 
     if (blocks.length < 2) return;
+
+    const reviewActionId = createResearchActionId("review");
+    const reviewStartedAt = performance.now();
+    logResearchEvent(
+      "review_started",
+      {
+        scope: selectedBeforeRestore.length >= 2 ? "selection" : "document",
+        blocks: blocks.map((block) => ({
+          id: String(block.id),
+          type: block.type,
+          text: String(block.text || ""),
+        })),
+      },
+      { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
+    );
 
     // 第一阶段的总结从第一个字开始就在右侧显示。
     setReviewPanelOpen(true);
@@ -713,6 +788,19 @@ export default function App() {
           }
 
           if (event.type === "summary_done") {
+            logResearchEvent(
+              "review_overall_evaluation_completed",
+              {
+                overall_summary: String(event.overallSummary || "").trim(),
+                highlights: Array.isArray(event.summaryHighlights)
+                  ? event.summaryHighlights
+                  : [],
+              },
+              {
+                actionId: reviewActionId,
+                targetBlockIds: blocks.map((block) => block.id),
+              }
+            );
             setReviewState((state) => ({
               ...state,
               phase: "summary",
@@ -819,6 +907,28 @@ export default function App() {
               relatedIds: (Array.isArray(event.relatedIds) ? event.relatedIds : []).map(String),
               issueId: issue?.id || null,
             };
+            logResearchEvent(
+              "review_relation_checked",
+              {
+                criterion_key: criterionResult.key,
+                criterion: criterionResult.criterion,
+                paragraph: criterionResult.paragraph,
+                summary: criterionResult.summary,
+                status: criterionResult.status,
+                relation_strength: criterionResult.relationStrength,
+                issue: issue
+                  ? {
+                      id: issue.id,
+                      action: issue.action,
+                      suggestion: issue.modificationInstruction,
+                    }
+                  : null,
+              },
+              {
+                actionId: reviewActionId,
+                targetBlockIds: criterionResult.relatedIds,
+              }
+            );
             setReviewState((state) => ({
               ...state,
               current: Math.min(state.total || Infinity, state.criteria.length + 1),
@@ -969,6 +1079,11 @@ export default function App() {
           : t("app.reviewDoneChecks", { count: state.criteria.length }),
       }));
       setReviewPanelOpen(true);
+      logResearchEvent(
+        "review_completed",
+        { duration_ms: Math.round(performance.now() - reviewStartedAt) },
+        { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
+      );
     } catch (error) {
       console.error("整体审阅失败：", error);
       setReviewState((state) => ({
@@ -982,6 +1097,14 @@ export default function App() {
         status: t("app.reviewFailed"),
       }));
       setReviewPanelOpen(false);
+      logResearchEvent(
+        "review_failed",
+        {
+          duration_ms: Math.round(performance.now() - reviewStartedAt),
+          error: error?.message || "review failed",
+        },
+        { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
+      );
     } finally {
       window.clearInterval(blinkTimer);
     }
@@ -1003,6 +1126,19 @@ export default function App() {
       return;
     }
 
+    logResearchEvent(
+      "review_suggestion_opened",
+      {
+        issue_id: item.id,
+        action: item.action,
+        summary: item.summary,
+        suggestion: item.modificationInstruction || item.suggestion,
+      },
+      {
+        targetBlockIds: [item.targetBlockId, item.relationTargetId].filter(Boolean),
+      }
+    );
+
     setReviewState((state) => ({
       ...state,
       // 展开建议时只显示“来源模块 → 建议卡片”的曲线，
@@ -1015,6 +1151,20 @@ export default function App() {
   };
 
   const handleReviewAccept = async (item) => {
+    const suggestionActionId = createResearchActionId("review-suggestion");
+    const suggestionStartedAt = performance.now();
+    logResearchEvent(
+      "review_suggestion_accept_started",
+      {
+        issue_id: item.id,
+        action: item.action,
+        instruction: item.modificationInstruction || item.suggestion,
+      },
+      {
+        actionId: suggestionActionId,
+        targetBlockIds: [item.targetBlockId, item.relationTargetId].filter(Boolean),
+      }
+    );
     if (item.action === "insert") {
       const currentBlocks = getReviewableBlocksFromSections(sections);
       const afterIndex = currentBlocks.findIndex(
@@ -1137,9 +1287,33 @@ export default function App() {
           ),
         }));
         clearReviewIssueFocus();
+        logResearchEvent(
+          "review_suggestion_applied",
+          {
+            issue_id: item.id,
+            action: "insert",
+            inserted_block_id: insertedBlockId,
+            inserted_type: moduleTemplate.type,
+            generated_text: streamedText.trim(),
+            duration_ms: Math.round(performance.now() - suggestionStartedAt),
+          },
+          {
+            actionId: suggestionActionId,
+            targetBlockIds: [insertedBlockId, item.insertAfterId, item.insertBeforeId],
+          }
+        );
         return;
       } catch (error) {
         handleDeleteInlineBlock(insertedBlockId);
+        logResearchEvent(
+          "review_suggestion_apply_failed",
+          {
+            issue_id: item.id,
+            action: "insert",
+            error: error?.message || "insert failed",
+          },
+          { actionId: suggestionActionId, targetBlockIds: [insertedBlockId] }
+        );
         throw error;
       } finally {
         window.clearInterval(blinkTimer);
@@ -1275,6 +1449,17 @@ export default function App() {
         ),
       }));
       clearReviewIssueFocus();
+      logResearchEvent(
+        "review_suggestion_applied",
+        {
+          issue_id: item.id,
+          action: item.action,
+          before_text: originalText,
+          after_text: finalText || streamedText,
+          duration_ms: Math.round(performance.now() - suggestionStartedAt),
+        },
+        { actionId: suggestionActionId, targetBlockIds: [targetBlockId] }
+      );
     } catch (error) {
       handleChangeText(targetBlockId, originalText);
       if (replacementTemplate?.type) {
@@ -1284,6 +1469,15 @@ export default function App() {
           recordHistory: false,
         });
       }
+      logResearchEvent(
+        "review_suggestion_apply_failed",
+        {
+          issue_id: item.id,
+          action: item.action,
+          error: error?.message || "revision failed",
+        },
+        { actionId: suggestionActionId, targetBlockIds: [targetBlockId] }
+      );
       throw error;
     } finally {
       window.clearInterval(blinkTimer);
@@ -1306,6 +1500,16 @@ export default function App() {
     // “暂时不改”只关闭当前建议，不把它标记为已处理。
     // 修改点圆圈会继续保留，用户之后仍可再次打开并接受。
     clearReviewIssueFocus();
+    logResearchEvent(
+      "review_suggestion_deferred",
+      {
+        issue_id: item?.id || "",
+        action: item?.action || "",
+      },
+      {
+        targetBlockIds: [item?.targetBlockId, item?.relationTargetId].filter(Boolean),
+      }
+    );
   };
 
   /**
@@ -1446,7 +1650,10 @@ export default function App() {
           "auto",
       }}
     >
-      <LanguageMenu />
+      <LanguageMenu
+        researchSession={researchSession}
+        onFinishResearchSession={handleFinishResearchSession}
+      />
       <div
         style={{
           display:

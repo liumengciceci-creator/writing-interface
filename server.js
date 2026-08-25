@@ -5,6 +5,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import { fetch, ProxyAgent } from "undici";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { buildAdjustStylePrompt } from "./src/serverPrompts/adjustStylePrompt.js";
 import { buildMultiBlockPrompt } from "./src/serverPrompts/multiBlockPrompt.js";
@@ -67,7 +69,137 @@ console.log(
 );
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
+
+const RESEARCH_LOG_DIR = path.resolve(
+  process.env.RESEARCH_LOG_DIR || "./data/research-logs"
+);
+const RESEARCH_EXPORT_TOKEN = String(
+  process.env.RESEARCH_EXPORT_TOKEN || ""
+).trim();
+const SUPABASE_URL = String(process.env.SUPABASE_URL || "")
+  .trim()
+  .replace(/\/$/, "");
+const SUPABASE_SECRET_KEY = String(
+  process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    ""
+).trim();
+
+function normalizeResearchIdentifier(value, maxLength = 120) {
+  return String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, "-")
+    .slice(0, maxLength);
+}
+
+function normalizeResearchEvent(value) {
+  if (!value || typeof value !== "object") return null;
+  const participantId = normalizeResearchIdentifier(value.participant_id, 80);
+  const sessionId = normalizeResearchIdentifier(value.session_id, 120);
+  const eventId = normalizeResearchIdentifier(value.event_id, 140);
+  const eventType = String(value.event_type || "").trim().slice(0, 120);
+  if (!participantId || !sessionId || !eventId || !eventType) return null;
+
+  return {
+    event_id: eventId,
+    participant_id: participantId,
+    session_id: sessionId,
+    condition: String(value.condition || "").trim().slice(0, 80),
+    sequence: Number.isFinite(Number(value.sequence))
+      ? Math.max(0, Math.round(Number(value.sequence)))
+      : null,
+    event_type: eventType,
+    action_id: normalizeResearchIdentifier(value.action_id, 140),
+    target_block_ids: Array.isArray(value.target_block_ids)
+      ? value.target_block_ids.map((id) => String(id).slice(0, 140)).slice(0, 120)
+      : [],
+    occurred_at: Number.isNaN(Date.parse(value.timestamp))
+      ? new Date().toISOString()
+      : new Date(value.timestamp).toISOString(),
+    payload:
+      value.payload && typeof value.payload === "object"
+        ? value.payload
+        : {},
+    app_version: String(value.app_version || "").slice(0, 40),
+    interface_language: String(value.interface_language || "").slice(0, 20),
+    received_at: new Date().toISOString(),
+  };
+}
+
+async function persistResearchEvents(events) {
+  if (SUPABASE_URL && SUPABASE_SECRET_KEY) {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/research_events`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_SECRET_KEY,
+          Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=ignore-duplicates,return=minimal",
+        },
+        body: JSON.stringify(events),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Supabase research log write failed (${response.status}): ${await response.text()}`
+      );
+    }
+    return "supabase";
+  }
+
+  await fs.mkdir(RESEARCH_LOG_DIR, { recursive: true });
+  const grouped = new Map();
+  events.forEach((event) => {
+    const list = grouped.get(event.participant_id) || [];
+    list.push(event);
+    grouped.set(event.participant_id, list);
+  });
+  await Promise.all(
+    Array.from(grouped.entries()).map(async ([participantId, participantEvents]) => {
+      const filePath = path.join(RESEARCH_LOG_DIR, `${participantId}.ndjson`);
+      let existingEventIds = new Set();
+      try {
+        const existing = await fs.readFile(filePath, "utf8");
+        existingEventIds = new Set(
+          existing
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+              try {
+                return JSON.parse(line).event_id;
+              } catch {
+                return "";
+              }
+            })
+            .filter(Boolean)
+        );
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+      const freshEvents = participantEvents.filter(
+        (event) => !existingEventIds.has(event.event_id)
+      );
+      if (freshEvents.length === 0) return;
+      await fs.appendFile(
+        filePath,
+        `${freshEvents.map((event) => JSON.stringify(event)).join("\n")}\n`,
+        "utf8"
+      );
+    })
+  );
+  return "file";
+}
+
+function canExportResearchLogs(req) {
+  if (!RESEARCH_EXPORT_TOKEN) {
+    return ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.ip);
+  }
+  const authorization = String(req.get("authorization") || "");
+  return authorization === `Bearer ${RESEARCH_EXPORT_TOKEN}`;
+}
 
 /**
  * 将模块数组格式化为模型容易理解的文本。
@@ -3967,6 +4099,93 @@ app.post(
     }
   }
 );
+
+/**
+ * 研究日志接收端。
+ * 浏览器会批量提交；event_id 为幂等键，网络重试不会产生重复记录。
+ */
+app.post("/api/research-events", async (req, res) => {
+  try {
+    const inputEvents = Array.isArray(req.body?.events)
+      ? req.body.events.slice(0, 250)
+      : [];
+    const events = inputEvents.map(normalizeResearchEvent).filter(Boolean);
+    if (events.length === 0) {
+      return res.status(400).json({ error: "没有有效的研究日志事件" });
+    }
+
+    const storage = await persistResearchEvents(events);
+    return res.json({ ok: true, accepted: events.length, storage });
+  } catch (error) {
+    console.error("研究日志写入失败：", error);
+    return res.status(500).json({
+      error: "研究日志写入失败",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+/**
+ * 研究者导出接口。正式部署必须设置 RESEARCH_EXPORT_TOKEN。
+ * GET /api/research-events/export?participant=P01
+ * Authorization: Bearer <RESEARCH_EXPORT_TOKEN>
+ */
+app.get("/api/research-events/export", async (req, res) => {
+  if (!canExportResearchLogs(req)) {
+    return res.status(401).json({ error: "无权导出研究日志" });
+  }
+
+  const participantId = normalizeResearchIdentifier(req.query.participant, 80);
+  if (!participantId) {
+    return res.status(400).json({ error: "缺少 participant 参数" });
+  }
+
+  try {
+    if (SUPABASE_URL && SUPABASE_SECRET_KEY) {
+      const query = new URLSearchParams({
+        select: "*",
+        participant_id: `eq.${participantId}`,
+        order: "sequence.asc",
+      });
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/research_events?${query.toString()}`,
+        {
+          headers: {
+            apikey: SUPABASE_SECRET_KEY,
+            Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`Supabase export failed: ${await response.text()}`);
+      }
+      const rows = await response.json();
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${participantId}-research-events.json"`
+      );
+      return res.json({ participant_id: participantId, events: rows });
+    }
+
+    const filePath = path.join(RESEARCH_LOG_DIR, `${participantId}.ndjson`);
+    const content = await fs.readFile(filePath, "utf8");
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${participantId}-research-events.ndjson"`
+    );
+    return res.send(content);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return res.status(404).json({ error: "没有找到该参与者的日志" });
+    }
+    console.error("研究日志导出失败：", error);
+    return res.status(500).json({
+      error: "研究日志导出失败",
+      details: error?.message || String(error),
+    });
+  }
+});
 
 app.listen(
   PORT,

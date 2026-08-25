@@ -24,6 +24,10 @@ import {
 import {
   normalizeSections,
 } from "./sectionHelpers";
+import {
+  createResearchActionId,
+  logResearchEvent,
+} from "../../research/researchLogger.js";
 
 export function useAIActions({
   setSections,
@@ -414,6 +418,19 @@ export function useAIActions({
             : "正在调整模块长度..."
         );
 
+        const researchActionId = createResearchActionId("length-adjustment");
+        const researchStartedAt = performance.now();
+        logResearchEvent(
+          "block_length_adjustment_started",
+          {
+            before_text: currentText,
+            value: normalizedValue,
+            target_length: targetLength ?? null,
+            length_unit: lengthUnit,
+          },
+          { actionId: researchActionId, targetBlockIds: [block.id] }
+        );
+
         try {
           const result =
             await adjustBlockLength({
@@ -448,6 +465,16 @@ export function useAIActions({
 
           setAdjustLengthError("");
 
+          logResearchEvent(
+            "block_length_adjustment_completed",
+            {
+              duration_ms: Math.round(performance.now() - researchStartedAt),
+              before_text: currentText,
+              after_text: result.text,
+            },
+            { actionId: researchActionId, targetBlockIds: [block.id] }
+          );
+
           return result;
         } catch (error) {
           if (
@@ -471,6 +498,15 @@ export function useAIActions({
           );
 
           setStatusText(message);
+
+          logResearchEvent(
+            "block_length_adjustment_failed",
+            {
+              duration_ms: Math.round(performance.now() - researchStartedAt),
+              error: message,
+            },
+            { actionId: researchActionId, targetBlockIds: [block.id] }
+          );
 
           throw error;
         } finally {
@@ -615,6 +651,19 @@ export function useAIActions({
           "正在根据指令内容修改"
         );
 
+        const researchActionId = createResearchActionId("instruction-revision");
+        const researchStartedAt = performance.now();
+        logResearchEvent(
+          "instruction_revision_started",
+          {
+            instruction: normalizedStyle,
+            instruction_label: String(styleLabel || "").trim(),
+            is_custom_instruction: Boolean(isCustom),
+            before_text: currentText,
+          },
+          { actionId: researchActionId, targetBlockIds: [block.id] }
+        );
+
         try {
           const result =
             await adjustBlockStyle({
@@ -655,6 +704,17 @@ export function useAIActions({
 
           setAdjustStyleError("");
 
+          logResearchEvent(
+            "instruction_revision_completed",
+            {
+              duration_ms: Math.round(performance.now() - researchStartedAt),
+              instruction: normalizedStyle,
+              before_text: currentText,
+              after_text: result.text,
+            },
+            { actionId: researchActionId, targetBlockIds: [block.id] }
+          );
+
           return result;
         } catch (error) {
           if (
@@ -678,6 +738,16 @@ export function useAIActions({
           );
 
           setStatusText(message);
+
+          logResearchEvent(
+            "instruction_revision_failed",
+            {
+              duration_ms: Math.round(performance.now() - researchStartedAt),
+              instruction: normalizedStyle,
+              error: message,
+            },
+            { actionId: researchActionId, targetBlockIds: [block.id] }
+          );
 
           throw error;
         } finally {

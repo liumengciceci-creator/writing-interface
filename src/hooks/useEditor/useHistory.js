@@ -7,6 +7,7 @@ import {
 import {
   cloneSections,
 } from "./sectionHelpers";
+import { logResearchEvent } from "../../research/researchLogger.js";
 
 export function useHistory({
   initialSections,
@@ -159,6 +160,12 @@ export function useHistory({
       setFuture(nextFuture);
       setSections(restoredSections);
 
+      logResearchEvent("undo_performed", {
+        history_depth_before: previousHistory.length,
+        history_depth_after: nextHistory.length,
+        redo_depth_after: nextFuture.length,
+      });
+
       console.groupEnd();
 
       clearInteractionState?.();
@@ -199,6 +206,12 @@ export function useHistory({
       setHistory(nextHistory);
       setFuture(nextFuture);
       setSections(nextSections);
+
+      logResearchEvent("redo_performed", {
+        history_depth_after: nextHistory.length,
+        redo_depth_before: previousFuture.length,
+        redo_depth_after: nextFuture.length,
+      });
 
       clearInteractionState?.();
     }, [

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.jsx";
 
-export default function LanguageMenu() {
+export default function LanguageMenu({
+  researchSession = null,
+  onFinishResearchSession,
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const { isEnglish, t, toggleLanguage } = useI18n();
@@ -111,6 +114,50 @@ export default function LanguageMenu() {
               ? t("language.switchToChinese")
               : t("language.switchToEnglish")}
           </button>
+
+          {researchSession?.enabled ? (
+            <>
+              <div
+                style={{
+                  margin: "6px 4px 4px",
+                  padding: "7px 7px 5px",
+                  borderTop: "1px solid rgba(17,24,39,0.08)",
+                  color: "#6b7280",
+                  fontSize: 11,
+                  lineHeight: 1.45,
+                }}
+              >
+                {t("research.recording")} · {researchSession.participantId}
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={researchSession.ended}
+                onClick={async () => {
+                  await onFinishResearchSession?.();
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  minHeight: 34,
+                  padding: "7px 10px",
+                  border: 0,
+                  borderRadius: 7,
+                  background: researchSession.ended ? "#f3f4f6" : "#eef4ff",
+                  color: researchSession.ended ? "#9ca3af" : "#3659a8",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  lineHeight: 1.45,
+                  textAlign: "left",
+                  cursor: researchSession.ended ? "default" : "pointer",
+                }}
+              >
+                {researchSession.ended
+                  ? t("research.ended")
+                  : t("research.finishAndExport")}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
