@@ -214,7 +214,7 @@ export default function ActiveReviewCurve({ stageRef, issue }) {
 
   if (!issue || !curve) return null;
 
-  const color = issue.action === "insert"
+  const color = issue.action === "insert" || issue.action === "replace"
     ? issue.suggestedModule?.color || "#d6a31a"
     : issue.sourceBlock?.color || "#d6a31a";
   const curveDrawId = `review-curve-draw-${normalizeId(issue.id).replace(

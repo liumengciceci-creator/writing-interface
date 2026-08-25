@@ -25,7 +25,7 @@ const checks = [
     "overall review must remain a concise, genuinely streamed narrative",
   ],
   [
-    server.includes("2—4 个以“• ”开头的完整要点") &&
+    server.includes("通常排版成 3 个以“• ”开头的完整要点") &&
       server.includes("不要虚构原文没有的理论、数据、研究、来源或事实"),
     "revision advice must use readable bullet points without fabricating support",
   ],
@@ -34,15 +34,26 @@ const checks = [
       server.includes("不得为了省事直接把 sourceId 指向结论") &&
       server.includes("sourceIsConclusion") &&
       server.includes("ownershipCorrected") &&
-      server.includes("缺口位于前置论证，而不是结论措辞本身"),
+      server.includes("当前${relationText") &&
+      server.includes("这样可以补上从现有材料到后续判断的中间推理"),
     "missing support before a conclusion must be assigned to analysis, reasoning, or evidence rather than the conclusion wording",
   ],
   [
-    server.includes('"rewriteScope":"local、full或空字符串"') &&
-      server.includes('action="revise", rewriteScope="full"：证据、理由或反论方向错误') &&
-      app.includes("rewriteScope: item.rewriteScope") &&
-      reviewApi.includes('rewriteScope === "full" ? "full" : "local"'),
-    "evidence-direction errors must trigger a full rewrite through the complete request path",
+      server.includes("审阅对象是模块之间的论证关系") &&
+      server.includes("sourceIsEvidence") &&
+      server.includes("targetNeedsSupport") &&
+      server.includes('insertType = reviewUsesCjk ? "分析" : "Analysis"') &&
+      server.includes("不得把这种关系缺口改判为“让证据更严谨”"),
+    "relevant evidence with a missing inferential link must create or strengthen analysis instead of receiving a rigor edit",
+  ],
+  [
+    server.includes('"action":"revise、insert或replace"') &&
+      server.includes('action="replace"：sourceId 模块的材料方向或论证功能本身错误') &&
+      server.includes("replaceType") &&
+      app.includes('item.action === "replace"') &&
+      app.includes("replaceType: replacementTemplate?.type") &&
+      reviewApi.includes('action: action === "replace" ? "replace" : "revise"'),
+    "direction errors must use a true replace action through the complete request path",
   ],
   [
     server.includes("它不要求每个主张都配实证数据") &&
@@ -78,7 +89,15 @@ const checks = [
     app.includes("createReviewTemplateStyle") &&
       app.includes("isReviewGenerated") &&
       app.includes("setCustomTemplates((currentTemplates)"),
-    "accepted review inserts must persist newly defined labels",
+    "accepted review inserts or replacements must persist newly defined labels",
+  ],
+  [
+    app.includes("handleUpdateBlockAppearance({") &&
+      app.includes("type: replacementTemplate.type") &&
+      app.includes("recordHistory: false") &&
+      server.includes("不再受原模块类型约束") &&
+      server.includes("不得仅因数据看起来更正式就用数据替换例子"),
+    "accepted replacements must change the real module type without treating data as inherently superior",
   ],
   [
     app.includes("generateReviewInsertedBlockStream") &&
@@ -99,13 +118,15 @@ const checks = [
   ],
   [
     reviewPanel.includes('whiteSpace: "pre-wrap"') &&
-      reviewPanel.includes('selectedItem.action === "insert"'),
-    "review panel must preserve bullet layout and render insert suggestions",
+      reviewPanel.includes('selectedItem.action === "insert"') &&
+      reviewPanel.includes('selectedItem.action === "replace"'),
+    "review panel must preserve bullet layout and render insert or replace suggestions",
   ],
   [
     i18n.includes('"review.insertInstruction"') &&
+      i18n.includes('"review.replaceInstruction"') &&
       i18n.includes('"review.insertPositionChanged"'),
-    "insert-review UI messages must be translated",
+    "insert and replace review UI messages must be translated",
   ],
 ];
 

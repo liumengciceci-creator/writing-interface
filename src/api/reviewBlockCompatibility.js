@@ -170,6 +170,9 @@ export async function streamReviewEnhancementDetail({
 export async function applyReviewInstruction({
   instruction,
   rewriteScope = "local",
+  action = "revise",
+  replaceType = "",
+  replaceLabel = "",
   sourceBlock,
   targetBlock,
   contextBlocks = [],
@@ -181,6 +184,9 @@ export async function applyReviewInstruction({
     body: JSON.stringify({
       instruction,
       rewriteScope: rewriteScope === "full" ? "full" : "local",
+      action: action === "replace" ? "replace" : "revise",
+      replaceType,
+      replaceLabel,
       sourceBlock,
       targetBlock,
       contextBlocks,
@@ -201,6 +207,9 @@ export async function applyReviewInstruction({
 export async function applyReviewInstructionStream({
   instruction,
   rewriteScope = "local",
+  action = "revise",
+  replaceType = "",
+  replaceLabel = "",
   sourceBlock,
   targetBlock,
   contextBlocks = [],
@@ -213,6 +222,9 @@ export async function applyReviewInstructionStream({
     body: JSON.stringify({
       instruction,
       rewriteScope: rewriteScope === "full" ? "full" : "local",
+      action: action === "replace" ? "replace" : "revise",
+      replaceType,
+      replaceLabel,
       sourceBlock,
       targetBlock,
       contextBlocks,

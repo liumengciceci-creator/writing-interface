@@ -426,6 +426,7 @@ export function useBlockActions({
         color,
         fill,
         label,
+        recordHistory = true,
       }) => {
         if (
           blockId === null ||
@@ -564,9 +565,11 @@ export function useBlockActions({
               return previousSections;
             }
 
-            pushHistorySnapshot?.(
-              previousSections
-            );
+            if (recordHistory) {
+              pushHistorySnapshot?.(
+                previousSections
+              );
+            }
 
             return normalizeSections(
               nextSections,

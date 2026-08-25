@@ -315,6 +315,7 @@ export default function App() {
      */
     handleUpdateFloatingBlockText,
     handleUpdateFloatingBlockWidth,
+    handleUpdateBlockAppearance,
 
     /**
      * 模块拖入与放置。
@@ -550,27 +551,43 @@ export default function App() {
       [String(sourceId), String(targetId)].sort().join("::");
     const createReviewResult = (item, index = 0) => {
       if (!item) return null;
-      const action = item.action === "insert" ? "insert" : "revise";
+      const action = item.action === "insert"
+        ? "insert"
+        : item.action === "replace" || item.rewriteScope === "full"
+          ? "replace"
+          : "revise";
       const sourceBlock = blockById.get(String(item.sourceId));
       const targetBlock = blockById.get(String(item.targetId));
       if (!sourceBlock || !targetBlock) return null;
 
-      const requestedInsertType = String(item.insertType || item.insertLabel || "").trim();
-      const requestedInsertLabel = String(item.insertLabel || item.insertType || "").trim();
-      const existingSuggestedTemplate = action === "insert"
+      const requestedModuleType = String(
+        action === "insert"
+          ? item.insertType || item.insertLabel || ""
+          : action === "replace"
+            ? item.replaceType || item.replaceLabel || sourceBlock.type || ""
+            : ""
+      ).trim();
+      const requestedModuleLabel = String(
+        action === "insert"
+          ? item.insertLabel || item.insertType || ""
+          : action === "replace"
+            ? item.replaceLabel || item.replaceType || sourceBlock.label || sourceBlock.type || ""
+            : ""
+      ).trim();
+      const existingSuggestedTemplate = action === "insert" || action === "replace"
         ? reviewTemplates.find((template) =>
-            String(template.type || "").toLocaleLowerCase() === requestedInsertType.toLocaleLowerCase() ||
-            String(template.label || "").toLocaleLowerCase() === requestedInsertLabel.toLocaleLowerCase()
+            String(template.type || "").toLocaleLowerCase() === requestedModuleType.toLocaleLowerCase() ||
+            String(template.label || "").toLocaleLowerCase() === requestedModuleLabel.toLocaleLowerCase()
           )
         : null;
       const dynamicStyle = createReviewTemplateStyle(
-        requestedInsertLabel || requestedInsertType
+        requestedModuleLabel || requestedModuleType
       );
-      const suggestedTemplate = action === "insert"
-        ? existingSuggestedTemplate || (requestedInsertType && requestedInsertLabel
+      const suggestedTemplate = action === "insert" || action === "replace"
+        ? existingSuggestedTemplate || (requestedModuleType && requestedModuleLabel
             ? {
-                type: requestedInsertType,
-                label: requestedInsertLabel,
+                type: requestedModuleType,
+                label: requestedModuleLabel,
                 ...dynamicStyle,
                 width: 160,
                 isCustom: true,
@@ -578,7 +595,7 @@ export default function App() {
               }
             : null)
         : null;
-      if (action === "insert" && !suggestedTemplate) return null;
+      if ((action === "insert" || action === "replace") && !suggestedTemplate) return null;
 
       const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
       const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
@@ -592,11 +609,7 @@ export default function App() {
           `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`
         ),
         action,
-        rewriteScope: action === "revise" && item.rewriteScope === "full"
-          ? "full"
-          : action === "revise"
-            ? "local"
-            : "",
+        rewriteScope: action === "revise" ? "local" : action === "replace" ? "full" : "",
         relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
         category: String(item.category || t("app.contentReview")),
         criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
@@ -607,7 +620,9 @@ export default function App() {
         insertAfterId: action === "insert" ? String(sourceBlock.id) : null,
         insertBeforeId: action === "insert" ? String(targetBlock.id) : null,
         insertType: action === "insert" ? suggestedTemplate.type : null,
-        suggestedModule: action === "insert"
+        replaceType: action === "replace" ? suggestedTemplate.type : null,
+        replaceLabel: action === "replace" ? suggestedTemplate.label : null,
+        suggestedModule: action === "insert" || action === "replace"
           ? {
               type: suggestedTemplate.type,
               label: blockTypeLabel(
@@ -1055,6 +1070,13 @@ export default function App() {
     const liveTargetBlock = getBlockById(item.relationTargetId) || item.targetBlock;
     const targetBlockId = String(item.targetBlockId);
     const originalText = String(liveSourceBlock?.text || "");
+    const originalAppearance = {
+      type: liveSourceBlock?.type,
+      label: liveSourceBlock?.label || liveSourceBlock?.type,
+      color: liveSourceBlock?.color || "#64748b",
+      fill: liveSourceBlock?.fill || "#f8fafc",
+    };
+    const replacementTemplate = item.action === "replace" ? item.suggestedModule : null;
     const applyGraphId = `apply-review-${item.id}`;
     let streamedText = "";
     let finalText = "";
@@ -1086,6 +1108,9 @@ export default function App() {
       await applyReviewInstructionStream({
         instruction: item.modificationInstruction || item.suggestion,
         rewriteScope: item.rewriteScope,
+        action: item.action,
+        replaceType: replacementTemplate?.type,
+        replaceLabel: replacementTemplate?.label,
         sourceBlock: liveSourceBlock,
         targetBlock: liveTargetBlock,
         contextBlocks: item.contextBlocks,
@@ -1094,6 +1119,16 @@ export default function App() {
             captureRevisionHistory();
             textStarted = true;
             window.clearInterval(blinkTimer);
+            if (replacementTemplate?.type) {
+              handleUpdateBlockAppearance({
+                blockId: targetBlockId,
+                type: replacementTemplate.type,
+                label: replacementTemplate.label || replacementTemplate.type,
+                color: replacementTemplate.color,
+                fill: replacementTemplate.fill,
+                recordHistory: false,
+              });
+            }
             setReviewState((state) => ({ ...state, blinkOn: false }));
             return;
           }
@@ -1108,10 +1143,36 @@ export default function App() {
           if (event.type === "done") {
             finalText = String(event.text || streamedText).trim();
             if (!finalText) throw new Error(t("review.applyFailed"));
-            handleChangeText(targetBlockId, finalText);
+            handleChangeText(targetBlockId, finalText, { isGenerated: true });
           }
         },
       });
+
+      if (replacementTemplate?.isReviewGenerated) {
+        setCustomTemplates((currentTemplates) => {
+          const alreadyExists = [...BLOCK_TYPES, ...currentTemplates].some(
+            (template) =>
+              String(template?.type || "").toLocaleLowerCase() ===
+                String(replacementTemplate.type).toLocaleLowerCase() ||
+              String(template?.label || "").toLocaleLowerCase() ===
+                String(replacementTemplate.label || replacementTemplate.type).toLocaleLowerCase()
+          );
+          if (alreadyExists) return currentTemplates;
+          return [
+            ...currentTemplates,
+            {
+              id: createTemplateId(),
+              type: replacementTemplate.type,
+              label: replacementTemplate.label || replacementTemplate.type,
+              color: replacementTemplate.color,
+              fill: replacementTemplate.fill,
+              width: 160,
+              text: "",
+              isCustom: true,
+            },
+          ];
+        });
+      }
 
       setReviewState((state) => ({
         ...state,
@@ -1122,6 +1183,13 @@ export default function App() {
       clearReviewIssueFocus();
     } catch (error) {
       handleChangeText(targetBlockId, originalText);
+      if (replacementTemplate?.type) {
+        handleUpdateBlockAppearance({
+          blockId: targetBlockId,
+          ...originalAppearance,
+          recordHistory: false,
+        });
+      }
       throw error;
     } finally {
       window.clearInterval(blinkTimer);

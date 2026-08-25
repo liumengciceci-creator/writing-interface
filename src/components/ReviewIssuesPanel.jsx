@@ -227,7 +227,7 @@ export default function ReviewIssuesPanel({
 
   const pendingResults = results.filter((item) => !item.decision);
   const selectedItem = pendingResults.find((item) => item.id === selectedIssueId) || null;
-  const accentSource = selectedItem?.action === "insert"
+  const accentSource = selectedItem?.action === "insert" || selectedItem?.action === "replace"
     ? selectedItem?.suggestedModule
     : selectedItem?.sourceBlock;
   const accentColor = accentSource?.color || "#d6a31a";
@@ -393,7 +393,7 @@ export default function ReviewIssuesPanel({
                 ? results.find((item) => item.id === criterion.issueId)
                 : null;
               const selected = Boolean(issueItem && issueItem.id === selectedIssueId);
-              const itemColor = issueItem?.action === "insert"
+              const itemColor = issueItem?.action === "insert" || issueItem?.action === "replace"
                 ? issueItem?.suggestedModule?.color || "#d6a31a"
                 : issueItem?.sourceBlock?.color || "#d6a31a";
               const accepted = issueItem?.decision === "accepted";
@@ -550,6 +550,11 @@ export default function ReviewIssuesPanel({
                   label: selectedItem.suggestedModule?.label ||
                     blockTypeLabel(selectedItem.insertType, selectedItem.insertType),
                 })
+              : selectedItem.action === "replace"
+                ? t("review.replaceInstruction", {
+                    label: selectedItem.suggestedModule?.label ||
+                      blockTypeLabel(selectedItem.replaceType, selectedItem.replaceType),
+                  })
               : t("review.instruction", {
                   label: blockTypeLabel(
                     selectedItem.sourceBlock?.type,
@@ -605,10 +610,14 @@ export default function ReviewIssuesPanel({
                 {applyLoading
                   ? selectedItem.action === "insert"
                     ? t("review.inserting")
-                    : t("review.applying")
+                    : selectedItem.action === "replace"
+                      ? t("review.replacing")
+                      : t("review.applying")
                   : selectedItem.action === "insert"
                     ? t("review.insert")
-                    : t("review.apply")}
+                    : selectedItem.action === "replace"
+                      ? t("review.replace")
+                      : t("review.apply")}
               </button>
               <button
                 type="button"

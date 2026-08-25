@@ -2489,6 +2489,8 @@ GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且�
 - 对非相邻模块，只有它们确实存在直接论证依赖时才判断支持关系。
 - 能靠补足推理、机制、理论运用或解释支持关系解决的问题，不得建议新增 Evidence/数据模块。
 - 原文已有材料但没有解释它为什么支持主张时，应加强分析或推理，不得再添加一份证据。
+- 审阅对象是模块之间的论证关系，不是单独挑剔某个模块的措辞严谨度。不要仅因为例证可以补充比较条件、概念可以定义得更细或表述可以更精确，就生成修改点；只有这些问题真实破坏了当前模块与相关主张之间的支持关系时才处理。
+- 当证据已经提供了与论点相关的现象或材料，但“该材料如何推出论点”的解释缺失时，应加强已有分析／推理模块；若证据后直接连接结论且没有分析模块，则在二者之间新增“分析”或“推理”模块。不得把这种关系缺口改判为“让证据更严谨”。
 - 只有涉及事实、因果、范围推广或效果判断，并且确实需要外部可验证材料才能成立时，才可建议新增证据或数据；此时 supportNeeded 必须为 "empirical"。
 - 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
 - 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
@@ -2504,8 +2506,14 @@ summary 必须以 criterion 的分组前缀开头：标题检查使用“标题�
 
 每个问题选择最合适的处理动作：
 - action="revise", rewriteScope="local"：模块方向正确，但关键分析、推理、机制或支持关系不充分。保留核心内容，只加强现有模块。
-- action="revise", rewriteScope="full"：证据、理由或反论方向错误，实际不能承担当前论证功能。接受后重写整个 sourceId 模块。
 - action="insert"：两个相邻模块之间缺少一个真正独立的论证功能，局部修改任何一个模块都无法清楚承担。接受后在两者之间新增模块。
+- action="replace"：sourceId 模块的材料方向或论证功能本身错误，无法通过补充解释建立所需关系。接受后整块重构该模块；若需要改为理论、分析、数据、例证等另一论证功能，同时更换模块类型与标签。
+
+动作判断必须按以下顺序进行：
+1. 先判断相关模块之间需要建立什么关系，以及当前模块是否真正完成了这个功能。
+2. 当前方向正确、只是解释不充分时用 revise；不要因为还能写得更丰富就 insert 或 replace。
+3. 当前模块都各自合理，但两者之间缺少可独立成段的分析、机制、理论、推理或过渡时用 insert。
+4. 当前材料即使补充解释也无法支撑相关主张，或当前模块承担了错误的论证功能时才用 replace。数据、理论和例子没有固定优劣；replaceType 必须由真实缺失的功能决定：证明普遍性可用数据，解释原因可用机制或理论，展示抽象观点可用例子，把证据推到结论可用分析或推理。
 
 必须先定位“缺口属于哪一侧”，再选择 sourceId 和动作：
 - 某个结论或主张尚未被前文充分推出，不等于结论模块本身写错。若结论表达的是作者要建立的核心判断，而缺的是从现有材料到该判断的中间机制、证据解释或理论分析，应修改已有的原因／分析／推理模块；没有能承载该任务的模块时，在最后一个前置模块与结论之间新增“分析”“推理”“机制”或确有必要的“证据”模块。不得为了省事直接把 sourceId 指向结论。
@@ -2516,16 +2524,19 @@ summary 必须以 criterion 的分组前缀开头：标题检查使用“标题�
 
 新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。
 
+replace 也采用开放类型。若只是把方向错误的例子换成更合适的证据，replaceType／replaceLabel 可以仍是原证据类型；若需要把例子或证据改为理论、分析、机制、推理等不同功能，则填写新的 replaceType 与 replaceLabel。不得仅因数据看起来更正式就用数据替换例子，也不得虚构数据、理论、研究或来源。
+
 严格按计划顺序，每项只输出一行：
-{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise或insert","rewriteScope":"local、full或空字符串","sourceId":"需修改的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
+{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的模块类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
 
 status="pass" 时 issue 必须是 null；status="issue" 时 issue 必须完整。不输出代码块、数组外壳或额外文字。
 
-suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的完整要点，并根据具体内容依次讲清：
-- 现在哪里不充分或方向为何错误；
-- 应怎样修改现有模块，或新增模块需要完成什么独立论证任务；
-- 修改后哪一步推理、解释或整体论证链会变得成立或更有说服力。
-不要机械复制固定句式，但每个要点必须是能独立读懂的完整句子。不要给出“修正为……”后的完整替换正文，也不要虚构原文没有的理论、数据、研究、来源或事实。若确需外部材料，清楚说明作者需要提供哪类材料以及它必须验证什么。`;
+suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完整要点：
+- 第一条直接写“当前 A 模块说明了什么，但还没有解释／支持／推出 B 模块中的什么判断”，明确指出缺失的模块关系。
+- 第二条直接写“建议加强哪个现有模块”或“建议在何处新增什么模块”，并说明它需要完成哪一步推理。
+- replace 时，第二条直接说明“建议将哪个模块整块重构为哪种方向／类型”，以及新模块必须完成的论证功能；不要提供完整替换正文。
+- 第三条直接写“这样可以补上哪条支持、解释、回应或归纳关系”，说明后续论点或结论如何因此获得支撑。
+语言要简洁，不写“问题不在于……而在于……”“缺口属于……侧”“保留结论作为需要被论证的判断”等元分析或自我解释。重点说明模块之间尚未建立的关系以及操作指令，不单独评价措辞严谨度。每个要点必须能独立读懂；不要给出完整替换正文，也不要虚构原文没有的理论、数据、研究、来源或事实。若确需外部材料，清楚说明作者需要提供哪类材料以及它必须验证什么。`;
 
       const seenRootIssues = new Set();
       const completedCriteria = [];
@@ -2540,9 +2551,13 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
       };
 
       const normalizeEnhancement = (enhancement, criterionItem, criterionSummary = "") => {
-          let action = enhancement?.action === "insert" ? "insert" : "revise";
+          let action = enhancement?.action === "insert"
+            ? "insert"
+            : enhancement?.action === "replace" || enhancement?.rewriteScope === "full"
+              ? "replace"
+              : "revise";
           let rewriteScope = action === "revise"
-            ? enhancement?.rewriteScope === "full" ? "full" : "local"
+            ? "local"
             : "";
           let sourceId = String(enhancement?.sourceId || "");
           let targetId = String(enhancement?.targetId || "");
@@ -2552,6 +2567,12 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
 
           let insertType = String(enhancement?.insertType || enhancement?.insertLabel || "").trim();
           let insertLabel = String(enhancement?.insertLabel || enhancement?.insertType || "").trim();
+          let replaceType = String(
+            enhancement?.replaceType || enhancement?.replaceLabel || ""
+          ).trim();
+          let replaceLabel = String(
+            enhancement?.replaceLabel || enhancement?.replaceType || ""
+          ).trim();
           const supportNeeded = String(enhancement?.supportNeeded || "none").trim().toLowerCase();
           let suggestion = String(enhancement?.suggestion || "")
             .replace(/[ \t]+/g, " ")
@@ -2559,12 +2580,19 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
             .trim();
 
           const sourceBlock = blocks.find((block) => block.id === sourceId);
+          const targetBlock = blocks.find((block) => block.id === targetId);
           const relatedBlocks = (criterionItem?.relatedIds || [])
             .map((id) => blocks.find((block) => block.id === String(id)))
             .filter(Boolean)
             .sort((first, second) => first.order - second.order);
           const sourceIsConclusion = /^(?:conclusion|结论)$/i.test(
             String(sourceBlock?.type || "").trim()
+          );
+          const sourceIsEvidence = /evidence|data|empirical|证据|数据|实证/i.test(
+            String(sourceBlock?.type || "").trim()
+          );
+          const targetNeedsSupport = /claim|conclusion|论点|主张|结论/i.test(
+            String(targetBlock?.type || "").trim()
           );
           const missingSupportLanguage = /尚未|不能|不足以|缺少|未说明|未解释|not\s+(?:yet\s+)?(?:establish|explain|show)|does\s+not\s+(?:establish|explain|show)|insufficient\s+to|missing\s+(?:reasoning|analysis|mechanism)/i.test(
             `${criterionSummary} ${suggestion}`
@@ -2618,19 +2646,49 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
               }
             }
 
-            if (ownershipCorrected) {
-              const relationText = String(criterionSummary || "")
-                .replace(/^(?:标题|Title|第[^：:]{1,8}段|Paragraph\s+\d+)[：:]\s*/i, "")
-                .replace(/[。.!！?？\s]+$/u, "")
-                .trim();
-              const correctedSourceBlock = blocks.find((block) => block.id === sourceId);
-              const correctedSourceLabel = templates.find(
-                (template) => template.type === correctedSourceBlock?.type
-              )?.label || correctedSourceBlock?.type || (reviewUsesCjk ? "分析" : "analysis");
-              suggestion = reviewUsesCjk
-                ? `• ${relationText || "当前前置材料尚未充分建立通向结论的支持关系"}。\n• 缺口位于前置论证，而不是结论措辞本身；${action === "insert" ? `请在结论前新增“${insertLabel}”模块，专门补足从现有材料到该结论的中间论证。` : `请加强现有“${correctedSourceLabel}”模块，明确解释现有材料如何支持结论中的能力变化。`}\n• 保留结论作为需要被论证的判断；补足这一环节后，前置材料与结论之间的推导关系才会真正成立。`
-                : `• ${relationText || "The preceding material does not yet establish the conclusion"}.\n• The gap belongs to the supporting argument rather than the wording of the conclusion; ${action === "insert" ? `insert a ${insertLabel} module immediately before the conclusion to supply the missing inferential step.` : `strengthen the existing ${correctedSourceLabel} module so it explains how the existing material supports the claimed change.`}\n• Keep the conclusion as the claim to be established; repairing the support side will make the inference from the preceding material explicit.`;
+          }
+
+          // 证据方向相关、但证据与结论之间缺少解释时，新增分析关系，
+          // 而不是把“进一步提高证据本身的严谨度”当作修改任务。
+          if (
+            !ownershipCorrected &&
+            action === "revise" &&
+            rewriteScope === "local" &&
+            sourceIsEvidence &&
+            targetNeedsSupport &&
+            supportNeeded === "reasoning" &&
+            missingSupportLanguage
+          ) {
+            const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
+            const targetIndex = blocks.findIndex((block) => block.id === targetId);
+            const insertionTarget = targetIndex === sourceIndex + 1
+              ? targetBlock
+              : blocks[sourceIndex + 1]?.paragraph === sourceBlock?.paragraph
+                ? blocks[sourceIndex + 1]
+                : null;
+            if (insertionTarget) {
+              action = "insert";
+              rewriteScope = "";
+              targetId = insertionTarget.id;
+              insertType = reviewUsesCjk ? "分析" : "Analysis";
+              insertLabel = reviewUsesCjk ? "分析" : "Analysis";
+              ownershipCorrected = true;
             }
+          }
+
+          if (ownershipCorrected) {
+            const relationText = String(criterionSummary || "")
+              .replace(/^(?:标题|Title|第[^：:]{1,8}段|Paragraph\s+\d+)[：:]\s*/i, "")
+              .replace(/^当前\s*/u, "")
+              .replace(/[。.!！?？\s]+$/u, "")
+              .trim();
+            const correctedSourceBlock = blocks.find((block) => block.id === sourceId);
+            const correctedSourceLabel = templates.find(
+              (template) => template.type === correctedSourceBlock?.type
+            )?.label || correctedSourceBlock?.type || (reviewUsesCjk ? "分析" : "analysis");
+            suggestion = reviewUsesCjk
+              ? `• 当前${relationText || "前置模块已经提供了相关材料，但还没有充分支持后续判断"}。\n• ${action === "insert" ? `建议在“${correctedSourceLabel}”模块之后新增“${insertLabel}”模块，具体解释现有材料如何推出后续论点或结论。` : `建议加强现有“${correctedSourceLabel}”模块，具体解释它如何连接前置材料与后续论点或结论。`}\n• 这样可以补上从现有材料到后续判断的中间推理，使两个模块形成明确的支持关系。`
+              : `• Currently, ${relationText || "the preceding module provides relevant material but does not yet support the subsequent claim"}.\n• ${action === "insert" ? `Add an ${insertLabel} module after the ${correctedSourceLabel} module to explain how the existing material leads to the subsequent claim or conclusion.` : `Strengthen the existing ${correctedSourceLabel} module so it explicitly connects the preceding material to the subsequent claim or conclusion.`}\n• This adds the missing inferential step and establishes a clear support relation between the modules.`;
           }
 
           if (action === "insert") {
@@ -2642,6 +2700,22 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
               `${insertType} ${insertLabel}`
             );
             if (evidenceLike && supportNeeded !== "empirical") return null;
+          }
+
+          if (action === "replace") {
+            if (!replaceType || !replaceLabel) {
+              replaceType = String(sourceBlock?.type || "").trim();
+              replaceLabel = templates.find(
+                (template) => template.type === sourceBlock?.type
+              )?.label || replaceType;
+            }
+            if (!replaceType || !replaceLabel) return null;
+            replaceType = replaceType.slice(0, 32);
+            replaceLabel = replaceLabel.slice(0, 20);
+            const dataReplacement = /(?:^|\b)(?:data|empirical)(?:\b|$)|数据|实证/i.test(
+              `${replaceType} ${replaceLabel}`
+            );
+            if (dataReplacement && supportNeeded !== "empirical") return null;
           }
 
           const rootIssueKey = String(
@@ -2659,6 +2733,8 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
             targetId,
             insertType: action === "insert" ? insertType : "",
             insertLabel: action === "insert" ? insertLabel : "",
+            replaceType: action === "replace" ? replaceType : "",
+            replaceLabel: action === "replace" ? replaceLabel : "",
             supportNeeded,
             rootIssueKey,
             priority: Math.max(1, Math.min(5, Number(enhancement?.priority) || 3)),
@@ -2810,7 +2886,10 @@ app.post(
       criterion: String(body.issue?.criterion || "检查两个模块之间的内容关系"),
       summary: String(body.issue?.summary || body.issue?.comment || "").trim(),
       suggestion: String(body.issue?.suggestion || "").trim(),
-      rewriteScope: body.issue?.rewriteScope === "full" ? "full" : "local",
+      action: body.issue?.action === "replace" ? "replace" : body.issue?.action === "insert" ? "insert" : "revise",
+      rewriteScope: body.issue?.action === "replace" || body.issue?.rewriteScope === "full" ? "full" : "local",
+      replaceType: String(body.issue?.replaceType || body.issue?.suggestedModule?.type || "").trim(),
+      replaceLabel: String(body.issue?.replaceLabel || body.issue?.suggestedModule?.label || "").trim(),
     };
     const contextBlocks = Array.isArray(body.contextBlocks)
       ? body.contextBlocks
@@ -2849,9 +2928,9 @@ ${JSON.stringify(issue, null, 2)}
 2. 不设置字数限制。用几句长度适中、彼此自然承接的话说明当前具体不足、为何构成问题、应怎样调整现有表述，以及调整后哪一步推理会变得成立。不要把“保留、补足、区分、重组、说明、再把”等多个操作压进一个长句，也不要把材料和命令堆成密集清单。内容较复杂时可用“• ”分成少量完整要点，但不得写成标签、短语串或互不衔接的命令；不要机械列出固定标题，也不要让所有意见套用同一句式。
 3. 必须具体说明这两个模块的内容如何关联，不能只说“可以加强”或复述模块标签。
 4. 按 GRE 分析性写作的核心论证标准从现有文本内部把关：主张能否由理由推出，是否缺少关键中间推理或因果机制；已有证据是否真正支撑主张并得到解释；多个理由是否共同推进分析而非重复结论；反论是否击中并回应关键前提；结论是否由前文推出。优先诊断论证结构与推理，不做一般语言润色。
-5. rewriteScope="local" 时建议局部加强，保留原模块的核心内容和可用材料；rewriteScope="full" 时说明当前模块为什么没有承担正确的论证功能，并要求围绕相关主张重构整个模块，不能用一两句连接语掩盖方向错误。
+5. action="revise" 时建议局部加强，保留原模块的核心内容和可用材料；action="insert" 时说明需要在两个模块之间新增什么独立论证环节；action="replace" 时说明当前模块为什么无法承担所需功能，并要求将它整块重构为 replaceLabel 指定的方向，不能用一两句连接语掩盖方向错误。
 6. 不得把加入“可能”“也许”“一定程度上”等缓和词、补充泛泛限定、调整语气、替换词语或“让表达更学术”作为建议。只有措辞直接造成逻辑错误时才可提及，而且必须说明它破坏了哪条推理关系。结论过强时，应修复主张与理由或证据的匹配，而不是只弱化语气。
-7. 不得要求或虚构新的数据、研究、文献、来源、案例、外部事实、新论点或新模块。现有材料不足时，要求利用现有内容重建论证关系，或把主张调整到现有推理真正能够推出的层级。
+7. 不得虚构新的数据、研究、文献、来源、案例或外部事实。若 action="insert" 或 action="replace" 确实需要新的理论、数据、例证或分析方向，可以明确要求作者补充哪类材料、它必须建立什么关系，但不得替作者编造具体材料；若无需外部材料，则优先利用现有内容重建论证关系。
 8. 不得自行发明原文没有建立的阅读情境、使用条件、行为后果或中间事实。只有证据本来就在支持同一主张的不同必要环节时，才说明证明分工；如果证据方向与当前主张不一致，必须要求重构该证据模块，不能替它另找一个子主张。`;
 
     try {
@@ -2906,7 +2985,12 @@ app.post(
           }
         : null;
       const instruction = String(body.instruction || "").trim();
-      const rewriteScope = body.rewriteScope === "full" ? "full" : "local";
+      const action = body.action === "replace" || body.rewriteScope === "full"
+        ? "replace"
+        : "revise";
+      const rewriteScope = action === "replace" ? "full" : "local";
+      const replaceType = String(body.replaceType || sourceBlock?.type || "").trim();
+      const replaceLabel = String(body.replaceLabel || replaceType).trim();
       const contextBlocks = Array.isArray(body.contextBlocks)
         ? body.contextBlocks
             .filter((block) => block && String(block.text || "").trim())
@@ -2922,8 +3006,8 @@ app.post(
         return res.status(400).json({ error: "缺少执行修改指令所需的模块或指令" });
       }
 
-      const scopeRequirement = rewriteScope === "full"
-        ? `本条意见已经判定来源模块的论证方向错误。允许并要求重构整个来源模块：删除或替换不能支持相关主张的内容，围绕相关模块所表达的真实主张重新完成当前模块应承担的论证功能，不必保留原句结构或错误材料。若当前模块必须提供真实数据、研究或理论来源，而上下文没有这些材料，绝对不得编造；请输出一个明确的方括号证据槽，准确写明需要补充哪类材料以及它必须证明什么。`
+      const scopeRequirement = action === "replace"
+        ? `本条意见已经判定来源模块的方向或论证功能错误。将整个模块重构为“${replaceLabel || replaceType}”模块，并按照 ${replaceType || replaceLabel} 的论证功能生成全新内容；删除无法支持相关主张的原有材料，不必保留原句结构。若该方向必须提供真实数据、研究或理论来源，而上下文没有这些材料，绝对不得编造；请输出一个明确的方括号材料槽，准确写明作者需要补充什么以及它必须证明什么。`
         : `本条意见只需要局部加强。保留原模块的核心观点、可用材料、句子骨架和大部分措辞，只在必要位置补足推理、解释证据作用或修复模块关系，不得整段另写。`;
 
       const basePrompt = `你是一名严谨的多语言论证写作编辑。现在作者已经接受了一条修改指令，请按照该指令重写“需要修改的模块”。
@@ -2945,7 +3029,7 @@ ${instruction}
 2. 按 GRE 分析性写作的核心论证标准执行指令，只处理它指出的主张与理由不匹配、关键推理缺失、因果机制断裂、证据作用未解释、反论未回应或结论未由前文推出等实质问题；不要把修改指令复述进正文。
 3. ${scopeRequirement}
 4. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时不得假装获得了不存在的支撑。
-5. 保持原文语言和模块类型。rewriteScope=${rewriteScope}；不得把增加“可能”等缓和词或一般语言润色当作完成指令。`;
+5. 保持原文语言。action=${action}；${action === "replace" ? `输出必须承担“${replaceLabel || replaceType}”模块的功能，不再受原模块类型约束。` : "保持原模块类型。"}不得把增加“可能”等缓和词或一般语言润色当作完成指令。`;
 
       let revisedText = "";
       for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -2953,7 +3037,7 @@ ${instruction}
           model: WRITING_MODEL,
           input: attempt === 1
             ? basePrompt
-            : rewriteScope === "full"
+            : action === "replace"
               ? `${basePrompt}\n\n上一次输出与原文相同，但本条意见要求整块重构。请真正删除不支持相关主张的内容并重新完成该模块的论证功能；没有实际证据时使用明确的方括号证据槽，不得编造。`
               : `${basePrompt}\n\n上一次输出与原文相同。请只在必要位置作出清楚可见的局部调整，解决指令指出的问题，但不要整段重写或添加任何新材料。`,
           reasoning: { effort: "low" },
@@ -3018,7 +3102,12 @@ app.post(
         }
       : null;
     const instruction = String(body.instruction || "").trim();
-    const rewriteScope = body.rewriteScope === "full" ? "full" : "local";
+    const action = body.action === "replace" || body.rewriteScope === "full"
+      ? "replace"
+      : "revise";
+    const rewriteScope = action === "replace" ? "full" : "local";
+    const replaceType = String(body.replaceType || sourceBlock?.type || "").trim();
+    const replaceLabel = String(body.replaceLabel || replaceType).trim();
     const contextBlocks = Array.isArray(body.contextBlocks)
       ? body.contextBlocks
           .filter((block) => block && String(block.text || "").trim())
@@ -3034,8 +3123,8 @@ app.post(
       return res.status(400).json({ error: "缺少执行修改指令所需的模块或指令" });
     }
 
-    const scopeRequirement = rewriteScope === "full"
-      ? `本条意见已经判定来源模块的论证方向错误。允许并要求重构整个来源模块：删除或替换不能支持相关主张的内容，围绕相关模块所表达的真实主张重新完成当前模块应承担的论证功能，不必保留原句结构或错误材料。若当前模块必须提供真实数据、研究或理论来源，而上下文没有这些材料，绝对不得编造；请输出一个明确的方括号证据槽，准确写明需要补充哪类材料以及它必须证明什么。`
+    const scopeRequirement = action === "replace"
+      ? `本条意见已经判定来源模块的方向或论证功能错误。将整个模块重构为“${replaceLabel || replaceType}”模块，并按照 ${replaceType || replaceLabel} 的论证功能生成全新内容；删除无法支持相关主张的原有材料，不必保留原句结构。若该方向必须提供真实数据、研究或理论来源，而上下文没有这些材料，绝对不得编造；请输出一个明确的方括号材料槽，准确写明作者需要补充什么以及它必须证明什么。`
       : `本条意见只需要局部加强。保留原模块的核心观点、可用材料、句子骨架和大部分措辞，只在必要位置补足推理、解释证据作用或修复模块关系，不得整段另写。`;
 
     res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
@@ -3065,7 +3154,7 @@ ${instruction}
 3. ${scopeRequirement}
 4. 不要把修改指令复述进正文，也不得把增加“可能”等缓和词或一般语言润色当作完成指令。
 5. 只能使用来源模块、相关模块和上下文已经出现的信息。不得新增论文、数据、研究、文献、来源、案例、外部事实、新论点或新模块；材料不足时不得假装获得了不存在的支撑。
-6. 保持原文语言和模块类型。rewriteScope=${rewriteScope}。`;
+6. 保持原文语言。action=${action}；${action === "replace" ? `输出必须承担“${replaceLabel || replaceType}”模块的功能，不再受原模块类型约束。` : "保持原模块类型。"}`;
 
     try {
       let revisedText = "";
@@ -3076,7 +3165,7 @@ ${instruction}
           model: WRITING_MODEL,
           input: attempt === 1
             ? basePrompt
-            : rewriteScope === "full"
+            : action === "replace"
               ? `${basePrompt}\n\n上一次输出与原文相同，但本条意见要求整块重构。请真正删除不支持相关主张的内容并重新完成该模块的论证功能；没有实际证据时使用明确的方括号证据槽，不得编造。`
               : `${basePrompt}\n\n上一次输出与原文相同。请在必要位置作出清楚可见的局部调整，解决指令指出的问题，但不要整段重写或加入任何新材料。`,
           reasoning: { effort: "low" },
