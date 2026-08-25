@@ -38,6 +38,7 @@ import {
 import {
   getDropIndex,
   resolveDropForceLineBreak,
+  shouldAttachDropToPreviousParagraph,
   shouldStartNewLine,
 } from "./dragPositionUtils.js";
 
@@ -135,10 +136,10 @@ function getBlockDropAnchor(
 }
 
 /**
- * 计算唯一的段首落点。
+ * 计算带段落语义的落点。
  *
- * 当当前位置正好位于一个已有段落的首模块之前时，不再显示段间的
- * 第二条远蓝线；统一使用紧贴模块的落点，并让拖入模块成为该段新段首。
+ * “上一段末尾”和“下一段段首”在数组中可能是同一个插入索引，
+ * 因此还要根据鼠标更靠近哪一侧的视觉锚点决定换行标记。
  */
 function getParagraphAwareDropPlacement(
   editor,
@@ -192,10 +193,56 @@ function getParagraphAwareDropPlacement(
     "true";
 
   if (insertsBeforeParagraphHead) {
+    const getOrderedRects =
+      (element) =>
+        Array.from(
+          element?.getClientRects?.() ||
+            []
+        )
+          .filter(
+            (rect) =>
+              rect.width > 0 &&
+              rect.height > 0
+          )
+          .sort((first, second) => {
+            if (
+              Math.abs(
+                first.top - second.top
+              ) > 4
+            ) {
+              return first.top - second.top;
+            }
+            return first.left - second.left;
+          });
+
+    const previousRects =
+      getOrderedRects(
+        candidates[
+          inlineInsertIndex - 1
+        ]
+      );
+    const paragraphHeadRects =
+      getOrderedRects(
+        candidates[
+          inlineInsertIndex
+        ]
+      );
+
+    const attachesToPreviousParagraph =
+      shouldAttachDropToPreviousParagraph(
+        clientX,
+        clientY,
+        previousRects[
+          previousRects.length - 1
+        ],
+        paragraphHeadRects[0]
+      );
+
     return {
       insertIndex: inlineInsertIndex,
       startsNewLine: false,
-      forceLineBreakBefore: true,
+      forceLineBreakBefore:
+        !attachesToPreviousParagraph,
     };
   }
 

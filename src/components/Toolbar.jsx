@@ -192,19 +192,15 @@ export default function Toolbar({
         position: "relative",
       }}
     >
-      <div
-        className="canvas-toolbar"
-        style={{
-          ...groupStyle,
-          position: "absolute",
-          top: 0,
-          left: "var(--toolbar-center, 50%)",
-          transform: "translateX(-50%)",
-          zIndex: 1,
-          whiteSpace: "nowrap",
-        }}
-        aria-label={t("toolbar.canvasTools")}
-      >
+      <div className="toolbar-cluster">
+        <div
+          className="canvas-toolbar"
+          style={{
+            ...groupStyle,
+            whiteSpace: "nowrap",
+          }}
+          aria-label={t("toolbar.canvasTools")}
+        >
         <button type="button" onClick={onZoomOut} style={toolbarButton}>−</button>
         <button type="button" onClick={onResetZoom} style={zoomLabelButton}>
           {Math.round(zoom * 100)}%
@@ -308,21 +304,17 @@ export default function Toolbar({
           })}
         </button>
 
-      </div>
+        </div>
 
-      <div
-        className="action-toolbar"
-        style={{
-          ...groupStyle,
-          position: "absolute",
-          top: 0,
-          right: 0,
-          zIndex: 2,
-          border: "none",
-          background: "#f8f8f8",
-        }}
-        aria-label={t("toolbar.mainActions")}
-      >
+        <div
+          className="action-toolbar"
+          style={{
+            ...groupStyle,
+            border: "none",
+            background: "#f8f8f8",
+          }}
+          aria-label={t("toolbar.mainActions")}
+        >
         <button
           type="button"
           onMouseDown={(event) => {
@@ -367,6 +359,7 @@ export default function Toolbar({
         >
           {t("toolbar.complete")}
         </button>
+        </div>
       </div>
 
       {centralStatus ? (

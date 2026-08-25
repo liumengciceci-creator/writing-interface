@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../apiConfig.js";
 
 const STORAGE_PREFIX = "arguweave-research-v1";
-const APP_VERSION = "v86";
+const APP_VERSION = "v89";
 const MAX_LOCAL_EVENTS = 2500;
 const FLUSH_DELAY = 1800;
 const FLUSH_BATCH_SIZE = 24;

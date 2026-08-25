@@ -105,6 +105,19 @@ body {
   --toolbar-center: calc(50% - var(--workspace-center-offset));
 }
 
+.toolbar-cluster {
+  position: absolute;
+  top: 0;
+  left: var(--toolbar-center, 50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
 .page-canvas-shell {
   padding-right: var(--workspace-sidebar-width);
   box-sizing: border-box;
@@ -169,8 +182,10 @@ body {
     min-height: 142px !important;
   }
 
-  .action-toolbar {
-    top: 54px !important;
+  .toolbar-cluster {
+    width: min(720px, calc(100% - 24px));
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .canvas-status {

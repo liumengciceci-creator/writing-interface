@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { shouldAttachDropToPreviousParagraph } from "../src/components/PageCanvas/dragPositionUtils.js";
 
 const editor = fs.readFileSync(
   new URL("../src/components/PageCanvas/SingleSemanticEditor.jsx", import.meta.url),
@@ -52,13 +53,25 @@ const blockActions = fs.readFileSync(
 
 const checks = [
   {
-	  name: "paragraph heads expose one near drop line that becomes the new head",
+	  name: "paragraph boundary drops distinguish the previous end from the next head",
 	  pass:
 	    editor.includes("function getParagraphAwareDropPlacement") &&
-	    editor.includes("不再显示段间的") &&
-	    editor.includes("forceLineBreakBefore: true") &&
+	    editor.includes("attachesToPreviousParagraph") &&
+	    dragPosition.includes("shouldAttachDropToPreviousParagraph") &&
 	    editor.includes("getParagraphAwareDropPlacement(") &&
-	    dragPosition.includes("resolveDropForceLineBreak"),
+	    dragPosition.includes("resolveDropForceLineBreak") &&
+	    shouldAttachDropToPreviousParagraph(
+	      310,
+	      116,
+	      { left: 100, right: 300, top: 100, bottom: 132, height: 32 },
+	      { left: 100, right: 260, top: 170, bottom: 202, height: 32 }
+	    ) &&
+	    !shouldAttachDropToPreviousParagraph(
+	      92,
+	      184,
+	      { left: 100, right: 300, top: 100, bottom: 132, height: 32 },
+	      { left: 100, right: 260, top: 170, bottom: 202, height: 32 }
+	    ),
   },
   {
     name: "floating copy drop indicator uses an initialized rectangle",

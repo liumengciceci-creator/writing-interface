@@ -34,7 +34,7 @@ export default function LanguageMenu({
       style={{
         position: "fixed",
         top: 5,
-        left: 18,
+        right: 18,
         zIndex: 5200,
       }}
     >
@@ -78,7 +78,7 @@ export default function LanguageMenu({
           style={{
             position: "absolute",
             top: 30,
-            left: 0,
+            right: 0,
             width: 174,
             padding: 6,
             border: "1px solid rgba(17,24,39,0.10)",

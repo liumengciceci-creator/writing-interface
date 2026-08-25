@@ -279,6 +279,96 @@ function findClosestLine(
   return closestLine;
 }
 
+function getPointToRectDistance(
+  clientX,
+  clientY,
+  rect
+) {
+  if (!rect) return Infinity;
+
+  const horizontalDistance =
+    clientX < rect.left
+      ? rect.left - clientX
+      : clientX > rect.right
+        ? clientX - rect.right
+        : 0;
+
+  const verticalDistance =
+    clientY < rect.top
+      ? rect.top - clientY
+      : clientY > rect.bottom
+        ? clientY - rect.bottom
+        : 0;
+
+  return Math.hypot(
+    horizontalDistance,
+    verticalDistance
+  );
+}
+
+/**
+ * 同一个文档索引既可能表示“上一段末尾”，也可能表示“下一段段首”。
+ * 不能只凭插入索引决定段落归属；需要比较鼠标更靠近哪一个视觉锚点。
+ */
+export function shouldAttachDropToPreviousParagraph(
+  clientX,
+  clientY,
+  previousEndRect,
+  nextParagraphHeadRect
+) {
+  if (
+    !previousEndRect ||
+    !nextParagraphHeadRect
+  ) {
+    return false;
+  }
+
+  const previousHeight =
+    Math.max(
+      1,
+      Number(previousEndRect.height) ||
+        previousEndRect.bottom -
+          previousEndRect.top
+    );
+
+  const withinPreviousLineBand =
+    clientY >=
+      previousEndRect.top - 4 &&
+    clientY <=
+      previousEndRect.bottom +
+        Math.max(8, previousHeight * 0.45);
+
+  const pointsTowardPreviousLineEnd =
+    clientX >=
+      previousEndRect.left +
+        Math.max(
+          8,
+          (previousEndRect.right -
+            previousEndRect.left) *
+            0.45
+        );
+
+  if (
+    withinPreviousLineBand &&
+    pointsTowardPreviousLineEnd
+  ) {
+    return true;
+  }
+
+  return (
+    getPointToRectDistance(
+      clientX,
+      clientY,
+      previousEndRect
+    ) <
+    getPointToRectDistance(
+      clientX,
+      clientY,
+      nextParagraphHeadRect
+    )
+  );
+}
+
 /**
  * 根据鼠标位置计算模块插入索引。
  *
