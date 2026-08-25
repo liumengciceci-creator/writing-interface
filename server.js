@@ -2308,10 +2308,13 @@ ${JSON.stringify(blocks, null, 2)}
 - suggestion 不设字数限制，通常用 3 个“• ”要点依次说明：当前模块关系完成了什么但还缺什么；建议加强、插入或重构什么；这样会建立哪条支持、解释、回应或归纳关系。不要给完整替换正文。
 - 问题数量没有上下限；只标记真正影响关系强度的修改点，不得为了凑数输出次要建议。
 
-关系审阅必须使用以下 JSON 对象结构：
-{"summaryHighlights":[],"criteria":[{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","paragraph":0或段落序号,"relatedIds":["本项需要共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue","summary":"一句简洁的关系判断","issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}]}
+每项关系分三步输出。meta 使用以下对象：
+{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","paragraph":0或段落序号,"relatedIds":["本项需要共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue"}
 
-criteria 不得包含未知 id，不得重复同一关系。summary 必须以“标题：”或“第几段：”开头，只写一个完整短句，不写建议、不列分点、不加符号。所有文字使用模块正文的主要语言。`;
+issue 在 pass 时输出 null；在 issue 时使用以下对象：
+{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}
+
+不得包含未知 id，不得重复同一关系。summary 必须以“标题：”或“第几段：”开头，只写一个完整短句，不写建议、不列分点、不加符号。所有文字使用模块正文的主要语言。`;
 
     const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和全部模块关系判断。
 
@@ -2320,11 +2323,18 @@ ${criteriaPlanPrompt}
 ${overallSummaryPrompt}
 
 严格遵守以下输出协议：
-1. 先输出 <overall_summary>，标签内部只放整体评价正文；随后立即关闭 </overall_summary>。
-2. 接着输出 <relation_plan>，标签内部只放已经完成判断的关系审阅 JSON；随后关闭 </relation_plan>。
-3. 不输出代码块、解释、前言或任何其他内容。
+1. 在任何可见正文之前，只识别一次需要检查的关系，并输出：
+<relation_map>[所有单项 meta JSON 组成的数组]</relation_map>
+这里的 meta 必须使用下方第 3 步规定的完整 meta 对象，按标题、第一段、第二段、第三段排序。它是本次审阅唯一一次关系识别；关闭标签后不得重新选择、增删、重排或重新分析需要检查哪些模块。
+2. 随即输出 <overall_summary>，标签内部只放整体评价正文；随后立即关闭 </overall_summary>。
+3. 整体评价关闭后，必须立刻按 relation_map 的既定顺序逐项输出关系，不得停下来重新识别。每项开头的 meta 必须原样复制 relation_map 中对应对象，然后严格依次输出：
+<criterion_meta>{单项 meta JSON}</criterion_meta>
+<criterion_summary>一句简洁关系结论</criterion_summary>
+<criterion_issue>{issue JSON 或 null}</criterion_issue>
+4. 一项结束后立刻开始下一项；全部结束后输出 <review_complete></review_complete>。
+5. 除 relation_map 明确要求的数组外，不输出其他数组外壳、代码块、解释、前言或任何其他内容。
 
-两个部分必须基于同一次全文理解，不能在输出整体评价后重新分析一次全文。`;
+relation_map、整体评价与逐项结果必须基于同一次全文理解。逐项阶段只展开已经确定的判断，不能在输出整体评价后再次识别全文。`;
 
     const reviewUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
     const titleBlock = blocks.find((block) => block.type.toLowerCase() === "title");
@@ -2344,10 +2354,20 @@ ${overallSummaryPrompt}
       let firstPassBuffer = "";
       let summaryStarted = false;
       let summaryClosed = false;
-      const planOpenTag = "<relation_plan>";
-      const planCloseTag = "</relation_plan>";
       const summaryOpenTag = "<overall_summary>";
       const summaryCloseTag = "</overall_summary>";
+      const criterionMetaOpenTag = "<criterion_meta>";
+      const criterionMetaCloseTag = "</criterion_meta>";
+      const criterionSummaryOpenTag = "<criterion_summary>";
+      const criterionSummaryCloseTag = "</criterion_summary>";
+      const criterionIssueOpenTag = "<criterion_issue>";
+      const criterionIssueCloseTag = "</criterion_issue>";
+      const streamedCriterionItems = [];
+      let activeCriterionMeta = null;
+      let activeCriterionSummary = "";
+      let criterionSummaryStarted = false;
+      let criterionSummaryClosed = false;
+      const streamedCriterionKeys = new Set();
 
       const emitSummaryText = (value) => {
         const delta = String(value || "");
@@ -2361,6 +2381,151 @@ ${overallSummaryPrompt}
         if (acceptedDelta.length < delta.length) summaryWasTruncated = true;
         overallSummary += acceptedDelta;
         if (acceptedDelta) writeLine(res, { type: "summary_delta", delta: acceptedDelta });
+      };
+
+      const emitCriterionSummaryText = (value) => {
+        const delta = String(value || "");
+        if (!delta || !activeCriterionMeta) return;
+        activeCriterionSummary += delta;
+        writeLine(res, {
+          type: "criterion_summary_delta",
+          key: activeCriterionMeta.key,
+          delta,
+        });
+      };
+
+      const normalizeStreamedMeta = (value) => {
+        const relatedIds = Array.from(new Set(
+          (Array.isArray(value?.relatedIds) ? value.relatedIds : [])
+            .map(String)
+            .filter((id) => validIds.has(id))
+        ));
+        const includesTitle = Boolean(titleBlock && relatedIds.includes(titleBlock.id));
+        const key = includesTitle
+          ? "relation-title-core"
+          : String(value?.key || `custom-${streamedCriterionItems.length + 1}`).trim();
+        const criterion = String(value?.criterion || "").replace(/\s+/g, " ").trim();
+        if (!key || !criterion || !relatedIds.length || streamedCriterionKeys.has(key)) {
+          return null;
+        }
+        const relatedParagraphs = relatedIds
+          .map((id) => blocks.find((block) => block.id === id)?.paragraph)
+          .map(Number)
+          .filter((paragraph) => Number.isFinite(paragraph) && paragraph > 0);
+        const paragraph = includesTitle
+          ? 0
+          : relatedParagraphs.length
+            ? Math.max(...relatedParagraphs)
+            : Math.max(1, Number(value?.paragraph) || 1);
+        const requestedStatus = value?.status === "issue" ? "issue" : "pass";
+        const parsedStrength = Number(value?.relationStrength);
+        const relationStrength = Math.max(0, Math.min(100,
+          Number.isFinite(parsedStrength)
+            ? Math.round(parsedStrength)
+            : requestedStatus === "issue" ? 75 : 90
+        ));
+        streamedCriterionKeys.add(key);
+        return {
+          key,
+          criterion,
+          paragraph,
+          relatedIds,
+          relationStrength,
+          status: requestedStatus === "issue" || relationStrength < 90 ? "issue" : "pass",
+        };
+      };
+
+      const processCriterionBuffer = () => {
+        while (summaryClosed) {
+          if (!activeCriterionMeta) {
+            const metaStart = firstPassBuffer.indexOf(criterionMetaOpenTag);
+            if (metaStart < 0) return;
+            const metaEnd = firstPassBuffer.indexOf(
+              criterionMetaCloseTag,
+              metaStart + criterionMetaOpenTag.length
+            );
+            if (metaEnd < 0) return;
+            const metaText = firstPassBuffer.slice(
+              metaStart + criterionMetaOpenTag.length,
+              metaEnd
+            ).trim();
+            firstPassBuffer = firstPassBuffer.slice(metaEnd + criterionMetaCloseTag.length);
+            activeCriterionMeta = normalizeStreamedMeta(
+              JSON.parse(cleanModelJsonText(metaText))
+            );
+            activeCriterionSummary = "";
+            criterionSummaryStarted = false;
+            criterionSummaryClosed = false;
+            if (!activeCriterionMeta) continue;
+            writeLine(res, {
+              type: "criterion_start",
+              ...activeCriterionMeta,
+              index: streamedCriterionItems.length,
+              total: streamedCriterionItems.length + 1,
+            });
+          }
+
+          if (!criterionSummaryStarted) {
+            const summaryStart = firstPassBuffer.indexOf(criterionSummaryOpenTag);
+            if (summaryStart < 0) return;
+            firstPassBuffer = firstPassBuffer.slice(
+              summaryStart + criterionSummaryOpenTag.length
+            );
+            criterionSummaryStarted = true;
+          }
+
+          if (!criterionSummaryClosed) {
+            const relationSummaryEnd = firstPassBuffer.indexOf(criterionSummaryCloseTag);
+            if (relationSummaryEnd < 0) {
+              const safeLength = Math.max(
+                0,
+                firstPassBuffer.length - criterionSummaryCloseTag.length + 1
+              );
+              if (safeLength > 0) {
+                emitCriterionSummaryText(firstPassBuffer.slice(0, safeLength));
+                firstPassBuffer = firstPassBuffer.slice(safeLength);
+              }
+              return;
+            }
+
+            emitCriterionSummaryText(firstPassBuffer.slice(0, relationSummaryEnd));
+            firstPassBuffer = firstPassBuffer.slice(
+              relationSummaryEnd + criterionSummaryCloseTag.length
+            );
+            criterionSummaryClosed = true;
+          }
+
+          const issueStart = firstPassBuffer.indexOf(criterionIssueOpenTag);
+          if (issueStart < 0) return;
+          const issueEnd = firstPassBuffer.indexOf(
+            criterionIssueCloseTag,
+            issueStart + criterionIssueOpenTag.length
+          );
+          if (issueEnd < 0) return;
+          const issueText = firstPassBuffer.slice(
+            issueStart + criterionIssueOpenTag.length,
+            issueEnd
+          ).trim();
+          firstPassBuffer = firstPassBuffer.slice(issueEnd + criterionIssueCloseTag.length);
+
+          const parsedIssue = /^(?:null|none)$/i.test(issueText)
+            ? null
+            : JSON.parse(cleanModelJsonText(issueText));
+          const rawResult = {
+            ...activeCriterionMeta,
+            summary: activeCriterionSummary.replace(/\s+/g, " ").trim(),
+            issue: activeCriterionMeta.status === "issue" ? parsedIssue : null,
+          };
+          streamedCriterionItems.push(rawResult);
+          writeLine(res, {
+            type: "criterion_result",
+            ...rawResult,
+          });
+          activeCriterionMeta = null;
+          activeCriterionSummary = "";
+          criterionSummaryStarted = false;
+          criterionSummaryClosed = false;
+        }
       };
 
       for await (const event of firstPassStream) {
@@ -2398,23 +2563,14 @@ ${overallSummaryPrompt}
           }
         }
 
-        if (summaryClosed && !parsedPlan) {
-          const planStart = firstPassBuffer.indexOf(planOpenTag);
-          const planEnd = firstPassBuffer.indexOf(planCloseTag);
-          if (planStart >= 0 && planEnd > planStart) {
-            const planText = firstPassBuffer.slice(
-              planStart + planOpenTag.length,
-              planEnd
-            ).trim();
-            parsedPlan = JSON.parse(cleanModelJsonText(planText));
-            firstPassBuffer = firstPassBuffer.slice(planEnd + planCloseTag.length);
-          }
-        }
+        if (summaryClosed) processCriterionBuffer();
       }
 
       if (!summaryStarted) throw new Error("整体审阅没有返回整体评价");
       if (!summaryClosed) throw new Error("整体审阅没有完整结束整体评价");
-      if (!parsedPlan) throw new Error("整体审阅没有返回模块关系判断");
+      processCriterionBuffer();
+      parsedPlan = { criteria: streamedCriterionItems };
+      if (!streamedCriterionItems.length) throw new Error("整体审阅没有返回模块关系判断");
 
       overallSummary = overallSummary
         .replace(/[ \t]+/g, " ")
@@ -2771,7 +2927,10 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
           };
       };
 
-      const emitCriterionResultLine = (rawLine) => {
+      const emitCriterionResultLine = (
+        rawLine,
+        { emitEvents = true } = {}
+      ) => {
         const line = String(rawLine || "")
           .trim()
           .replace(/^```(?:json)?\s*/i, "")
@@ -2842,10 +3001,10 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
           };
           completedCriteria.push(result);
           if (issue) enhancements.push(issue);
-          // 只有对应判断已经完整生成后才开始闪烁该组模块。
-          // 客户端会给所有检查项相同的短展示节拍，避免第一个模块替模型首轮推理“长时间假闪”。
-          emitCriterionStart(completedCriteria.length - 1);
-          writeLine(res, { type: "criterion_result", ...result });
+          if (emitEvents) {
+            emitCriterionStart(completedCriteria.length - 1);
+            writeLine(res, { type: "criterion_result", ...result });
+          }
         } catch (error) {
           console.warn("跳过无法解析的 GRE 检查流行：", line, error.message);
         }
@@ -2857,7 +3016,7 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
         emitCriterionResultLine(JSON.stringify({
           ...item,
           type: "criterion_result",
-        }));
+        }), { emitEvents: false });
       });
       if (diagnosticProtocolError) throw diagnosticProtocolError;
       if (completedCriteria.length !== plannedCriteria.length) {
@@ -2865,6 +3024,13 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
           `审阅结果不完整：仅完成 ${completedCriteria.length}/${plannedCriteria.length} 项检查`
         );
       }
+
+      writeLine(res, {
+        type: "criteria_final",
+        total: completedCriteria.length,
+        criteria: completedCriteria,
+        enhancements,
+      });
 
       writeLine(res, {
         type: "final",

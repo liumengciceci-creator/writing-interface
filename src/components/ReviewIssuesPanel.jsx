@@ -435,7 +435,7 @@ export default function ReviewIssuesPanel({
                       fontStyle: checking ? "italic" : "normal",
                     }}
                   >
-                    {checking
+                    {checking && !String(criterion.summary || "").trim()
                       ? t("review.checking")
                       : stripParagraphPrefix(criterion.summary)}
                   </div>

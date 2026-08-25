@@ -750,9 +750,25 @@ export default function App() {
                 criterion: String(event.criterion || "").trim(),
               }),
             }));
-            // 服务端只在本项结果已经准备好时发送 start；这里用固定节拍
-            // 展示正在核对的模块，使首项与后续各项的闪烁时长一致。
-            await waitForReviewBeat(420);
+            // meta 一到就开始闪烁；关系结论随后由同一模型流实时写入。
+            await waitForReviewBeat(220);
+            return;
+          }
+
+          if (event.type === "criterion_summary_delta") {
+            const criterionKey = String(event.key || "");
+            const delta = String(event.delta || "");
+            if (!criterionKey || !delta) return;
+            setReviewState((state) => ({
+              ...state,
+              criteria: state.criteria.map((item) =>
+                item.key === criterionKey
+                  ? { ...item, summary: `${item.summary || ""}${delta}` }
+                  : item
+              ),
+            }));
+            // 保留真实流式感，但避免一句判断瞬间全部跳出。
+            await waitForReviewBeat(28);
             return;
           }
 
@@ -788,6 +804,43 @@ export default function App() {
                 : state.results,
             }));
             await waitForReviewBeat(120);
+            return;
+          }
+
+          if (event.type === "criteria_final") {
+            const finalizedResults = [];
+            const finalizedCriteria = (Array.isArray(event.criteria) ? event.criteria : [])
+              .map((criterion, index) => {
+                const issue = criterion?.status === "issue" && criterion?.issue
+                  ? createReviewResult({
+                      ...criterion.issue,
+                      criterionKey: criterion.key,
+                      criterion: criterion.criterion,
+                      summary: criterion.summary,
+                    }, index)
+                  : null;
+                if (issue) finalizedResults.push(issue);
+                return {
+                  key: String(criterion?.key || `criterion-${index}`),
+                  criterion: String(criterion?.criterion || ""),
+                  paragraph: Math.max(0, Number(criterion?.paragraph) || 0),
+                  summary: String(criterion?.summary || "").trim(),
+                  status: issue ? "issue" : "pass",
+                  relationStrength: Number.isFinite(Number(criterion?.relationStrength))
+                    ? Math.max(0, Math.min(100, Math.round(Number(criterion.relationStrength))))
+                    : null,
+                  relatedIds: (Array.isArray(criterion?.relatedIds) ? criterion.relatedIds : [])
+                    .map(String),
+                  issueId: issue?.id || null,
+                };
+              });
+            setReviewState((state) => ({
+              ...state,
+              total: finalizedCriteria.length,
+              current: finalizedCriteria.length,
+              criteria: finalizedCriteria,
+              results: finalizedResults,
+            }));
             return;
           }
 

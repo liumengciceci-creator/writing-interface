@@ -68,7 +68,10 @@ const checks = [
     pass:
       server.includes("const firstPassPrompt") &&
       server.includes("const firstPassStream = await openai.responses.create") &&
-      server.includes('const planOpenTag = "<relation_plan>"') &&
+      server.includes("<relation_map>") &&
+      server.includes("它是本次审阅唯一一次关系识别") &&
+      server.includes('const criterionMetaOpenTag = "<criterion_meta>"') &&
+      server.includes('const criterionSummaryOpenTag = "<criterion_summary>"') &&
       server.includes('const summaryOpenTag = "<overall_summary>"') &&
       server.includes("只通读一次全文，同时完成整体评价和全部模块关系判断") &&
       server.includes("对每一项关系直接完成判断，不要只列计划") &&
@@ -98,18 +101,20 @@ const checks = [
     pass:
       app.includes('status: "checking"') &&
       app.includes('event.type === "criteria_ready"') &&
-      app.includes("await waitForReviewBeat(420)") &&
+      app.includes('event.type === "criterion_summary_delta"') &&
+      app.includes("await waitForReviewBeat(28)") &&
       reviewPanel.includes("paragraphGroups.map") &&
       reviewPanel.includes('t("review.checking")'),
   },
   {
     name: "first relationship does not absorb model reasoning latency",
     pass:
-      server.includes("只有对应判断已经完整生成后才开始闪烁该组模块") &&
-      server.indexOf("emitCriterionStart(completedCriteria.length - 1)") <
-        server.indexOf('writeLine(res, { type: "criterion_result", ...result })') &&
-      !server.includes("emitCriterionStart(0);\n      for await") &&
-      app.includes("使首项与后续各项的闪烁时长一致"),
+      server.indexOf('type: "criterion_start",\n              ...activeCriterionMeta') <
+        server.indexOf("emitCriterionSummaryText(firstPassBuffer.slice(0, safeLength))") &&
+      server.indexOf("emitCriterionSummaryText(firstPassBuffer.slice(0, safeLength))") <
+        server.indexOf('type: "criterion_result",\n            ...rawResult') &&
+      server.includes("整体评价关闭后，必须立刻按 relation_map 的既定顺序逐项输出关系") &&
+      app.includes("meta 一到就开始闪烁"),
   },
   {
     name: "relationship review appears immediately and starts from the title",

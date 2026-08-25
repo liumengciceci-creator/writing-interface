@@ -88,6 +88,7 @@ const checks = [
       server.includes("plannedCriterionResults.forEach") &&
       !server.includes("diagnosticStream") &&
       server.includes('type: "criterion_start"') &&
+      server.includes('type: "criterion_summary_delta"') &&
       server.includes('type: "criterion_result"'),
     "one model pass must stream the overall assessment and reuse its relationship judgments",
   ],
