@@ -59,7 +59,7 @@ const LEGACY_PALETTE_WIDTH_STORAGE_KEY =
   "writing-interface-palette-width";
 
 const LABEL_PALETTE_WIDTH_STORAGE_KEY =
-  "writing-interface-label-palette-width";
+  "writing-interface-label-palette-width-v2";
 
 const TEMPLATE_ORDER_STORAGE_KEY =
   "writing-interface-label-template-order";
@@ -136,7 +136,7 @@ function loadPaletteWidth(storageKey) {
     // 使用默认宽度。
   }
 
-  return 152;
+  return 136;
 }
 
 function loadDefaultTemplateOverrides() {

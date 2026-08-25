@@ -93,24 +93,25 @@ body {
 
 .editor-main {
   --review-panel-width: clamp(286px, 18vw, 320px);
+  --workspace-sidebar-width: 156px;
+  --workspace-center-offset: 78px;
 }
 
 .toolbar-shell {
-  --toolbar-center: 50%;
+  --toolbar-center: calc(50% - var(--workspace-center-offset));
 }
 
 .toolbar-shell.review-panel-open:not(.review-panel-stacked) {
-  --toolbar-center: 50%;
+  --toolbar-center: calc(50% - var(--workspace-center-offset));
 }
 
 .page-canvas-shell {
-  padding-right: 0;
+  padding-right: var(--workspace-sidebar-width);
   box-sizing: border-box;
 }
 
 .page-canvas-shell.review-panel-open {
-  padding-right: clamp(128px, 8vw, 160px);
-  transition: padding-right 180ms ease;
+  padding-right: var(--workspace-sidebar-width);
 }
 
 .review-issues-panel {
@@ -126,7 +127,7 @@ body {
 
 .editor-main.review-panel-stacked
   .page-canvas-shell.review-panel-open {
-  padding-right: 0;
+  padding-right: var(--workspace-sidebar-width);
 }
 
 .editor-main.review-panel-stacked .review-issues-panel {
@@ -143,11 +144,11 @@ body {
 
 @media (max-width: 1540px) {
   .toolbar-shell.review-panel-open {
-    --toolbar-center: 50%;
+    --toolbar-center: calc(50% - var(--workspace-center-offset));
   }
 
   .page-canvas-shell.review-panel-open {
-    padding-right: 0;
+    padding-right: var(--workspace-sidebar-width);
   }
 
   .review-issues-panel {

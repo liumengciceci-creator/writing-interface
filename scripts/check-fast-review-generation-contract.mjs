@@ -25,6 +25,7 @@ const quickInstructionComposer = fs.readFileSync(
   "utf8"
 );
 const styles = fs.readFileSync(path.join(root, "src/index.css"), "utf8");
+const sidebar = fs.readFileSync(path.join(root, "src/components/Sidebar.jsx"), "utf8");
 
 const checks = [
   {
@@ -108,12 +109,21 @@ const checks = [
       reviewPanel.includes("first.paragraph - second.paragraph"),
   },
   {
-    name: "review panel scrolls with the canvas and reserves a modest clear gap",
+    name: "canvas and toolbar share the viewport center without shifting for review",
     pass:
       styles.includes("position: absolute") &&
-      styles.includes("padding-right: clamp(128px, 8vw, 160px)") &&
+      styles.includes("--workspace-sidebar-width: 156px") &&
+      styles.includes("--workspace-center-offset: 78px") &&
+      styles.includes("padding-right: var(--workspace-sidebar-width)") &&
+      styles.includes("calc(50% - var(--workspace-center-offset))") &&
       styles.includes(".page-canvas-shell.review-panel-open") &&
       !styles.includes("var(--review-panel-width) +"),
+  },
+  {
+    name: "label palette starts at a compact width",
+    pass:
+      sidebar.includes('"writing-interface-label-palette-width-v2"') &&
+      sidebar.includes("return 136"),
   },
   {
     name: "review panel can be repositioned with a grab handle",

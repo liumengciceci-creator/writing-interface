@@ -1291,7 +1291,7 @@ export default function App() {
            * 审阅完成后仅展开紧凑的潜在修改点面板，不再显示关系树。
            */
           gridTemplateColumns:
-            "164px minmax(0, 1fr)",
+            "156px minmax(0, 1fr)",
 
           width:
             "100%",
