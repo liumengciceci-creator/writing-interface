@@ -887,6 +887,226 @@ function createDraggedModuleData(
   };
 }
 
+/**
+ * 为 Sidebar 标签生成透明的圆角拖拽影像。
+ *
+ * 直接拖动原生 button 时，Chrome/macOS 会给快照垫一层白色矩形；
+ * Canvas 的未绘制区域保持透明，因此圆角外不会再出现白色方底。
+ * 这里只绘制模块本身，copy 手势的绿色加号仍由系统提供。
+ */
+function setRoundedTemplateDragImage(
+  event,
+  item,
+  displayLabel
+) {
+  const dataTransfer =
+    event.dataTransfer;
+
+  const sourceElement =
+    event.currentTarget;
+
+  if (
+    !dataTransfer ||
+    !sourceElement ||
+    typeof document === "undefined"
+  ) {
+    return;
+  }
+
+  const sourceRect =
+    sourceElement.getBoundingClientRect();
+
+  const visualWidth =
+    Math.max(
+      72,
+      Math.round(
+        sourceRect.width || 128
+      )
+    );
+
+  const visualHeight =
+    Math.max(
+      32,
+      Math.round(
+        sourceRect.height || 32
+      )
+    );
+
+  const pixelRatio =
+    Math.min(
+      2,
+      Math.max(
+        1,
+        window.devicePixelRatio || 1
+      )
+    );
+
+  const dragCanvas =
+    document.createElement("canvas");
+
+  dragCanvas.width =
+    Math.ceil(
+      visualWidth * pixelRatio
+    );
+  dragCanvas.height =
+    Math.ceil(
+      visualHeight * pixelRatio
+    );
+  dragCanvas.style.width =
+    `${visualWidth}px`;
+  dragCanvas.style.height =
+    `${visualHeight}px`;
+  dragCanvas.style.position =
+    "fixed";
+  dragCanvas.style.left =
+    "-10000px";
+  dragCanvas.style.top =
+    "-10000px";
+  dragCanvas.style.pointerEvents =
+    "none";
+
+  const context =
+    dragCanvas.getContext("2d");
+
+  if (!context) {
+    return;
+  }
+
+  context.scale(
+    pixelRatio,
+    pixelRatio
+  );
+  context.clearRect(
+    0,
+    0,
+    visualWidth,
+    visualHeight
+  );
+
+  const inset = 1;
+  const left = inset;
+  const top = inset;
+  const width =
+    visualWidth - inset * 2;
+  const height =
+    visualHeight - inset * 2;
+  const radius = 8;
+
+  context.beginPath();
+  context.moveTo(
+    left + radius,
+    top
+  );
+  context.lineTo(
+    left + width - radius,
+    top
+  );
+  context.quadraticCurveTo(
+    left + width,
+    top,
+    left + width,
+    top + radius
+  );
+  context.lineTo(
+    left + width,
+    top + height - radius
+  );
+  context.quadraticCurveTo(
+    left + width,
+    top + height,
+    left + width - radius,
+    top + height
+  );
+  context.lineTo(
+    left + radius,
+    top + height
+  );
+  context.quadraticCurveTo(
+    left,
+    top + height,
+    left,
+    top + height - radius
+  );
+  context.lineTo(
+    left,
+    top + radius
+  );
+  context.quadraticCurveTo(
+    left,
+    top,
+    left + radius,
+    top
+  );
+  context.closePath();
+
+  context.fillStyle =
+    item.fill ||
+    createSoftFillColor(
+      item.color
+    );
+  context.fill();
+
+  context.strokeStyle =
+    item.color || "#7c83fd";
+  context.lineWidth = 1.5;
+  context.stroke();
+
+  const sourceStyle =
+    window.getComputedStyle(
+      sourceElement
+    );
+
+  context.fillStyle = "#333";
+  context.font =
+    `400 13px ${sourceStyle.fontFamily || "sans-serif"}`;
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(
+    String(displayLabel || ""),
+    8,
+    visualHeight / 2,
+    Math.max(
+      0,
+      visualWidth - 16
+    )
+  );
+
+  document.body.appendChild(
+    dragCanvas
+  );
+
+  const hotspotX =
+    Math.max(
+      0,
+      Math.min(
+        visualWidth,
+        event.clientX -
+          sourceRect.left
+      )
+    );
+
+  const hotspotY =
+    Math.max(
+      0,
+      Math.min(
+        visualHeight,
+        event.clientY -
+          sourceRect.top
+      )
+    );
+
+  dataTransfer.setDragImage(
+    dragCanvas,
+    hotspotX,
+    hotspotY
+  );
+
+  window.setTimeout(
+    () => dragCanvas.remove(),
+    0
+  );
+}
+
 export default function Sidebar({
   customTemplates = [],
 
@@ -1461,10 +1681,15 @@ export default function Sidebar({
       );
 
       /**
-       * 让浏览器直接使用原标签的原生拖拽影像。
-       * Chrome 会自动给 copy 手势显示绿色加号，也不会因为自定义
-       * drag image 的热点取整而在第一帧向左上跳动。
+       * 使用透明 Canvas 作为拖拽影像，去除 Chrome 给原生 button
+       * 添加的白色方形底；系统 copy 加号由 effectAllowed 保留。
        */
+      setRoundedTemplateDragImage(
+        event,
+        item,
+        moduleData.label ||
+          moduleData.type
+      );
 
       /**
        * 必须等原生 dragstart 真正发生后再写 React 状态。

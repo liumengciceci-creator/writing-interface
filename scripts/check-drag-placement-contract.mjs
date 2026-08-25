@@ -131,7 +131,10 @@ const checks = [
       sidebar.includes('event.dataTransfer.effectAllowed =\n        "copy"') &&
       !sidebar.includes('data-template-copy-cue="true"') &&
       !pageCanvas.includes('data-template-drop-cue="true"') &&
-      !sidebar.includes("setDragImage(") &&
+      sidebar.includes('document.createElement("canvas")') &&
+      sidebar.includes("context.clearRect(") &&
+      sidebar.includes("dataTransfer.setDragImage(") &&
+      sidebar.includes("event.clientX -\n          sourceRect.left") &&
       sidebar.includes("onTemplateDragEnd?.()") &&
       canvasDrop.includes("const cancelTemplateDrag =") &&
       app.includes("onTemplateDragEnd={") &&
