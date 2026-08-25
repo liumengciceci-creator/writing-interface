@@ -37,6 +37,7 @@ import {
 
 import {
   getDropIndex,
+  resolveDropForceLineBreak,
   shouldStartNewLine,
 } from "./dragPositionUtils.js";
 
@@ -130,6 +131,96 @@ function getBlockDropAnchor(
   return {
     clientX,
     rect: anchorRect,
+  };
+}
+
+/**
+ * 计算唯一的段首落点。
+ *
+ * 当当前位置正好位于一个已有段落的首模块之前时，不再显示段间的
+ * 第二条远蓝线；统一使用紧贴模块的落点，并让拖入模块成为该段新段首。
+ */
+function getParagraphAwareDropPlacement(
+  editor,
+  clientX,
+  clientY,
+  excludedBlockIds = null,
+  candidateElements = null
+) {
+  const excludedIds = new Set(
+    (
+      Array.isArray(excludedBlockIds)
+        ? excludedBlockIds
+        : [excludedBlockIds]
+    )
+      .map(normalizeId)
+      .filter(Boolean)
+  );
+
+  const candidates =
+    Array.isArray(candidateElements)
+      ? candidateElements
+      : Array.from(
+          editor.querySelectorAll(
+            "[data-semantic-block-id]"
+          )
+        ).filter(
+          (element) =>
+            !excludedIds.has(
+              normalizeId(
+                element.getAttribute(
+                  "data-semantic-block-id"
+                )
+              )
+            )
+        );
+
+  const inlineInsertIndex =
+    getDropIndex(
+      editor,
+      clientX,
+      clientY,
+      excludedBlockIds,
+      false
+    );
+
+  const insertsBeforeParagraphHead =
+    candidates[
+      inlineInsertIndex
+    ]?.dataset
+      ?.forceLineBreakBefore ===
+    "true";
+
+  if (insertsBeforeParagraphHead) {
+    return {
+      insertIndex: inlineInsertIndex,
+      startsNewLine: false,
+      forceLineBreakBefore: true,
+    };
+  }
+
+  const startsNewLine =
+    shouldStartNewLine(
+      editor,
+      clientX,
+      clientY,
+      excludedBlockIds
+    );
+
+  return {
+    insertIndex: getDropIndex(
+      editor,
+      clientX,
+      clientY,
+      excludedBlockIds,
+      startsNewLine
+    ),
+    startsNewLine,
+    forceLineBreakBefore:
+      resolveDropForceLineBreak(
+        startsNewLine,
+        false
+      ),
   };
 }
 
@@ -703,31 +794,8 @@ const SingleSemanticEditor =
                   root.offsetHeight
                 : scaleX;
 
-            const startsNewLine =
-              shouldStartNewLine(
-                root,
-                event.clientX,
-                event.clientY,
-                draggingId || null
-              );
-
-            const newLineTop =
-              event.clientY >
-              nearestEntry.rect.bottom
-                ? nearestEntry.rect.bottom + 10
-                : nearestEntry.rect.top;
-
             const excludedBlockIds =
               Array.from(excludedIds);
-
-            const insertIndex =
-              getDropIndex(
-                root,
-                event.clientX,
-                event.clientY,
-                excludedBlockIds,
-                startsNewLine
-              );
 
             const candidateElements =
               Array.from(
@@ -744,6 +812,25 @@ const SingleSemanticEditor =
                     )
                   )
               );
+
+            const {
+              insertIndex,
+              startsNewLine,
+              forceLineBreakBefore,
+            } =
+              getParagraphAwareDropPlacement(
+                root,
+                event.clientX,
+                event.clientY,
+                excludedBlockIds,
+                candidateElements
+              );
+
+            const newLineTop =
+              event.clientY >
+              nearestEntry.rect.bottom
+                ? nearestEntry.rect.bottom + 10
+                : nearestEntry.rect.top;
 
             const nearestElementIndex =
               candidateElements.indexOf(
@@ -768,8 +855,8 @@ const SingleSemanticEditor =
 
             dropPlacementRef.current = {
               insertIndex,
-              forceLineBreakBefore:
-                startsNewLine,
+              startsNewLine,
+              forceLineBreakBefore,
             };
 
             setDropIndicator({
@@ -1603,12 +1690,20 @@ const SingleSemanticEditor =
                 root.offsetHeight
               : scaleX;
 
-          const startsNewLine =
-            shouldStartNewLine(
+          const excludedBlockIds =
+            Array.from(excludedIds);
+
+          const {
+            insertIndex,
+            startsNewLine,
+            forceLineBreakBefore,
+          } =
+            getParagraphAwareDropPlacement(
               root,
               pointerX,
               pointerY,
-              draggingId || null
+              excludedBlockIds,
+              candidates
             );
 
           const newLineTop =
@@ -1616,15 +1711,6 @@ const SingleSemanticEditor =
             nearestEntry.rect.bottom
               ? nearestEntry.rect.bottom + 10
               : nearestEntry.rect.top;
-
-          const insertIndex =
-            getDropIndex(
-              root,
-              pointerX,
-              pointerY,
-              Array.from(excludedIds),
-              startsNewLine
-            );
 
           const nearestElementIndex =
             candidates.indexOf(
@@ -1649,8 +1735,8 @@ const SingleSemanticEditor =
 
           dropPlacementRef.current = {
             insertIndex,
-            forceLineBreakBefore:
-              startsNewLine,
+            startsNewLine,
+            forceLineBreakBefore,
           };
 
           setDropIndicator({
@@ -1907,10 +1993,9 @@ const SingleSemanticEditor =
               ) &&
               existingId != null;
 
-            const requestedLineBreakBefore =
-              indicatedPlacement
-                ?.forceLineBreakBefore ??
-              shouldStartNewLine(
+            const resolvedPlacement =
+              indicatedPlacement ||
+              getParagraphAwareDropPlacement(
                 editorRef.current,
                 event.clientX,
                 event.clientY,
@@ -1920,28 +2005,10 @@ const SingleSemanticEditor =
               );
 
             const insertIndex =
-              indicatedPlacement
-                ?.insertIndex ??
-              getDropIndex(
-                editorRef.current,
-                event.clientX,
-                event.clientY,
-                isExistingBlock
-                  ? draggedSelection
-                  : null,
-                requestedLineBreakBefore
-              );
+              resolvedPlacement.insertIndex;
 
-	            /**
-	             * 相同的 insertIndex 既可能表示“上一段末尾”，也可能表示
-	             * “下一段开头”。不能因为该索引后的旧模块是段首，就把拖入
-	             * 模块强制变成下一段段首；换行只服从蓝色落点的真实意图。
-	             * 指针位于下一段左上方时 shouldStartNewLine 会返回 true，
-	             * 位于上一段行尾时则保持 false，后一个旧段首标记继续保留。
-	             */
-	            const forceLineBreakBefore = Boolean(
-	              requestedLineBreakBefore
-	            );
+            const forceLineBreakBefore =
+              resolvedPlacement.forceLineBreakBefore;
 
             if (
               isExistingBlock

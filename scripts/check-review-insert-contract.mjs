@@ -130,6 +130,14 @@ const checks = [
     "accepting an insert review must create and generate a real block",
   ],
   [
+    server.includes('insertPlacement="previous_paragraph_end"') &&
+      server.includes('insertPlacement="current_paragraph_start"') &&
+      server.includes('insertPlacement = "between_modules"') &&
+      app.includes("item.insertPlacement ===") &&
+      app.includes('"current_paragraph_start"'),
+    "cross-paragraph review inserts must explicitly choose the previous paragraph end or current paragraph start",
+  ],
+  [
     reviewApi.includes("generateBlocksStream") &&
       reviewApi.includes("review-insert-target"),
     "inserted review blocks must reuse the validated streaming generation path",

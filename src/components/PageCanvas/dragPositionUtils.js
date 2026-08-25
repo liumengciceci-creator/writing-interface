@@ -562,3 +562,21 @@ export function shouldStartNewLine(
 
   return false;
 }
+
+/**
+ * 同一个段落边界会提供两个视觉落点：
+ * 1. 靠近段首模块：把新模块插到它前面，并让新模块成为这一段的新段首；
+ * 2. 位于段间空隙、离模块更远：把新模块接到上一段末尾，保留旧段首。
+ *
+ * 普通位置仍沿用 startsNewLine；只有正好插在现有段首前时才区分上述语义。
+ */
+export function resolveDropForceLineBreak(
+  startsNewLine,
+  insertsBeforeParagraphHead
+) {
+  if (insertsBeforeParagraphHead) {
+    return !Boolean(startsNewLine);
+  }
+
+  return Boolean(startsNewLine);
+}

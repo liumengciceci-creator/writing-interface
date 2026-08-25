@@ -2327,6 +2327,7 @@ ${JSON.stringify(blocks, null, 2)}
 - 已有证据方向相关但缺少“为何支持主张”的解释时，加强已有分析／推理；没有承载位置时新增分析模块，不得把它改判为“让证据更严谨”。
 - 只有真实外部材料不可替代时才建议数据或证据，绝不虚构研究、理论、数据、来源或事实。
 - suggestion 不设字数限制，通常用 3 个“• ”要点依次说明：当前模块关系完成了什么但还缺什么；建议加强、插入或重构什么；这样会建立哪条支持、解释、回应或归纳关系。不要给完整替换正文。
+- insert 跨越段落边界时，必须判断新增模块属于哪一段：若它继续完成 sourceId 所在段的归纳、收束或补充，insertPlacement="previous_paragraph_end"；若它用于开启、提出、界定或引导 targetId 所在段，insertPlacement="current_paragraph_start"。同一段内插入使用 insertPlacement="between_modules"。不得仅按相邻索引机械选择。
 - ${interfaceLabelRule}
 - 问题数量没有上下限；只标记真正影响关系强度的修改点，不得为了凑数输出次要建议。
 
@@ -2334,7 +2335,7 @@ ${JSON.stringify(blocks, null, 2)}
 {"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","paragraph":0或段落序号,"relatedIds":["本项需要共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue"}
 
 issue 在 pass 时输出 null；在 issue 时使用以下对象：
-{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}
+{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","insertPlacement":"新增时为between_modules、previous_paragraph_end或current_paragraph_start，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}
 
 不得包含未知 id，不得重复同一关系。summary 必须以“标题：”或“第几段：”开头，只写一个完整短句，不写建议、不列分点、不加符号。所有文字使用模块正文的主要语言。`;
 
@@ -2736,12 +2737,12 @@ summary 必须以 criterion 的分组前缀开头：标题检查使用“标题�
 - 已有证据方向相关但没有说明其证明作用时，缺口属于分析／推理，不属于结论；证据方向本身错误时才整块重构证据；只有外部可验证材料确实不可替代时才新增证据。
 - revise 的 sourceId 必须是真正需要改变内容的模块，targetId 是它需要解释、支持、回应或归纳的相关模块。insert 的 sourceId／targetId 必须分别是缺口两侧的相邻模块。
 
-新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。
+新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。若二者跨段，必须根据新增模块的论证功能设置 insertPlacement：继续完成前段时用 previous_paragraph_end，开启或引导后段时用 current_paragraph_start；同段中间用 between_modules。
 
 replace 也采用开放类型。若只是把方向错误的例子换成更合适的证据，replaceType／replaceLabel 可以仍是原证据类型；若需要把例子或证据改为理论、分析、机制、推理等不同功能，则填写新的 replaceType 与 replaceLabel。不得仅因数据看起来更正式就用数据替换例子，也不得虚构数据、理论、研究或来源。
 
 严格按计划顺序，每项只输出一行：
-{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","relationStrength":0到100的整数,"status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的模块类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
+{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","relationStrength":0到100的整数,"status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","insertPlacement":"新增时为between_modules、previous_paragraph_end或current_paragraph_start，否则空字符串","replaceType":"替换后的模块类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
 
 relationStrength>=90 且 status="pass" 时 issue 必须是 null；relationStrength<90 时 status 必须是 "issue" 且 issue 必须完整。不输出代码块、数组外壳或额外文字。
 
@@ -2780,6 +2781,7 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
 
           let insertType = String(enhancement?.insertType || enhancement?.insertLabel || "").trim();
           let insertLabel = String(enhancement?.insertLabel || enhancement?.insertType || "").trim();
+          let insertPlacement = String(enhancement?.insertPlacement || "").trim();
           let replaceType = String(
             enhancement?.replaceType || enhancement?.replaceLabel || ""
           ).trim();
@@ -2909,6 +2911,29 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
             const targetIndex = blocks.findIndex((block) => block.id === targetId);
             if (targetIndex !== sourceIndex + 1 || !insertType || !insertLabel) return null;
 
+            const normalizedSourceBlock = blocks[sourceIndex];
+            const normalizedTargetBlock = blocks[targetIndex];
+            const crossesParagraphBoundary =
+              normalizedTargetBlock?.startsParagraph === true &&
+              normalizedSourceBlock?.paragraph !== normalizedTargetBlock?.paragraph;
+
+            if (crossesParagraphBoundary) {
+              if (
+                insertPlacement !== "previous_paragraph_end" &&
+                insertPlacement !== "current_paragraph_start"
+              ) {
+                // 跨段新增必须有明确归属。模型遗漏时按本项主要评价的段落
+                // 兜底，而不是只看数组索引。
+                insertPlacement =
+                  Number(criterionItem?.paragraph) ===
+                  Number(normalizedTargetBlock?.paragraph)
+                    ? "current_paragraph_start"
+                    : "previous_paragraph_end";
+              }
+            } else {
+              insertPlacement = "between_modules";
+            }
+
             const evidenceLike = /evidence|empirical|data|证据|数据|实证/i.test(
               `${insertType} ${insertLabel}`
             );
@@ -2946,6 +2971,7 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
             targetId,
             insertType: action === "insert" ? insertType : "",
             insertLabel: action === "insert" ? insertLabel : "",
+            insertPlacement: action === "insert" ? insertPlacement : "",
             replaceType: action === "replace" ? replaceType : "",
             replaceLabel: action === "replace" ? replaceLabel : "",
             supportNeeded,

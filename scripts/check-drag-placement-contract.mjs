@@ -10,14 +10,20 @@ const floating = fs.readFileSync(
   "utf8"
 );
 
+const dragPosition = fs.readFileSync(
+  new URL("../src/components/PageCanvas/dragPositionUtils.js", import.meta.url),
+  "utf8"
+);
+
 const checks = [
   {
-	  name: "paragraph-end drops do not inherit the next paragraph head",
+	  name: "paragraph heads expose one near drop line that becomes the new head",
 	  pass:
-	    editor.includes("换行只服从蓝色落点的真实意图") &&
-	    /const forceLineBreakBefore = Boolean\(\s*requestedLineBreakBefore\s*\)/.test(editor) &&
-	    !editor.includes("targetAtInsert") &&
-	    !editor.includes("requestedLineBreakBefore ||"),
+	    editor.includes("function getParagraphAwareDropPlacement") &&
+	    editor.includes("不再显示段间的") &&
+	    editor.includes("forceLineBreakBefore: true") &&
+	    editor.includes("getParagraphAwareDropPlacement(") &&
+	    dragPosition.includes("resolveDropForceLineBreak"),
   },
   {
     name: "floating copy drop indicator uses an initialized rectangle",

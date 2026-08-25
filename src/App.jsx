@@ -627,6 +627,9 @@ export default function App() {
         insertAfterId: action === "insert" ? String(sourceBlock.id) : null,
         insertBeforeId: action === "insert" ? String(targetBlock.id) : null,
         insertType: action === "insert" ? suggestedTemplate.type : null,
+        insertPlacement: action === "insert"
+          ? String(item.insertPlacement || "between_modules")
+          : null,
         replaceType: action === "replace" ? suggestedTemplate.type : null,
         replaceLabel: action === "replace" ? suggestedTemplate.label : null,
         suggestedModule: action === "insert" || action === "replace"
@@ -1023,6 +1026,9 @@ export default function App() {
           fill: moduleTemplate.fill,
           text: moduleTemplate.label,
           isGenerated: false,
+          forceLineBreakBefore:
+            item.insertPlacement ===
+            "current_paragraph_start",
         },
         beforeIndex
       );
