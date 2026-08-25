@@ -134,7 +134,10 @@ const checks = [
       sidebar.includes('document.createElement("canvas")') &&
       sidebar.includes("context.clearRect(") &&
       sidebar.includes("dataTransfer.setDragImage(") &&
-      sidebar.includes("event.clientX -\n          sourceRect.left") &&
+      sidebar.includes("const badgeOverlap = 12") &&
+      sidebar.includes("const badgeTop =\n    bodyTop - badgeOverlap") &&
+      sidebar.includes("sourcePointerRatioX * bodyWidth") &&
+      sidebar.includes("sourcePointerRatioY * bodyHeight") &&
       sidebar.includes("onTemplateDragEnd?.()") &&
       canvasDrop.includes("const cancelTemplateDrag =") &&
       app.includes("onTemplateDragEnd={") &&

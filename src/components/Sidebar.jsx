@@ -888,11 +888,11 @@ function createDraggedModuleData(
 }
 
 /**
- * 为 Sidebar 标签生成透明的圆角拖拽影像。
+ * 为 Sidebar 标签生成与灰色工作区模块一致的透明拖拽影像。
  *
- * 直接拖动原生 button 时，Chrome/macOS 会给快照垫一层白色矩形；
- * Canvas 的未绘制区域保持透明，因此圆角外不会再出现白色方底。
- * 这里只绘制模块本身，copy 手势的绿色加号仍由系统提供。
+ * 拖拽一开始就绘制“圆角正文框 + 上方类型标签”，而不是先显示
+ * Sidebar 的扁平按钮、落下后才改变外观。Canvas 未绘制区域保持透明，
+ * Chrome/macOS 不会再补白色方底；copy 加号仍使用系统原生反馈。
  */
 function setRoundedTemplateDragImage(
   event,
@@ -916,21 +916,62 @@ function setRoundedTemplateDragImage(
   const sourceRect =
     sourceElement.getBoundingClientRect();
 
-  const visualWidth =
-    Math.max(
-      72,
-      Math.round(
-        sourceRect.width || 128
+  const sourceStyle =
+    window.getComputedStyle(
+      sourceElement
+    );
+
+  const labelText =
+    String(
+      displayLabel ||
+        item.label ||
+        item.type ||
+        ""
+    );
+
+  const measurementCanvas =
+    document.createElement("canvas");
+
+  const measurementContext =
+    measurementCanvas.getContext("2d");
+
+  if (measurementContext) {
+    measurementContext.font =
+      `400 14px ${sourceStyle.fontFamily || "sans-serif"}`;
+  }
+
+  const measuredTextWidth =
+    measurementContext
+      ?.measureText(labelText)
+      .width ||
+    Array.from(labelText).length * 14;
+
+  const bodyWidth =
+    Math.min(
+      280,
+      Math.max(
+        72,
+        Math.ceil(
+          measuredTextWidth + 28
+        )
       )
     );
 
+  const bodyHeight = 40;
+  const badgeHeight = 16;
+  const badgeOverlap = 12;
+  const shadowPadding = 10;
+  const bodyLeft = shadowPadding;
+  const bodyTop =
+    shadowPadding +
+    badgeOverlap;
+  const visualWidth =
+    bodyWidth +
+    shadowPadding * 2;
   const visualHeight =
-    Math.max(
-      32,
-      Math.round(
-        sourceRect.height || 32
-      )
-    );
+    bodyHeight +
+    badgeOverlap +
+    shadowPadding * 2;
 
   const pixelRatio =
     Math.min(
@@ -983,117 +1024,187 @@ function setRoundedTemplateDragImage(
     visualHeight
   );
 
-  const inset = 1;
-  const left = inset;
-  const top = inset;
-  const width =
-    visualWidth - inset * 2;
-  const height =
-    visualHeight - inset * 2;
-  const radius = 8;
+  const drawRoundedRect = (
+    left,
+    top,
+    width,
+    height,
+    radius
+  ) => {
+    const safeRadius =
+      Math.min(
+        radius,
+        width / 2,
+        height / 2
+      );
 
-  context.beginPath();
-  context.moveTo(
-    left + radius,
-    top
+    context.beginPath();
+    context.moveTo(
+      left + safeRadius,
+      top
+    );
+    context.lineTo(
+      left + width - safeRadius,
+      top
+    );
+    context.quadraticCurveTo(
+      left + width,
+      top,
+      left + width,
+      top + safeRadius
+    );
+    context.lineTo(
+      left + width,
+      top + height - safeRadius
+    );
+    context.quadraticCurveTo(
+      left + width,
+      top + height,
+      left + width - safeRadius,
+      top + height
+    );
+    context.lineTo(
+      left + safeRadius,
+      top + height
+    );
+    context.quadraticCurveTo(
+      left,
+      top + height,
+      left,
+      top + height - safeRadius
+    );
+    context.lineTo(
+      left,
+      top + safeRadius
+    );
+    context.quadraticCurveTo(
+      left,
+      top,
+      left + safeRadius,
+      top
+    );
+    context.closePath();
+  };
+
+  drawRoundedRect(
+    bodyLeft,
+    bodyTop,
+    bodyWidth,
+    bodyHeight,
+    10
   );
-  context.lineTo(
-    left + width - radius,
-    top
-  );
-  context.quadraticCurveTo(
-    left + width,
-    top,
-    left + width,
-    top + radius
-  );
-  context.lineTo(
-    left + width,
-    top + height - radius
-  );
-  context.quadraticCurveTo(
-    left + width,
-    top + height,
-    left + width - radius,
-    top + height
-  );
-  context.lineTo(
-    left + radius,
-    top + height
-  );
-  context.quadraticCurveTo(
-    left,
-    top + height,
-    left,
-    top + height - radius
-  );
-  context.lineTo(
-    left,
-    top + radius
-  );
-  context.quadraticCurveTo(
-    left,
-    top,
-    left + radius,
-    top
-  );
-  context.closePath();
 
   context.fillStyle =
     item.fill ||
     createSoftFillColor(
       item.color
     );
+  context.shadowColor =
+    "rgba(0,0,0,0.12)";
+  context.shadowBlur = 12;
+  context.shadowOffsetY = 5;
   context.fill();
 
+  context.shadowColor =
+    "transparent";
+  context.shadowBlur = 0;
+  context.shadowOffsetY = 0;
+
+  drawRoundedRect(
+    bodyLeft,
+    bodyTop,
+    bodyWidth,
+    bodyHeight,
+    10
+  );
   context.strokeStyle =
     item.color || "#7c83fd";
-  context.lineWidth = 1.5;
+  context.globalAlpha = 0.52;
+  context.lineWidth = 1;
   context.stroke();
-
-  const sourceStyle =
-    window.getComputedStyle(
-      sourceElement
-    );
+  context.globalAlpha = 1;
 
   context.fillStyle = "#333";
   context.font =
-    `400 13px ${sourceStyle.fontFamily || "sans-serif"}`;
+    `400 14px ${sourceStyle.fontFamily || "sans-serif"}`;
   context.textAlign = "left";
   context.textBaseline = "middle";
   context.fillText(
-    String(displayLabel || ""),
-    8,
-    visualHeight / 2,
+    labelText,
+    bodyLeft + 14,
+    bodyTop + bodyHeight / 2,
     Math.max(
       0,
-      visualWidth - 16
+      bodyWidth - 28
     )
+  );
+
+  context.font =
+    `600 9px ${sourceStyle.fontFamily || "sans-serif"}`;
+  const badgeWidth =
+    Math.min(
+      bodyWidth - 8,
+      Math.max(
+        28,
+        Math.ceil(
+          context.measureText(labelText).width + 12
+        )
+      )
+    );
+  const badgeLeft =
+    bodyLeft + 7;
+  const badgeTop =
+    bodyTop - badgeOverlap;
+
+  drawRoundedRect(
+    badgeLeft,
+    badgeTop,
+    badgeWidth,
+    badgeHeight,
+    5
+  );
+  context.fillStyle =
+    item.color || "#7c83fd";
+  context.fill();
+
+  context.fillStyle = "#fff";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(
+    labelText,
+    badgeLeft + badgeWidth / 2,
+    badgeTop + badgeHeight / 2,
+    badgeWidth - 8
   );
 
   document.body.appendChild(
     dragCanvas
   );
 
+  const sourcePointerRatioX =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        (event.clientX - sourceRect.left) /
+          Math.max(1, sourceRect.width)
+      )
+    );
+  const sourcePointerRatioY =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        (event.clientY - sourceRect.top) /
+          Math.max(1, sourceRect.height)
+      )
+    );
   const hotspotX =
-    Math.max(
-      0,
-      Math.min(
-        visualWidth,
-        event.clientX -
-          sourceRect.left
-      )
-    );
-
+    bodyLeft +
+    sourcePointerRatioX * bodyWidth;
   const hotspotY =
-    Math.max(
-      0,
-      Math.min(
-        visualHeight,
-        event.clientY -
-          sourceRect.top
-      )
-    );
+    bodyTop +
+    sourcePointerRatioY * bodyHeight;
 
   dataTransfer.setDragImage(
     dragCanvas,
