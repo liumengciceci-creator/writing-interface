@@ -208,18 +208,22 @@ const checks = [
       !app.includes("第一阶段的总结从第一个字开始就在右侧显示"),
   },
   {
-    name: "accepted suggestion details close when canvas blinking starts",
+    name: "accepted suggestion uses a dedicated pulse that detail closing cannot clear",
     pass:
       app.includes("const notifyReviewApplyStart =") &&
       app.includes("lifecycle.onApplyStart?.()") &&
-      app.includes("notifyReviewApplyStart();") &&
+      app.includes("const [reviewApplyPulse, setReviewApplyPulse]") &&
+      app.includes("setReviewApplyPulse({\n        activeIds: [insertedBlockId]") &&
+      app.includes("setReviewApplyPulse({\n      activeIds: [targetBlockId]") &&
+      app.includes("reviewApplyPulse.activeIds.length > 0") &&
+      app.includes("? reviewApplyPulse.blinkOn") &&
       reviewPanel.includes("onApplyStart:") &&
       reviewPanel.includes("closeIssue"),
   },
   {
     name: "accepted suggestion keeps blinking until the whole revision finishes",
     pass:
-      app.includes("state.activeGraphId === applyGraphId\n            ? { ...state, blinkOn: !state.blinkOn }") &&
+      app.includes("pulse.operationId === applyGraphId\n            ? { ...pulse, blinkOn: !pulse.blinkOn }") &&
       !app.includes("state.activeGraphId === applyGraphId && !textStarted") &&
       !app.includes("textStarted = true") &&
       !app.includes('event.type === "text_start") {\n            captureRevisionHistory();\n            window.clearInterval(blinkTimer)') &&

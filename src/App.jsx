@@ -242,6 +242,11 @@ export default function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [isApplyingReviewSuggestion, setIsApplyingReviewSuggestion] =
     useState(false);
+  const [reviewApplyPulse, setReviewApplyPulse] = useState(() => ({
+    activeIds: [],
+    operationId: null,
+    blinkOn: false,
+  }));
   const [reviewState, setReviewState] = useState({
     running: false,
     phase: "idle",
@@ -1246,19 +1251,20 @@ export default function App() {
       const applyGraphId = `apply-review-insert-${item.id}`;
       let streamedText = "";
 
-      setReviewState((state) => ({
-        ...state,
-        activeIds: [insertedBlockId],
-        activeGraphId: applyGraphId,
-        blinkOn: true,
-      }));
+      // 详细意见与关系曲线属于 reviewState；应用中的闪烁使用独立状态，
+      // 避免 closeIssue -> clearReviewIssueFocus 误清理正在修改的模块。
       notifyReviewApplyStart();
+      setReviewApplyPulse({
+        activeIds: [insertedBlockId],
+        operationId: applyGraphId,
+        blinkOn: true,
+      });
 
       const blinkTimer = window.setInterval(() => {
-        setReviewState((state) =>
-          state.activeGraphId === applyGraphId
-            ? { ...state, blinkOn: !state.blinkOn }
-            : state
+        setReviewApplyPulse((pulse) =>
+          pulse.operationId === applyGraphId
+            ? { ...pulse, blinkOn: !pulse.blinkOn }
+            : pulse
         );
       }, 320);
 
@@ -1357,15 +1363,15 @@ export default function App() {
         window.clearInterval(blinkTimer);
         setStatusText("");
         setIsApplyingReviewSuggestion(false);
-        setReviewState((state) =>
-          state.activeGraphId === applyGraphId
+        setReviewApplyPulse((pulse) =>
+          pulse.operationId === applyGraphId
             ? {
-                ...state,
+                ...pulse,
                 activeIds: [],
-                activeGraphId: null,
+                operationId: null,
                 blinkOn: false,
               }
-            : state
+            : pulse
         );
       }
     }
@@ -1394,19 +1400,19 @@ export default function App() {
 
     setIsApplyingReviewSuggestion(true);
     setStatusText(t("review.applying"));
-    setReviewState((state) => ({
-      ...state,
-      activeIds: [targetBlockId],
-      activeGraphId: applyGraphId,
-      blinkOn: true,
-    }));
+    // 与插入流程相同：详情框关闭不会再触碰独立的应用闪烁状态。
     notifyReviewApplyStart();
+    setReviewApplyPulse({
+      activeIds: [targetBlockId],
+      operationId: applyGraphId,
+      blinkOn: true,
+    });
 
     const blinkTimer = window.setInterval(() => {
-      setReviewState((state) =>
-        state.activeGraphId === applyGraphId
-          ? { ...state, blinkOn: !state.blinkOn }
-          : state
+      setReviewApplyPulse((pulse) =>
+        pulse.operationId === applyGraphId
+          ? { ...pulse, blinkOn: !pulse.blinkOn }
+          : pulse
       );
     }, 320);
 
@@ -1518,15 +1524,15 @@ export default function App() {
       window.clearInterval(blinkTimer);
       setStatusText("");
       setIsApplyingReviewSuggestion(false);
-      setReviewState((state) =>
-        state.activeGraphId === applyGraphId
+      setReviewApplyPulse((pulse) =>
+        pulse.operationId === applyGraphId
           ? {
-              ...state,
+              ...pulse,
               activeIds: [],
-              activeGraphId: null,
+              operationId: null,
               blinkOn: false,
             }
-          : state
+          : pulse
       );
     }
   };
@@ -2119,13 +2125,17 @@ export default function App() {
               }
 
               generatingBlockIds={
-                reviewState.activeIds.length > 0
+                reviewApplyPulse.activeIds.length > 0
+                  ? reviewApplyPulse.activeIds
+                  : reviewState.activeIds.length > 0
                   ? reviewState.activeIds
                   : generatingBlockIds
               }
 
               generatingBlinkOn={
-                reviewState.activeIds.length > 0
+                reviewApplyPulse.activeIds.length > 0
+                  ? reviewApplyPulse.blinkOn
+                  : reviewState.activeIds.length > 0
                   ? reviewState.blinkOn
                   : generatingBlinkOn
               }
