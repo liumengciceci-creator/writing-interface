@@ -55,6 +55,13 @@ const checks = [
       server.includes("SUPABASE_SECRET_KEY") &&
       server.includes("RESEARCH_EXPORT_TOKEN"),
   ],
+  [
+    "opaque Supabase secret keys are not sent as bearer JWTs",
+    server.includes("function createSupabaseRestHeaders") &&
+      server.includes("isOpaqueSupabaseKey") &&
+      server.includes("if (!isOpaqueSupabaseKey)") &&
+      server.includes("headers: createSupabaseRestHeaders"),
+  ],
 ];
 
 const failed = checks.filter(([, pass]) => !pass);

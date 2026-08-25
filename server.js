@@ -86,6 +86,26 @@ const SUPABASE_SECRET_KEY = String(
     ""
 ).trim();
 
+/**
+ * Supabase's current sb_secret_* keys are opaque API keys, not JWTs. Sending
+ * them as an Authorization bearer token makes PostgREST try to parse them as
+ * a JWT and reject an otherwise valid server request. Legacy service_role
+ * keys are JWTs, so retain the bearer header only for that older format.
+ */
+function createSupabaseRestHeaders(additionalHeaders = {}) {
+  const headers = {
+    apikey: SUPABASE_SECRET_KEY,
+    ...additionalHeaders,
+  };
+  const isOpaqueSupabaseKey = /^sb_(?:secret|publishable)_/i.test(
+    SUPABASE_SECRET_KEY
+  );
+  if (!isOpaqueSupabaseKey) {
+    headers.Authorization = `Bearer ${SUPABASE_SECRET_KEY}`;
+  }
+  return headers;
+}
+
 function normalizeResearchIdentifier(value, maxLength = 120) {
   return String(value || "")
     .trim()
@@ -133,12 +153,10 @@ async function persistResearchEvents(events) {
       `${SUPABASE_URL}/rest/v1/research_events`,
       {
         method: "POST",
-        headers: {
-          apikey: SUPABASE_SECRET_KEY,
-          Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+        headers: createSupabaseRestHeaders({
           "Content-Type": "application/json",
           Prefer: "resolution=ignore-duplicates,return=minimal",
-        },
+        }),
         body: JSON.stringify(events),
       }
     );
@@ -4150,10 +4168,7 @@ app.get("/api/research-events/export", async (req, res) => {
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/research_events?${query.toString()}`,
         {
-          headers: {
-            apikey: SUPABASE_SECRET_KEY,
-            Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
-          },
+          headers: createSupabaseRestHeaders(),
         }
       );
       if (!response.ok) {
