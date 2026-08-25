@@ -565,6 +565,20 @@ function resolveTargetBlocks(body) {
     throw error;
   }
 
+  const normalizedTargetIds = targetBlocks.map((block) =>
+    String(block?.id ?? "").trim()
+  );
+  if (normalizedTargetIds.some((id) => !id)) {
+    const error = new Error("Every target block must have a non-empty id");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (new Set(normalizedTargetIds).size !== normalizedTargetIds.length) {
+    const error = new Error("Target block ids must be unique");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const normalizedTargetBlocks = targetBlocks.map((block) => ({
     ...block,
     // 是否使用网页搜索完全服从前端开关，不再根据模块类型自动开启。
@@ -631,8 +645,8 @@ function buildWritingRequestOptions({
                 additionalProperties: false,
                 properties: {
                   id: {
-                    type: "integer",
-                    enum: targetBlocks.map((block) => Number(block.id)),
+	                    type: "string",
+	                    enum: targetBlocks.map((block) => String(block.id)),
                   },
                   text: { type: "string" },
                 },
@@ -838,15 +852,15 @@ Your task:
    - Question: analytical or research question
 9. Return JSON ONLY.
 10. Do not use markdown code fences.
-11. Keep the same ids as TARGET BLOCKS.
+11. Keep the same ids as TARGET BLOCKS. Return every id as the exact string required by the response schema.
 12. Do not skip any target id.
 13. Do not generate results for CONTEXT BLOCKS.
 
 Output format:
 {
   "results": [
-    { "id": 1, "text": "..." },
-    { "id": 2, "text": "..." }
+    { "id": "1", "text": "..." },
+    { "id": "2", "text": "..." }
   ]
 }
 
@@ -1137,7 +1151,7 @@ async function generateResultsFromRequest(body) {
 
   const safeResults = parsed.results.map(
     (item) => ({
-      id: Number(item.id),
+	      id: String(item.id ?? ""),
       text:
         typeof item.text === "string"
           ? item.text.trim()

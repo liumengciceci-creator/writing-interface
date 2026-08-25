@@ -20,6 +20,10 @@ const reviewPanel = fs.readFileSync(
   path.join(root, "src/components/ReviewIssuesPanel.jsx"),
   "utf8"
 );
+const reviewApi = fs.readFileSync(
+  path.join(root, "src/api/reviewBlockCompatibility.js"),
+  "utf8"
+);
 const quickInstructionComposer = fs.readFileSync(
   path.join(root, "src/components/PageCanvas/QuickInstructionComposer.jsx"),
   "utf8"
@@ -33,8 +37,19 @@ const checks = [
     pass:
       server.includes('name: "generated_blocks"') &&
       server.includes('type: "json_schema"') &&
+	      server.includes('type: "string"') &&
+	      server.includes("enum: targetBlocks.map((block) => String(block.id))") &&
+	      !server.includes("enum: targetBlocks.map((block) => Number(block.id))") &&
       server.includes("parseBufferedBlockOutput"),
   },
+	{
+	  name: "review-insert string ids remain valid structured-output enum values",
+	  pass:
+	    server.includes('String(block?.id ?? "").trim()') &&
+	    server.includes("Every target block must have a non-empty id") &&
+	    server.includes("Target block ids must be unique") &&
+	    reviewApi.includes('const targetId = "review-insert-target"'),
+	},
   {
     name: "unchanged generated text is rejected",
     pass:
