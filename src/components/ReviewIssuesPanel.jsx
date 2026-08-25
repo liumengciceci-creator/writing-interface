@@ -20,12 +20,22 @@ function escapeRegExp(value) {
 }
 
 function renderSummaryWithHighlights(summary, highlights = []) {
-  const text = String(summary || "").trim();
-  if (!text) return null;
+  const rawText = String(summary || "").trim();
+  if (!rawText) return null;
+
+  const markdownHighlights = [];
+  const text = rawText
+    .replace(/\*\*([^*]+)\*\*/g, (_, value) => {
+      const highlight = String(value || "").trim();
+      if (highlight) markdownHighlights.push(highlight);
+      return value;
+    })
+    // 流式输出时末尾可能只有半个加粗标记；隐藏标记本身，避免界面闪出星号。
+    .replace(/\*\*/g, "");
 
   const validHighlights = Array.from(
     new Set(
-      (Array.isArray(highlights) ? highlights : [])
+      [...markdownHighlights, ...(Array.isArray(highlights) ? highlights : [])]
         .map((value) => String(value || "").trim())
         .filter((value) => value && text.includes(value))
     )
@@ -76,6 +86,13 @@ function renderSuggestionPoints(value) {
       ))}
     </ul>
   );
+}
+
+function stripParagraphPrefix(value) {
+  return String(value || "")
+    .replace(/^第[^：:]{1,8}段[：:]\s*/u, "")
+    .replace(/^Paragraph\s+\d+\s*:\s*/i, "")
+    .trim();
 }
 
 export default function ReviewIssuesPanel({
@@ -139,6 +156,16 @@ export default function ReviewIssuesPanel({
   const modificationInstruction = String(
     selectedItem?.modificationInstruction || selectedItem?.suggestion || ""
   ).trim();
+  const paragraphGroups = criteria.reduce((groups, criterion, index) => {
+    const paragraph = Math.max(1, Number(criterion?.paragraph) || 1);
+    let group = groups.find((item) => item.paragraph === paragraph);
+    if (!group) {
+      group = { paragraph, items: [] };
+      groups.push(group);
+    }
+    group.items.push({ criterion, index });
+    return groups;
+  }, []);
 
   return (
     <aside
@@ -248,7 +275,28 @@ export default function ReviewIssuesPanel({
               scrollBehavior: "smooth",
             }}
           >
-            {criteria.map((criterion, index) => {
+            {paragraphGroups.map((group) => (
+              <section
+                key={`review-paragraph-${group.paragraph}`}
+                aria-label={t("review.paragraph", { count: group.paragraph })}
+                style={{
+                  padding: "10px 0 4px",
+                  borderTop: "1px solid rgba(17,24,39,0.08)",
+                }}
+              >
+                <div
+                  style={{
+                    marginBottom: 3,
+                    color: "#374151",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {t("review.paragraph", { count: group.paragraph })}
+                </div>
+
+                {group.items.map(({ criterion, index }) => {
               const issueItem = criterion.issueId
                 ? results.find((item) => item.id === criterion.issueId)
                 : null;
@@ -259,6 +307,8 @@ export default function ReviewIssuesPanel({
               const accepted = issueItem?.decision === "accepted";
               const rejected = issueItem?.decision === "rejected";
 
+              const checking = criterion.status === "checking";
+
               return (
                 <div
                   key={`${criterion.key}-${index}`}
@@ -268,15 +318,41 @@ export default function ReviewIssuesPanel({
                     gridTemplateColumns: "minmax(0, 1fr) 26px",
                     alignItems: "start",
                     gap: 9,
-                    padding: "10px 0",
-                    borderTop: index === 0 ? "1px solid rgba(17,24,39,0.08)" : "1px solid rgba(17,24,39,0.07)",
+                    padding: "7px 0 7px 8px",
+                    borderTop: "none",
                   }}
                 >
-                  <div style={{ color: "#4b5563", fontSize: 11.1, lineHeight: 1.65 }}>
-                    {criterion.summary}
+                  <div
+                    aria-live="polite"
+                    style={{
+                      color: checking ? "#7b8190" : "#4b5563",
+                      fontSize: 11.1,
+                      lineHeight: 1.58,
+                      fontStyle: checking ? "italic" : "normal",
+                    }}
+                  >
+                    {checking
+                      ? t("review.checking")
+                      : stripParagraphPrefix(criterion.summary)}
                   </div>
 
-                  {!issueItem || accepted ? (
+                  {checking ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 23,
+                        height: 23,
+                        color: "#8aa0c5",
+                        fontSize: 15,
+                        animation: "semantic-instruction-waiting-pulse 900ms ease-in-out infinite",
+                      }}
+                    >
+                      ···
+                    </span>
+                  ) : !issueItem || accepted ? (
                     <span
                       aria-label={t("review.passed")}
                       title={t("review.passed")}
@@ -336,7 +412,9 @@ export default function ReviewIssuesPanel({
                   )}
                 </div>
               );
-            })}
+              })}
+              </section>
+            ))}
           </div>
         )}
         </> : null}

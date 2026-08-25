@@ -63,7 +63,7 @@ const checks = [
       server.includes("若第 2 个模块是过渡") &&
       app.includes('event.type === "criterion_start"') &&
       app.includes('event.type === "criterion_result"') &&
-      reviewPanel.includes("criteria.map"),
+      reviewPanel.includes("paragraphGroups.map"),
     "criteria must be selected from actual content and rendered progressively",
   ],
   [

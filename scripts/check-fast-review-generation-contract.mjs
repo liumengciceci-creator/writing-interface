@@ -15,6 +15,12 @@ const inlineEditing = fs.readFileSync(
   path.join(root, "src/components/PageCanvas/useInlineEditing.js"),
   "utf8"
 );
+const app = fs.readFileSync(path.join(root, "src/App.jsx"), "utf8");
+const reviewPanel = fs.readFileSync(
+  path.join(root, "src/components/ReviewIssuesPanel.jsx"),
+  "utf8"
+);
+const styles = fs.readFileSync(path.join(root, "src/index.css"), "utf8");
 
 const checks = [
   {
@@ -74,6 +80,29 @@ const checks = [
       server.includes("论点与证据") &&
       server.includes("前置论证组与结论") &&
       server.includes("过渡与前后核心模块"),
+  },
+  {
+    name: "review UI groups streamed checks by paragraph",
+    pass:
+      app.includes('status: "checking"') &&
+      app.includes("await waitForReviewBeat(220)") &&
+      reviewPanel.includes("paragraphGroups.map") &&
+      reviewPanel.includes('t("review.checking")'),
+  },
+  {
+    name: "review panel stays inside the viewport without shifting the canvas",
+    pass:
+      styles.includes("position: fixed") &&
+      styles.includes("bottom: 18px") &&
+      styles.includes(".page-canvas-shell.review-panel-open") &&
+      !styles.includes("var(--review-panel-width) +"),
+  },
+  {
+    name: "overall review is concise and supports streamed emphasis",
+    pass:
+      server.includes("summaryCharacterLimit") &&
+      server.includes("用成对的 ** 标记 3—5 个最重要") &&
+      reviewPanel.includes("markdownHighlights"),
   },
 ];
 

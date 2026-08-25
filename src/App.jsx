@@ -701,11 +701,25 @@ export default function App() {
             const relatedIds = (Array.isArray(event.relatedIds) ? event.relatedIds : [])
               .map(String)
               .filter((id) => blockById.has(id));
+            const checkingCriterion = {
+              key: String(event.key || `criterion-${event.index || Date.now()}`),
+              criterion: String(event.criterion || ""),
+              paragraph: Math.max(1, Number(event.paragraph) || 1),
+              summary: "",
+              status: "checking",
+              relatedIds,
+              issueId: null,
+            };
             setReviewState((state) => ({
               ...state,
               activeIds: relatedIds,
               activeGraphId: `criterion-${String(event.key || event.index || "active")}`,
               blinkOn: true,
+              criteria: state.criteria.some((item) => item.key === checkingCriterion.key)
+                ? state.criteria.map((item) => item.key === checkingCriterion.key
+                    ? { ...item, ...checkingCriterion }
+                    : item)
+                : [...state.criteria, checkingCriterion],
               current: Number(event.index) || 0,
               total: Number(event.total) || state.total,
               status: t("app.reviewCheckingCriterion", {
@@ -727,6 +741,7 @@ export default function App() {
             const criterionResult = {
               key: String(event.key || `criterion-${Date.now()}`),
               criterion: String(event.criterion || ""),
+              paragraph: Math.max(1, Number(event.paragraph) || 1),
               summary: String(event.summary || "").trim(),
               status: issue ? "issue" : "pass",
               relatedIds: (Array.isArray(event.relatedIds) ? event.relatedIds : []).map(String),
@@ -742,6 +757,8 @@ export default function App() {
                 ? [...state.results, issue]
                 : state.results,
             }));
+            // 让本项结果与仍在闪烁的相关模块短暂同屏，再进入下一组关系。
+            await waitForReviewBeat(220);
             return;
           }
 

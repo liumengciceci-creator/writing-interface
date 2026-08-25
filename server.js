@@ -2264,7 +2264,8 @@ ${JSON.stringify(blocks, null, 2)}
 - 具体说明你先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
 - 使用“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”这种自然的第二人称叙述，但不要机械套用。
 - 只概括现有内容与关系；不评价不足、不提修改建议、不列审阅标准、不使用箭头链。
-- 保持为一个紧凑段落，不得只复述模块名称。`;
+- 保持为一个紧凑段落，不得只复述模块名称。中文控制在 140—190 个汉字，英文控制在 80—110 个单词。
+- 用成对的 ** 标记 3—5 个最重要的观点、证明角度或结论短语，例如“你先提出了**核心观点**”。除这种加粗标记外，不使用其他 Markdown。`;
 
     const collectResponseText = async (input, effort) => {
       let output = "";
@@ -2326,17 +2327,34 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
         stream: true,
       });
 
+      const summaryUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
+      const summaryCharacterLimit = summaryUsesCjk ? 210 : 820;
+      let summaryWasTruncated = false;
+
       for await (const event of summaryStream) {
         if (event.type !== "response.output_text.delta") continue;
         const delta = String(event.delta || "");
         if (!delta) continue;
-        overallSummary += delta;
-        writeLine(res, { type: "summary_delta", delta });
+        const remaining = summaryCharacterLimit - overallSummary.length;
+        if (remaining <= 0) {
+          summaryWasTruncated = true;
+          continue;
+        }
+        const acceptedDelta = delta.slice(0, remaining);
+        if (acceptedDelta.length < delta.length) summaryWasTruncated = true;
+        overallSummary += acceptedDelta;
+        writeLine(res, { type: "summary_delta", delta: acceptedDelta });
       }
       overallSummary = overallSummary
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
+      if (summaryWasTruncated) {
+        overallSummary = overallSummary.replace(/[，,；;：:\s]+$/u, "");
+        const boldMarkerCount = (overallSummary.match(/\*\*/g) || []).length;
+        if (boldMarkerCount % 2 === 1) overallSummary += "**";
+        overallSummary += "…";
+      }
 
       const planText = await criteriaPlanPromise;
       const parsedPlan = JSON.parse(cleanModelJsonText(planText));
@@ -2353,7 +2371,12 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
           ));
           if (!criterion || !relatedIds.length || seenCriterionKeys.has(key)) return null;
           seenCriterionKeys.add(key);
-          return { key, criterion, relatedIds };
+          const relatedParagraphs = relatedIds
+            .map((id) => blocks.find((block) => block.id === id)?.paragraph)
+            .map(Number)
+            .filter((value) => Number.isFinite(value) && value > 0);
+          const paragraph = relatedParagraphs.length ? Math.max(...relatedParagraphs) : 1;
+          return { key, criterion, relatedIds, paragraph };
         })
         .filter(Boolean);
 
@@ -2541,6 +2564,7 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
           const result = {
             key: expected.key,
             criterion: expected.criterion,
+            paragraph: expected.paragraph,
             status: normalizedStatus,
             summary,
             relatedIds: relatedIds.length ? relatedIds : expected.relatedIds,
