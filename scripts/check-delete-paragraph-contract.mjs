@@ -6,26 +6,41 @@ const actions = fs.readFileSync(
   path.join(root, "src/hooks/useEditor/useInlineDocumentActions.js"),
   "utf8"
 );
+const blockActions = fs.readFileSync(
+  path.join(root, "src/hooks/useEditor/useBlockActions.js"),
+  "utf8"
+);
+const documentModel = fs.readFileSync(
+  path.join(root, "src/models/DocumentModel"),
+  "utf8"
+);
 
 const checks = [
   {
     name: "paragraph-start preservation is shared by single and multi delete",
     pass:
-      actions.includes("function deleteBlocksPreservingParagraphStarts") &&
-      (actions.match(/deleteBlocksPreservingParagraphStarts\(/g) || []).length >= 3,
+      documentModel.includes("export function deleteDocumentBlocksPreservingParagraphStarts") &&
+      (actions.match(/deleteDocumentBlocksPreservingParagraphStarts\(/g) || []).length >= 2,
   },
   {
     name: "a deleted paragraph head transfers its boundary to the next survivor",
     pass:
-      actions.includes("!block.forceLineBreakBefore") &&
-      actions.includes("paragraphStartSuccessors.add(nextId)") &&
-      actions.includes("forceLineBreakBefore: true"),
+      documentModel.includes("!block.forceLineBreakBefore") &&
+      documentModel.includes("paragraphStartSuccessors.add(nextId)") &&
+      documentModel.includes("forceLineBreakBefore: true"),
   },
   {
     name: "deletion no longer bypasses the paragraph-preserving helper",
     pass:
       !actions.includes("currentModel.deleteBlock(\n                targetId") &&
       !actions.includes("currentModel.deleteBlocks(\n                existingIds"),
+  },
+  {
+    name: "keyboard Delete and Backspace use the paragraph-preserving model path",
+    pass:
+      blockActions.includes("const inlineSelectedIds") &&
+      blockActions.includes("deleteDocumentBlocksPreservingParagraphStarts(") &&
+      blockActions.includes("applyDocumentModelToSections("),
   },
 ];
 

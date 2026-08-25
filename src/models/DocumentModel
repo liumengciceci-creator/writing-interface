@@ -1459,6 +1459,69 @@ export function createDocumentModelFromSections(
 }
 
 /**
+ * 删除文档流模块，同时保留真实段落边界。
+ *
+ * forceLineBreakBefore 存在于每段第一个模块上。如果该模块被删除，
+ * 必须把标记转交给后面的第一个未删除模块，否则这一段会并入上一段。
+ * 这是所有删除入口共同使用的数据规则。
+ */
+export function deleteDocumentBlocksPreservingParagraphStarts(
+  documentModel,
+  blockIds
+) {
+  const model = DocumentModel.from(documentModel);
+  const deletedIds = new Set(
+    (blockIds || []).map((id) => String(id))
+  );
+
+  if (deletedIds.size === 0) {
+    return model;
+  }
+
+  const originalBlocks = model.toArray();
+  const paragraphStartSuccessors = new Set();
+
+  originalBlocks.forEach((block, index) => {
+    const blockId = String(block.id);
+    if (
+      !deletedIds.has(blockId) ||
+      !block.forceLineBreakBefore
+    ) {
+      return;
+    }
+
+    for (
+      let nextIndex = index + 1;
+      nextIndex < originalBlocks.length;
+      nextIndex += 1
+    ) {
+      const nextBlock = originalBlocks[nextIndex];
+      const nextId = String(nextBlock.id);
+      if (deletedIds.has(nextId)) {
+        continue;
+      }
+
+      paragraphStartSuccessors.add(nextId);
+      break;
+    }
+  });
+
+  let nextModel = model.deleteBlocks([...deletedIds]);
+
+  paragraphStartSuccessors.forEach((blockId) => {
+    if (!nextModel.hasBlock(blockId)) {
+      return;
+    }
+
+    nextModel = nextModel.updateBlock(blockId, {
+      forceLineBreakBefore: true,
+    });
+  });
+
+  return nextModel;
+}
+
+/**
  * 将 DocumentModel 写回旧的 sections 数据结构。
  *
  * 保留：

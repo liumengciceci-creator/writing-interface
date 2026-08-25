@@ -7,6 +7,12 @@ import {
 } from "../../constants";
 
 import {
+  applyDocumentModelToSections,
+  createDocumentModelFromSections,
+  deleteDocumentBlocksPreservingParagraphStarts,
+} from "../../models/DocumentModel";
+
+import {
   estimateBlockHeight,
 } from "./layout";
 
@@ -966,60 +972,85 @@ export function useBlockActions({
 
         setSections(
           (previousSections) => {
-            let hasChanges =
-              false;
-
-            const nextSections =
-              previousSections.map(
-                (section) => {
-                  if (
-                    section?.mode !==
-                      "editing" ||
-                    !Array.isArray(
-                      section.blocks
-                    )
-                  ) {
-                    return section;
-                  }
-
-                  const nextBlocks =
-                    section.blocks.filter(
-                      (block) => {
-                        const shouldDelete =
-                          selectedIdSet.has(
-                            String(
-                              block.id
-                            )
-                          );
-
-                        if (
-                          shouldDelete
-                        ) {
-                          hasChanges =
-                            true;
-                        }
-
-                        return !shouldDelete;
-                      }
-                    );
-
-                  if (
-                    nextBlocks ===
-                    section.blocks
-                  ) {
-                    return section;
-                  }
-
-                  return {
-                    ...section,
-                    blocks:
-                      nextBlocks,
-                  };
-                }
+            const currentModel =
+              createDocumentModelFromSections(
+                previousSections
               );
 
-            if (!hasChanges) {
+            const inlineSelectedIds =
+              [...selectedIdSet].filter(
+                (blockId) =>
+                  currentModel.hasBlock(
+                    blockId
+                  )
+              );
+
+            const hasSelectedFloatingBlock =
+              previousSections.some(
+                (section) =>
+                  Array.isArray(
+                    section?.blocks
+                  ) &&
+                  section.blocks.some(
+                    (block) =>
+                      block?.placement ===
+                        "floating" &&
+                      selectedIdSet.has(
+                        String(block.id)
+                      )
+                  )
+              );
+
+            if (
+              inlineSelectedIds.length === 0 &&
+              !hasSelectedFloatingBlock
+            ) {
               return previousSections;
+            }
+
+            let nextSections =
+              previousSections;
+
+            if (
+              inlineSelectedIds.length > 0
+            ) {
+              const nextModel =
+                deleteDocumentBlocksPreservingParagraphStarts(
+                  currentModel,
+                  inlineSelectedIds
+                );
+
+              nextSections =
+                applyDocumentModelToSections(
+                  previousSections,
+                  nextModel,
+                  createEditingSectionFn
+                );
+            }
+
+            if (
+              hasSelectedFloatingBlock
+            ) {
+              nextSections =
+                nextSections.map(
+                  (section) => ({
+                    ...section,
+                    blocks: Array.isArray(
+                      section?.blocks
+                    )
+                      ? section.blocks.filter(
+                          (block) =>
+                            !(
+                              block?.placement ===
+                                "floating" &&
+                              selectedIdSet.has(
+                                String(block.id)
+                              )
+                            )
+                        )
+                      : section?.blocks,
+                  })
+                );
             }
 
             pushHistorySnapshot?.(
