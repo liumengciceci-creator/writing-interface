@@ -15,6 +15,16 @@ const dragPosition = fs.readFileSync(
   "utf8"
 );
 
+const duplicate = fs.readFileSync(
+  new URL("../src/hooks/useEditor/useBlockDuplicate.js", import.meta.url),
+  "utf8"
+);
+
+const canvasDrop = fs.readFileSync(
+  new URL("../src/hooks/useEditor/useCanvasDrop.jsx", import.meta.url),
+  "utf8"
+);
+
 const checks = [
   {
 	  name: "paragraph heads expose one near drop line that becomes the new head",
@@ -38,6 +48,20 @@ const checks = [
       floating.includes("const useExplicitSnapshot =") &&
       floating.includes("sourceRect.left -") &&
       floating.includes("sourceRect.top -"),
+  },
+  {
+    name: "copied blocks expose resize only in the gray floating workspace",
+    pass:
+      duplicate.includes("copiedBlock.isDuplicatedCopy =") &&
+      duplicate.includes("copiedBlock.hideResizeHandle =") &&
+      duplicate.includes("copiedBlock.hideFloatingResizeHandle =") &&
+      floating.includes("block.isDuplicatedCopy") &&
+      floating.includes("item.block\n                      ?.isDuplicatedCopy") &&
+      floating.includes("hideResizeHandle:\n                      false") &&
+      floating.includes("hideFloatingResizeHandle:\n                      false") &&
+      canvasDrop.includes("movingBlock.isDuplicatedCopy") &&
+      canvasDrop.includes("movingBlock.hideResizeHandle =") &&
+      canvasDrop.includes("movingBlock.hideFloatingResizeHandle ="),
   },
 ];
 

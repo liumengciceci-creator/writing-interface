@@ -803,6 +803,19 @@ export function useCanvasDrop({
                     null;
                   movingBlock.floatingHeight =
                     null;
+
+                  /**
+                   * 副本回到正文后再次隐藏缩放手柄；普通模块不改动
+                   * 自己原有的手柄配置。
+                   */
+                  if (
+                    movingBlock.isDuplicatedCopy
+                  ) {
+                    movingBlock.hideResizeHandle =
+                      true;
+                    movingBlock.hideFloatingResizeHandle =
+                      true;
+                  }
                 }
               );
 

@@ -1537,7 +1537,14 @@ export function useBlockDuplicate({
             copiedBlock.isDragging =
               false;
 
-            /** 副本不显示右下角的长度/宽度拉伸手柄。 */
+            /**
+             * 记录副本身份，供后续在 inline / 灰色浮动区域之间切换时
+             * 决定是否显示缩放手柄。副本刚创建、仍保持正文外观时隐藏；
+             * 真正拖入灰色区域后由 useFloatingBlocks 恢复手柄。
+             */
+            copiedBlock.isDuplicatedCopy =
+              true;
+
             copiedBlock.hideResizeHandle =
               true;
 

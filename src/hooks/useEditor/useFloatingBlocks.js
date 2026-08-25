@@ -1493,6 +1493,15 @@ export function useFloatingBlocks({
                   blockId: item.id,
                   updates: {
                     placement: "floating",
+                    ...(item.block
+                      ?.isDuplicatedCopy
+                      ? {
+                          hideResizeHandle:
+                            false,
+                          hideFloatingResizeHandle:
+                            false,
+                        }
+                      : {}),
                     floatingX: item.x,
                     floatingY: item.y,
                     floatingWidth:
@@ -1530,6 +1539,15 @@ export function useFloatingBlocks({
             {
               placement:
                 "floating",
+
+              ...(block.isDuplicatedCopy
+                ? {
+                    hideResizeHandle:
+                      false,
+                    hideFloatingResizeHandle:
+                      false,
+                  }
+                : {}),
 
               floatingX:
                 finalX,
