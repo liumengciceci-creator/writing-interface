@@ -224,6 +224,8 @@ function getReviewableBlocksFromSections(sourceSections) {
 export default function App() {
   const { blockTypeLabel, language, t } = useI18n();
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const [isApplyingReviewSuggestion, setIsApplyingReviewSuggestion] =
+    useState(false);
   const [reviewState, setReviewState] = useState({
     running: false,
     phase: "idle",
@@ -301,10 +303,13 @@ export default function App() {
     isAdjustingStyle,
     adjustingStyleBlockId,
 
+    isApplyingMultiAction,
+
     /**
      * 页面与布局状态。
      */
     statusText,
+    setStatusText,
     showTemporaryStatus,
     stageRef,
     pageRef,
@@ -423,6 +428,16 @@ export default function App() {
 
     if (isAdjustingLength) {
       showTemporaryStatus(t("app.busyResizing"), 2600);
+      return true;
+    }
+
+    if (isAdjustingStyle) {
+      showTemporaryStatus(t("app.busyStyling"), 2600);
+      return true;
+    }
+
+    if (isApplyingMultiAction || isApplyingReviewSuggestion) {
+      showTemporaryStatus(t("app.busyRevising"), 2600);
       return true;
     }
 
@@ -1035,6 +1050,8 @@ export default function App() {
       const insertedBlockId = String(insertedBlock?.id || "");
       if (!insertedBlockId) throw new Error(t("review.insertFailed"));
 
+      setIsApplyingReviewSuggestion(true);
+      setStatusText(t("review.inserting"));
       const applyGraphId = `apply-review-insert-${item.id}`;
       let streamedText = "";
       let textStarted = false;
@@ -1126,6 +1143,8 @@ export default function App() {
         throw error;
       } finally {
         window.clearInterval(blinkTimer);
+        setStatusText("");
+        setIsApplyingReviewSuggestion(false);
         setReviewState((state) =>
           state.activeGraphId === applyGraphId
             ? {
@@ -1162,6 +1181,8 @@ export default function App() {
       pushHistorySnapshot(sections);
     };
 
+    setIsApplyingReviewSuggestion(true);
+    setStatusText(t("review.applying"));
     setReviewState((state) => ({
       ...state,
       activeIds: [targetBlockId],
@@ -1266,6 +1287,8 @@ export default function App() {
       throw error;
     } finally {
       window.clearInterval(blinkTimer);
+      setStatusText("");
+      setIsApplyingReviewSuggestion(false);
       setReviewState((state) =>
         state.activeGraphId === applyGraphId
           ? {
@@ -1707,6 +1730,9 @@ export default function App() {
   isAdjustingStyle={
     isAdjustingStyle
   }
+
+  isApplyingMultiAction={isApplyingMultiAction}
+  isApplyingReviewSuggestion={isApplyingReviewSuggestion}
 
 
   generatingBlockIds={

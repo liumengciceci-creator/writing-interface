@@ -778,12 +778,6 @@ export function useStreamingGenerate({
             : "disabled",
       };
     });
-    const instructionDrivenGeneration = requestTargetBlocks.some(
-      (target) =>
-        target.userInputMode === "instruction" &&
-        Boolean(String(target.directive || "").trim())
-    );
-
     const requestContextBlocks = entries
       .filter((entry) => {
         const id = String(entry.block.id);
@@ -842,11 +836,9 @@ export function useStreamingGenerate({
     lastPostRenderDebugKeyRef.current = "";
     setIsGenerating(true);
     setGeneratingBlockIds(targetIds);
-    setGenerationStatus(
-      instructionDrivenGeneration
-        ? "正在根据指令内容修改"
-        : "正在根据所选模块内容生成"
-    );
+    // 这个 hook 只由工具栏“AI生成”和生成快捷键调用。
+    // 模块中的草稿、主题或命令属于生成素材，不能据此把操作误判成“指令修改”。
+    setGenerationStatus("正在根据所选模块内容生成");
     setSections((previous) =>
       patchBlocks(previous, (block) => {
         const blockId = String(block.id);
@@ -904,9 +896,7 @@ export function useStreamingGenerate({
 
 	          if (event.type === "search_progress") {
 	            setGenerationStatus(
-	              instructionDrivenGeneration
-	                ? "正在根据指令内容修改"
-	                : event.phase === "completed"
+	              event.phase === "completed"
 	                ? "网页搜索完成，正在整体组织段落…"
 	                : "正在搜索网页并核对资料…"
             );
@@ -948,11 +938,7 @@ export function useStreamingGenerate({
           ) {
             startedRequestIds.add(requestId);
             generatedTextByRequestId.set(requestId, "");
-            setGenerationStatus(
-              instructionDrivenGeneration
-                ? "正在根据指令内容修改"
-                : "正在根据所选模块内容生成"
-            );
+            setGenerationStatus("正在根据所选模块内容生成");
           }
 
           if (event.type === "chunk") {

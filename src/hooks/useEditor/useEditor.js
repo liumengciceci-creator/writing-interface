@@ -1885,6 +1885,7 @@ export function useEditor() {
      * 状态提示。
      */
     statusText,
+    setStatusText,
     showTemporaryStatus,
 
     /**

@@ -116,18 +116,34 @@ const checks = [
 	  pass:
 	    app.includes('status: t("app.reviewWhole")') &&
 	    styles.length > 0 &&
-	    generationHook.includes('instructionDrivenGeneration') &&
-	    generationHook.includes('"正在根据指令内容修改"') &&
+	    !generationHook.includes('instructionDrivenGeneration') &&
+	    !generationHook.includes('"正在根据指令内容修改"') &&
 	    generationHook.includes('"正在根据所选模块内容生成"') &&
 	    !generationHook.includes('`正在整体分析 ${targets.length} 个模块及其上下文…`') &&
 	    generationHook.includes('setGenerationStatus("")') &&
 	    !generationHook.includes('setGenerationStatus(`生成完成 ${targets.length}/${targets.length}`)') &&
 	    aiActions.includes('"正在根据指令内容修改"') &&
 	    aiActions.includes('setStatusText("")') &&
+      toolbar.indexOf("isReviewing") < toolbar.indexOf("normalizedStatusText ||") &&
       toolbar.includes("wasReviewingRef") &&
       toolbar.includes("recentReviewCompletion") &&
       toolbar.includes("!wasReviewing || !normalizedReviewStatus") &&
       !toolbar.includes("normalizedGenerationStatus ||\n              normalizedReviewStatus"),
+	},
+	{
+	  name: "every AI entry point publishes a matching top status",
+	  pass:
+	    generationHook.includes('setGenerationStatus("正在根据所选模块内容生成")') &&
+	    generationHook.includes('"正在搜索网页并核对资料…"') &&
+	    aiActions.includes('"正在调整模块长度..."') &&
+	    aiActions.includes('"正在根据指令内容修改"') &&
+	    app.includes('status: t("app.reviewWhole")') &&
+	    app.includes('setStatusText(t("review.inserting"))') &&
+	    app.includes('setStatusText(t("review.applying"))') &&
+	    app.includes("isApplyingReviewSuggestion") &&
+	    app.includes("isApplyingMultiAction={isApplyingMultiAction}") &&
+	    toolbar.includes("isApplyingReviewSuggestion") &&
+	    toolbar.includes("isApplyingMultiAction"),
 	},
 	{
 	  name: "quick instructions are editable, deletable, and persist an empty library",

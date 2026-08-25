@@ -25,6 +25,8 @@ export default function Toolbar({
   isGenerating = false,
   isAdjustingLength = false,
   isAdjustingStyle = false,
+  isApplyingMultiAction = false,
+  isApplyingReviewSuggestion = false,
   isReviewing = false,
   reviewStatus = "",
 
@@ -52,7 +54,13 @@ export default function Toolbar({
       localizeStatus(statusText) || ""
     ).trim();
 
-  const busy = isGenerating || isAdjustingLength || isAdjustingStyle || isReviewing;
+  const busy =
+    isGenerating ||
+    isAdjustingLength ||
+    isAdjustingStyle ||
+    isApplyingMultiAction ||
+    isApplyingReviewSuggestion ||
+    isReviewing;
   const normalizedReviewStatus =
     String(localizeStatus(reviewStatus) || "").trim();
   const wasReviewingRef = useRef(isReviewing);
@@ -117,21 +125,18 @@ export default function Toolbar({
     normalizedStatusText,
   ]);
 
-  const rawCentralStatus =
-    normalizedStatusText ||
-    (
-      isReviewing
-        ? normalizedReviewStatus ||
-          t("status.reviewing")
-        : isGenerating
-          ? normalizedGenerationStatus ||
-            t("status.generating")
-	        : isAdjustingLength
-	          ? t("status.resizing")
-	          : isAdjustingStyle
-	            ? normalizedStatusText || t("status.generating")
-	          : normalizedGenerationStatus || recentReviewCompletion
-    );
+  // 当前正在执行的 AI 操作优先于临时提示，避免旧消息覆盖真实进度。
+  const rawCentralStatus = isReviewing
+    ? normalizedReviewStatus || t("status.reviewing")
+    : isGenerating
+      ? normalizedGenerationStatus || t("status.generating")
+      : isAdjustingLength
+        ? normalizedStatusText || t("status.resizing")
+        : isAdjustingStyle
+          ? normalizedStatusText || t("status.generating")
+          : normalizedStatusText ||
+            normalizedGenerationStatus ||
+            recentReviewCompletion;
   const [centralStatus, setCentralStatus] = useState(rawCentralStatus);
 
   useEffect(() => {
