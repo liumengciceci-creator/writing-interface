@@ -2316,6 +2316,20 @@ ${JSON.stringify(blocks, null, 2)}
 
 criteria 先按段落、再按论证推进顺序排列；不得包含未知 id，不得重复同一关系，不得预先写判断结果。不要输出代码块或额外文字。`;
 
+    const reviewUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
+    const titleBlock = blocks.find((block) => block.type.toLowerCase() === "title");
+    const primaryClaimBlock = blocks.find(
+      (block) => block.type.toLowerCase() === "claim"
+    ) || blocks.find((block) => block.type.toLowerCase() !== "title");
+    const initialTitleCriterion = titleBlock && primaryClaimBlock
+      ? {
+          key: "relation-title-core",
+          criterion: reviewUsesCjk ? "标题：标题与核心主张" : "Title: title and core claim",
+          relatedIds: [titleBlock.id, primaryClaimBlock.id],
+          paragraph: 0,
+        }
+      : null;
+
     try {
       writeLine(res, { type: "phase", phase: "summary" });
       // 第二阶段的检查选择与第一阶段总结并行准备，避免总结结束后再空等一次模型调用。
@@ -2327,8 +2341,7 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
         stream: true,
       });
 
-      const summaryUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
-      const summaryCharacterLimit = summaryUsesCjk ? 210 : 820;
+      const summaryCharacterLimit = reviewUsesCjk ? 210 : 820;
       let summaryWasTruncated = false;
 
       for await (const event of summaryStream) {
@@ -2356,11 +2369,27 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
         overallSummary += "…";
       }
 
+      // 总体评价结束后立即切换到模块关系检查，不再等完整关系计划返回。
+      writeLine(res, {
+        type: "summary_done",
+        overallSummary,
+        summaryHighlights,
+      });
+      writeLine(res, { type: "phase", phase: "criteria", total: 0 });
+      if (initialTitleCriterion) {
+        writeLine(res, {
+          type: "criterion_start",
+          ...initialTitleCriterion,
+          index: 0,
+          total: 0,
+        });
+      }
+
       const planText = await criteriaPlanPromise;
       const parsedPlan = JSON.parse(cleanModelJsonText(planText));
       summaryHighlights = [];
       const seenCriterionKeys = new Set();
-      const plannedCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
+      const modelCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
         .map((item, index) => {
           const key = String(item?.key || `custom-${index + 1}`).trim();
           const criterion = String(item?.criterion || "").replace(/\s+/g, " ").trim();
@@ -2376,16 +2405,19 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
             .map(Number)
             .filter((value) => Number.isFinite(value) && value > 0);
           const paragraph = relatedParagraphs.length ? Math.max(...relatedParagraphs) : 1;
-          return { key, criterion, relatedIds, paragraph };
+          return { key, criterion, relatedIds, paragraph, planOrder: index };
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter((item) => !initialTitleCriterion || !item.relatedIds.includes(titleBlock.id))
+        .sort((first, second) => (
+          first.paragraph - second.paragraph || first.planOrder - second.planOrder
+        ))
+        .map(({ planOrder, ...item }) => item);
+      const plannedCriteria = initialTitleCriterion
+        ? [initialTitleCriterion, ...modelCriteria]
+        : modelCriteria;
 
-      writeLine(res, {
-        type: "summary_done",
-        overallSummary,
-        summaryHighlights,
-      });
-      writeLine(res, { type: "phase", phase: "criteria", total: plannedCriteria.length });
+      writeLine(res, { type: "criteria_ready", total: plannedCriteria.length });
 
       if (!plannedCriteria.length) {
         writeLine(res, {
@@ -2432,7 +2464,7 @@ GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且�
 - “第二段：结论概括了前面的论点、原因和证据”
 - “第三段：过渡承接前一观点并引出了后续反论”
 若存在真正影响论证的问题，status="issue"，summary 也只写一句关系判断，例如“第二段：原因说明了认知投入减少，但还不能推出思辨能力弱化”。详细分析只能放入 issue.suggestion，不能塞进 summary。
-summary 必须以 criterion 中的“第几段：”开头，随后直接说明哪些模块形成了什么关系或哪一步没有接上。只显示一个完整短句，不写 GRE 术语，不复述模块正文，不写修改建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
+summary 必须以 criterion 的分组前缀开头：标题检查使用“标题：”，段落检查使用“第几段：”（英文正文使用对应英文前缀）。随后直接说明哪些模块形成了什么关系或哪一步没有接上。只显示一个完整短句，不写 GRE 术语，不复述模块正文，不写修改建议，不列分点，不加“✓”“○”（界面会自动显示符号）。不要把补“可能”“也许”、调整语气或换词当成问题。
 问题数量没有上下限；只标记真正影响论证质量的根本问题，不得为了凑数输出次要建议。
 
 每个问题选择最合适的处理动作：
@@ -2539,11 +2571,11 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
           ));
           const rawSummary = String(parsed.summary || "").replace(/\s+/g, " ").trim();
           if (!rawSummary) return;
-          const paragraphPrefix = String(expected.criterion || "").match(
-            /^(第[^：:]{1,8}段)[：:]/
+          const groupPrefix = String(expected.criterion || "").match(
+            /^([^：:]{1,24})[：:]/
           )?.[1];
-          const prefixedSummary = paragraphPrefix && !rawSummary.startsWith(paragraphPrefix)
-            ? `${paragraphPrefix}：${rawSummary.replace(/^第[^：:]{1,8}段[：:]\s*/, "")}`
+          const prefixedSummary = groupPrefix && !rawSummary.startsWith(groupPrefix)
+            ? `${groupPrefix}：${rawSummary.replace(/^(?:标题|Title|第[^：:]{1,8}段|Paragraph\s+\d+)[：:]\s*/i, "")}`
             : rawSummary;
           const containsCjk = /[\u3400-\u9fff]/.test(prefixedSummary);
           const softLimit = containsCjk ? 64 : 150;
@@ -2581,7 +2613,7 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
         }
       };
 
-      emitCriterionStart(0);
+      if (!initialTitleCriterion) emitCriterionStart(0);
       let diagnosticBuffer = "";
       const diagnosticStream = await openai.responses.create({
         model: WRITING_MODEL,

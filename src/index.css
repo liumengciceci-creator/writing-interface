@@ -109,14 +109,15 @@ body {
 }
 
 .page-canvas-shell.review-panel-open {
-  padding-right: 0;
+  padding-right: 28px;
+  transition: padding-right 180ms ease;
 }
 
 .review-issues-panel {
-  position: fixed;
+  position: absolute;
   top: 134px;
   right: 20px;
-  bottom: 18px;
+  bottom: auto;
   width: var(--review-panel-width);
   max-height: none;
   overscroll-behavior: contain;

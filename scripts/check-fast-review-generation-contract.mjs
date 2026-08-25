@@ -85,15 +85,25 @@ const checks = [
     name: "review UI groups streamed checks by paragraph",
     pass:
       app.includes('status: "checking"') &&
+      app.includes('event.type === "criteria_ready"') &&
       app.includes("await waitForReviewBeat(220)") &&
       reviewPanel.includes("paragraphGroups.map") &&
       reviewPanel.includes('t("review.checking")'),
   },
   {
-    name: "review panel stays inside the viewport without shifting the canvas",
+    name: "relationship review appears immediately and starts from the title",
     pass:
-      styles.includes("position: fixed") &&
-      styles.includes("bottom: 18px") &&
+      server.indexOf('type: "summary_done"') < server.indexOf("const planText = await criteriaPlanPromise") &&
+      server.includes('key: "relation-title-core"') &&
+      server.includes('paragraph: 0') &&
+      server.includes('type: "criteria_ready"') &&
+      reviewPanel.includes("first.paragraph - second.paragraph"),
+  },
+  {
+    name: "review panel scrolls with the canvas and only nudges it slightly",
+    pass:
+      styles.includes("position: absolute") &&
+      styles.includes("padding-right: 28px") &&
       styles.includes(".page-canvas-shell.review-panel-open") &&
       !styles.includes("var(--review-panel-width) +"),
   },

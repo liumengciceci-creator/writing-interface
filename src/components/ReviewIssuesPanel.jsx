@@ -90,6 +90,7 @@ function renderSuggestionPoints(value) {
 
 function stripParagraphPrefix(value) {
   return String(value || "")
+    .replace(/^(?:标题|Title)[：:]\s*/i, "")
     .replace(/^第[^：:]{1,8}段[：:]\s*/u, "")
     .replace(/^Paragraph\s+\d+\s*:\s*/i, "")
     .trim();
@@ -157,7 +158,10 @@ export default function ReviewIssuesPanel({
     selectedItem?.modificationInstruction || selectedItem?.suggestion || ""
   ).trim();
   const paragraphGroups = criteria.reduce((groups, criterion, index) => {
-    const paragraph = Math.max(1, Number(criterion?.paragraph) || 1);
+    const paragraphValue = Number(criterion?.paragraph);
+    const paragraph = Number.isFinite(paragraphValue)
+      ? Math.max(0, paragraphValue)
+      : 1;
     let group = groups.find((item) => item.paragraph === paragraph);
     if (!group) {
       group = { paragraph, items: [] };
@@ -165,7 +169,7 @@ export default function ReviewIssuesPanel({
     }
     group.items.push({ criterion, index });
     return groups;
-  }, []);
+  }, []).sort((first, second) => first.paragraph - second.paragraph);
 
   return (
     <aside
@@ -278,7 +282,9 @@ export default function ReviewIssuesPanel({
             {paragraphGroups.map((group) => (
               <section
                 key={`review-paragraph-${group.paragraph}`}
-                aria-label={t("review.paragraph", { count: group.paragraph })}
+                aria-label={group.paragraph === 0
+                  ? t("review.titleGroup")
+                  : t("review.paragraph", { count: group.paragraph })}
                 style={{
                   padding: "10px 0 4px",
                   borderTop: "1px solid rgba(17,24,39,0.08)",
@@ -293,7 +299,9 @@ export default function ReviewIssuesPanel({
                     lineHeight: 1.5,
                   }}
                 >
-                  {t("review.paragraph", { count: group.paragraph })}
+                  {group.paragraph === 0
+                    ? t("review.titleGroup")
+                    : t("review.paragraph", { count: group.paragraph })}
                 </div>
 
                 {group.items.map(({ criterion, index }) => {

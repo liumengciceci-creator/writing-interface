@@ -697,6 +697,14 @@ export default function App() {
             return;
           }
 
+          if (event.type === "criteria_ready") {
+            setReviewState((state) => ({
+              ...state,
+              total: Math.max(0, Number(event.total) || 0),
+            }));
+            return;
+          }
+
           if (event.type === "criterion_start") {
             const relatedIds = (Array.isArray(event.relatedIds) ? event.relatedIds : [])
               .map(String)
@@ -704,7 +712,7 @@ export default function App() {
             const checkingCriterion = {
               key: String(event.key || `criterion-${event.index || Date.now()}`),
               criterion: String(event.criterion || ""),
-              paragraph: Math.max(1, Number(event.paragraph) || 1),
+              paragraph: Math.max(0, Number(event.paragraph) || 0),
               summary: "",
               status: "checking",
               relatedIds,
@@ -741,7 +749,7 @@ export default function App() {
             const criterionResult = {
               key: String(event.key || `criterion-${Date.now()}`),
               criterion: String(event.criterion || ""),
-              paragraph: Math.max(1, Number(event.paragraph) || 1),
+              paragraph: Math.max(0, Number(event.paragraph) || 0),
               summary: String(event.summary || "").trim(),
               status: issue ? "issue" : "pass",
               relatedIds: (Array.isArray(event.relatedIds) ? event.relatedIds : []).map(String),
