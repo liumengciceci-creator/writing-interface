@@ -85,10 +85,18 @@ const checks = [
   [
     server.includes("overallSummaryPrompt") &&
       server.includes("criteriaPlanPrompt") &&
-      server.includes("diagnosticPrompt") &&
+      server.includes("plannedCriterionResults.forEach") &&
+      !server.includes("diagnosticStream") &&
       server.includes('type: "criterion_start"') &&
       server.includes('type: "criterion_result"'),
-    "review must separate streamed overall assessment from dynamic criterion diagnosis",
+    "one model pass must stream the overall assessment and reuse its relationship judgments",
+  ],
+  [
+    reviewPanel.includes("issueNumberById") &&
+      reviewPanel.includes("width: 18") &&
+      reviewPanel.includes("background: itemColor") &&
+      reviewPanel.includes("{issueNumber}"),
+    "review issues must use compact solid top-to-bottom numbered markers",
   ],
   [
     server.includes("找出必须核对的模块依赖关系") &&

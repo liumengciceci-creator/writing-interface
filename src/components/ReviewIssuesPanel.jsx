@@ -226,6 +226,17 @@ export default function ReviewIssuesPanel({
   if (!open) return null;
 
   const pendingResults = results.filter((item) => !item.decision);
+  const resultById = new Map(results.map((item) => [item.id, item]));
+  const issueNumberById = new Map();
+  let nextIssueNumber = 1;
+  criteria.forEach((criterion) => {
+    const issueItem = criterion.issueId
+      ? resultById.get(criterion.issueId)
+      : null;
+    if (!issueItem || issueItem.decision || issueNumberById.has(issueItem.id)) return;
+    issueNumberById.set(issueItem.id, nextIssueNumber);
+    nextIssueNumber += 1;
+  });
   const selectedItem = pendingResults.find((item) => item.id === selectedIssueId) || null;
   const accentSource = selectedItem?.action === "insert" || selectedItem?.action === "replace"
     ? selectedItem?.suggestedModule
@@ -390,8 +401,9 @@ export default function ReviewIssuesPanel({
 
                 {group.items.map(({ criterion, index }) => {
               const issueItem = criterion.issueId
-                ? results.find((item) => item.id === criterion.issueId)
+                ? resultById.get(criterion.issueId)
                 : null;
+              const issueNumber = issueItem ? issueNumberById.get(issueItem.id) : null;
               const selected = Boolean(issueItem && issueItem.id === selectedIssueId);
               const itemColor = issueItem?.action === "insert" || issueItem?.action === "replace"
                 ? issueItem?.suggestedModule?.color || "#d6a31a"
@@ -480,27 +492,33 @@ export default function ReviewIssuesPanel({
                   ) : (
                     <button
                       type="button"
-                      aria-label={t("review.viewIssue", { count: index + 1 })}
+                      aria-label={t("review.viewIssue", { count: issueNumber })}
                       aria-pressed={selected}
-                      title={issueItem.summary || issueItem.category || t("review.issue", { count: index + 1 })}
+                      title={issueItem.summary || issueItem.category || t("review.issue", { count: issueNumber })}
                       onClick={() => handleSelectIssue(issueItem)}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        width: 22,
-                        height: 22,
+                        width: 18,
+                        height: 18,
                         padding: 0,
-                        border: `2px solid ${itemColor}`,
+                        border: `1px solid ${itemColor}`,
                         borderRadius: "50%",
-                        background: selected ? itemColor : "#fff",
+                        background: itemColor,
+                        color: "#fff",
+                        fontSize: 9.5,
+                        fontWeight: 800,
+                        lineHeight: 1,
                         boxShadow: selected
                           ? `0 0 0 3px color-mix(in srgb, ${itemColor} 20%, transparent)`
                           : "0 1px 4px rgba(15,23,42,0.10)",
                         cursor: "pointer",
-                        transition: "background 150ms ease, box-shadow 150ms ease",
+                        transition: "box-shadow 150ms ease, transform 150ms ease",
                       }}
-                    />
+                    >
+                      {issueNumber}
+                    </button>
                   )}
                 </div>
               );

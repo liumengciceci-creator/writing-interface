@@ -64,13 +64,16 @@ const checks = [
       !inlineEditing.includes("event.currentTarget.textContent =\n              previousText"),
   },
   {
-    name: "overall evaluation and relationship planning share one model pass",
+    name: "overall evaluation and relationship judgments share one model pass",
     pass:
       server.includes("const firstPassPrompt") &&
       server.includes("const firstPassStream = await openai.responses.create") &&
       server.includes('const planOpenTag = "<relation_plan>"') &&
       server.includes('const summaryOpenTag = "<overall_summary>"') &&
-      server.includes("只通读一次全文，同时完成整体评价和模块关系计划") &&
+      server.includes("只通读一次全文，同时完成整体评价和全部模块关系判断") &&
+      server.includes("对每一项关系直接完成判断，不要只列计划") &&
+      server.includes("plannedCriterionResults.forEach") &&
+      !server.includes("diagnosticStream") &&
       !server.includes("criteriaPlanPromise") &&
       !server.includes("collectResponseText"),
   },
@@ -84,7 +87,7 @@ const checks = [
   {
     name: "second-phase review checks real module dependencies by paragraph",
     pass:
-      server.includes("模块关系计划任务") &&
+      server.includes("模块关系审阅任务") &&
       server.includes("论点与原因") &&
       server.includes("论点与证据") &&
       server.includes("前置论证组与结论") &&
@@ -111,11 +114,22 @@ const checks = [
   {
     name: "relationship review appears immediately and starts from the title",
     pass:
-      server.indexOf("const plannedCriteria") < server.indexOf('type: "summary_done"') &&
-      server.includes('key: "relation-title-core"') &&
-      server.includes('paragraph: 0') &&
+      server.indexOf('type: "summary_done"') < server.indexOf('type: "criteria_ready"') &&
+      server.includes('key = includesTitle') &&
+      server.includes('"relation-title-core"') &&
+      server.includes("first.paragraph - second.paragraph") &&
       server.includes('type: "criteria_ready"') &&
       reviewPanel.includes("first.paragraph - second.paragraph"),
+  },
+  {
+    name: "review issues use compact solid sequential markers",
+    pass:
+      reviewPanel.includes("issueNumberById") &&
+      reviewPanel.includes("nextIssueNumber += 1") &&
+      reviewPanel.includes("width: 18") &&
+      reviewPanel.includes("height: 18") &&
+      reviewPanel.includes("background: itemColor") &&
+      reviewPanel.includes("{issueNumber}"),
   },
   {
     name: "canvas and toolbar share the viewport center without shifting for review",

@@ -2267,7 +2267,7 @@ ${JSON.stringify(blocks, null, 2)}
 - 保持为一个紧凑段落，不得只复述模块名称。中文控制在 140—190 个汉字，英文控制在 80—110 个单词。
 - 用成对的 ** 标记 3—5 个最重要的观点、证明角度或结论短语，例如“你先提出了**核心观点**”。除这种加粗标记外，不使用其他 Markdown。`;
 
-    const criteriaPlanPrompt = `模块关系计划任务：根据同一次全文理解，制定随后需要逐项核对的模块关系。
+    const criteriaPlanPrompt = `模块关系审阅任务：根据同一次全文理解，选出真正需要核对的模块关系，并直接完成判断。
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
@@ -2294,38 +2294,40 @@ ${JSON.stringify(blocks, null, 2)}
 - 一个结论如果概括前三个模块，必须把前三个模块和结论一起放入 relatedIds，而不是只检查结论与紧邻模块。
 - criterion 只命名正在核对的具体关系，必须带段落序号，例如“第二段：论点与原因”“第二段：整段论证与结论”。
 - 不要输出“核心主张是否明确”“证据是否充分”等脱离实际模块组合的抽象清单。
+- 如果正文包含标题，第一项必须检查标题与核心主张，paragraph=0；其余项目按第一段、第二段、第三段及各段内部的论证推进顺序排列。
 
-关系计划必须使用以下 JSON 对象结构：
-{"summaryHighlights":[],"criteria":[{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","relatedIds":["本项需要共同核对的全部模块id"]}]}
+对每一项关系直接完成判断，不要只列计划：
+- relationStrength 是 0—100 的整数，只表示模块关系完成度。90—100 才能 pass；80—89 表示方向正确但仍需局部加强；65—79 表示存在显著断层；0—64 表示当前材料难以承担所需功能或方向错误。不得因为主题相同、顺序自然或语言流畅就给 90 分以上。
+- status="pass" 时 issue=null；relationStrength<90 时必须 status="issue" 并给出完整 issue。
+- action="revise"：方向正确但解释、推理、机制或支持关系不足，局部加强原模块。
+- action="insert"：两个模块之间缺少能够独立承担功能的分析、机制、理论、推理或过渡模块。
+- action="replace"：当前材料方向或论证功能错误，即使补充解释也无法承担所需关系；按真实需要重构为理论、分析、数据、例证等类型。数据、理论和例子没有固定优劣。
+- 先判断缺口属于哪一侧。前文没有推出结论时，优先加强前置原因／分析／推理，或在结论前新增独立模块；不得为了省事直接改写结论。
+- 已有证据方向相关但缺少“为何支持主张”的解释时，加强已有分析／推理；没有承载位置时新增分析模块，不得把它改判为“让证据更严谨”。
+- 只有真实外部材料不可替代时才建议数据或证据，绝不虚构研究、理论、数据、来源或事实。
+- suggestion 不设字数限制，通常用 3 个“• ”要点依次说明：当前模块关系完成了什么但还缺什么；建议加强、插入或重构什么；这样会建立哪条支持、解释、回应或归纳关系。不要给完整替换正文。
+- 问题数量没有上下限；只标记真正影响关系强度的修改点，不得为了凑数输出次要建议。
 
-criteria 先按段落、再按论证推进顺序排列；不得包含未知 id，不得重复同一关系，不得预先写判断结果。`;
+关系审阅必须使用以下 JSON 对象结构：
+{"summaryHighlights":[],"criteria":[{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","paragraph":0或段落序号,"relatedIds":["本项需要共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue","summary":"一句简洁的关系判断","issue":null或{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}]}
 
-    const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和模块关系计划。
+criteria 不得包含未知 id，不得重复同一关系。summary 必须以“标题：”或“第几段：”开头，只写一个完整短句，不写建议、不列分点、不加符号。所有文字使用模块正文的主要语言。`;
+
+    const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和全部模块关系判断。
 
 ${criteriaPlanPrompt}
 
 ${overallSummaryPrompt}
 
 严格遵守以下输出协议：
-1. 先输出 <relation_plan>，标签内部只放关系计划 JSON；随后立即关闭 </relation_plan>。
-2. 接着输出 <overall_summary>，标签内部只放整体评价正文；随后关闭 </overall_summary>。
+1. 先输出 <overall_summary>，标签内部只放整体评价正文；随后立即关闭 </overall_summary>。
+2. 接着输出 <relation_plan>，标签内部只放已经完成判断的关系审阅 JSON；随后关闭 </relation_plan>。
 3. 不输出代码块、解释、前言或任何其他内容。
 
-必须先输出关系计划，是为了让整体评价流式显示完成时，模块关系检查已经准备好；两个部分必须基于同一次全文理解，不能互相矛盾。`;
+两个部分必须基于同一次全文理解，不能在输出整体评价后重新分析一次全文。`;
 
     const reviewUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
     const titleBlock = blocks.find((block) => block.type.toLowerCase() === "title");
-    const primaryClaimBlock = blocks.find(
-      (block) => block.type.toLowerCase() === "claim"
-    ) || blocks.find((block) => block.type.toLowerCase() !== "title");
-    const initialTitleCriterion = titleBlock && primaryClaimBlock
-      ? {
-          key: "relation-title-core",
-          criterion: reviewUsesCjk ? "标题：标题与核心主张" : "Title: title and core claim",
-          relatedIds: [titleBlock.id, primaryClaimBlock.id],
-          paragraph: 0,
-        }
-      : null;
 
     try {
       writeLine(res, { type: "phase", phase: "summary" });
@@ -2365,45 +2367,54 @@ ${overallSummaryPrompt}
         if (event.type !== "response.output_text.delta") continue;
         const delta = String(event.delta || "");
         if (!delta) continue;
-        if (summaryClosed) continue;
-
         firstPassBuffer += delta;
 
-        if (!parsedPlan) {
-          const planStart = firstPassBuffer.indexOf(planOpenTag);
-          const planEnd = firstPassBuffer.indexOf(planCloseTag);
-          if (planStart < 0 || planEnd < 0 || planEnd <= planStart) continue;
-          const planText = firstPassBuffer.slice(planStart + planOpenTag.length, planEnd).trim();
-          parsedPlan = JSON.parse(cleanModelJsonText(planText));
-          firstPassBuffer = firstPassBuffer.slice(planEnd + planCloseTag.length);
-        }
-
-        if (!summaryStarted) {
+        if (!summaryClosed && !summaryStarted) {
           const summaryStart = firstPassBuffer.indexOf(summaryOpenTag);
           if (summaryStart < 0) continue;
           summaryStarted = true;
           firstPassBuffer = firstPassBuffer.slice(summaryStart + summaryOpenTag.length);
         }
 
-        const summaryEnd = firstPassBuffer.indexOf(summaryCloseTag);
-        if (summaryEnd >= 0) {
-          emitSummaryText(firstPassBuffer.slice(0, summaryEnd));
-          firstPassBuffer = firstPassBuffer.slice(summaryEnd + summaryCloseTag.length);
-          summaryClosed = true;
-          continue;
+        if (!summaryClosed && summaryStarted) {
+          const summaryEnd = firstPassBuffer.indexOf(summaryCloseTag);
+          if (summaryEnd >= 0) {
+            emitSummaryText(firstPassBuffer.slice(0, summaryEnd));
+            firstPassBuffer = firstPassBuffer.slice(summaryEnd + summaryCloseTag.length);
+            summaryClosed = true;
+            writeLine(res, {
+              type: "summary_done",
+              overallSummary: overallSummary.trim(),
+              summaryHighlights: [],
+            });
+            writeLine(res, { type: "phase", phase: "criteria", total: 0 });
+          } else {
+            // 保留一小段尾部，避免结束标签跨流分片时被误显示在评价文字中。
+            const safeLength = Math.max(0, firstPassBuffer.length - summaryCloseTag.length + 1);
+            if (safeLength > 0) {
+              emitSummaryText(firstPassBuffer.slice(0, safeLength));
+              firstPassBuffer = firstPassBuffer.slice(safeLength);
+            }
+          }
         }
 
-        // 保留一小段尾部，避免结束标签跨流分片时被误显示在评价文字中。
-        const safeLength = Math.max(0, firstPassBuffer.length - summaryCloseTag.length + 1);
-        if (safeLength > 0) {
-          emitSummaryText(firstPassBuffer.slice(0, safeLength));
-          firstPassBuffer = firstPassBuffer.slice(safeLength);
+        if (summaryClosed && !parsedPlan) {
+          const planStart = firstPassBuffer.indexOf(planOpenTag);
+          const planEnd = firstPassBuffer.indexOf(planCloseTag);
+          if (planStart >= 0 && planEnd > planStart) {
+            const planText = firstPassBuffer.slice(
+              planStart + planOpenTag.length,
+              planEnd
+            ).trim();
+            parsedPlan = JSON.parse(cleanModelJsonText(planText));
+            firstPassBuffer = firstPassBuffer.slice(planEnd + planCloseTag.length);
+          }
         }
       }
 
-      if (!parsedPlan) throw new Error("整体审阅没有返回模块关系计划");
       if (!summaryStarted) throw new Error("整体审阅没有返回整体评价");
-      if (!summaryClosed && firstPassBuffer) emitSummaryText(firstPassBuffer);
+      if (!summaryClosed) throw new Error("整体审阅没有完整结束整体评价");
+      if (!parsedPlan) throw new Error("整体审阅没有返回模块关系判断");
 
       overallSummary = overallSummary
         .replace(/[ \t]+/g, " ")
@@ -2418,9 +2429,16 @@ ${overallSummaryPrompt}
 
       summaryHighlights = [];
       const seenCriterionKeys = new Set();
-      const modelCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
+      const plannedItems = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
         .map((item, index) => {
-          const key = String(item?.key || `custom-${index + 1}`).trim();
+          const includesTitle = Boolean(
+            titleBlock && (Array.isArray(item?.relatedIds) ? item.relatedIds : [])
+              .map(String)
+              .includes(titleBlock.id)
+          );
+          const key = includesTitle
+            ? "relation-title-core"
+            : String(item?.key || `custom-${index + 1}`).trim();
           const criterion = String(item?.criterion || "").replace(/\s+/g, " ").trim();
           const relatedIds = Array.from(new Set(
             (Array.isArray(item?.relatedIds) ? item.relatedIds : [])
@@ -2433,25 +2451,28 @@ ${overallSummaryPrompt}
             .map((id) => blocks.find((block) => block.id === id)?.paragraph)
             .map(Number)
             .filter((value) => Number.isFinite(value) && value > 0);
-          const paragraph = relatedParagraphs.length ? Math.max(...relatedParagraphs) : 1;
-          return { key, criterion, relatedIds, paragraph, planOrder: index };
+          const paragraph = includesTitle
+            ? 0
+            : relatedParagraphs.length ? Math.max(...relatedParagraphs) : 1;
+          return {
+            key,
+            criterion,
+            relatedIds,
+            paragraph,
+            planOrder: index,
+            rawResult: { ...item, key, criterion, relatedIds, paragraph },
+          };
         })
         .filter(Boolean)
-        .filter((item) => !initialTitleCriterion || !item.relatedIds.includes(titleBlock.id))
         .sort((first, second) => (
           first.paragraph - second.paragraph || first.planOrder - second.planOrder
-        ))
-        .map(({ planOrder, ...item }) => item);
-      const plannedCriteria = initialTitleCriterion
-        ? [initialTitleCriterion, ...modelCriteria]
-        : modelCriteria;
+        ));
+      if (titleBlock && !plannedItems.some((item) => item.paragraph === 0)) {
+        throw new Error("整体审阅缺少标题与核心主张的关系判断");
+      }
+      const plannedCriteria = plannedItems.map(({ planOrder, rawResult, ...item }) => item);
+      const plannedCriterionResults = plannedItems.map((item) => item.rawResult);
 
-      writeLine(res, {
-        type: "summary_done",
-        overallSummary,
-        summaryHighlights,
-      });
-      writeLine(res, { type: "phase", phase: "criteria", total: plannedCriteria.length });
       writeLine(res, { type: "criteria_ready", total: plannedCriteria.length });
 
       if (!plannedCriteria.length) {
@@ -2830,23 +2851,14 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
         }
       };
 
-      let diagnosticBuffer = "";
-      const diagnosticStream = await openai.responses.create({
-        model: WRITING_MODEL,
-        input: diagnosticPrompt,
-        // 这里先做关系筛查并返回短判断；完整修改说明已限定在 issue 内，
-        // 低推理延迟能更快给出第一条可见结果。
-        reasoning: { effort: "low" },
-        stream: true,
+      // 关系判断与整体评价来自同一次模型调用。这里仅校验并按既定顺序
+      // 发送模型已经生成的结果，不再把全文交给第二个模型请求重复识别。
+      plannedCriterionResults.forEach((item) => {
+        emitCriterionResultLine(JSON.stringify({
+          ...item,
+          type: "criterion_result",
+        }));
       });
-      for await (const event of diagnosticStream) {
-        if (event.type !== "response.output_text.delta") continue;
-        diagnosticBuffer += String(event.delta || "");
-        const lines = diagnosticBuffer.split("\n");
-        diagnosticBuffer = lines.pop() || "";
-        lines.forEach(emitCriterionResultLine);
-      }
-      if (diagnosticBuffer.trim()) emitCriterionResultLine(diagnosticBuffer);
       if (diagnosticProtocolError) throw diagnosticProtocolError;
       if (completedCriteria.length !== plannedCriteria.length) {
         throw new Error(
