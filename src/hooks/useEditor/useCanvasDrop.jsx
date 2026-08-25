@@ -29,6 +29,7 @@ import {
   WRITING_BLOCK_MIME,
   clearActiveTemplateDragData,
   getActiveTemplateDragData,
+  getTemplateFloatingWidth,
 } from "../../utils/templateDrag.js";
 
 /**
@@ -100,39 +101,6 @@ function readTemplateDragPayload(event) {
   }
 
   return getActiveTemplateDragData();
-}
-
-
-/**
- * 根据模板标签文字计算 floating 模块初始宽度。
- *
- * 目标：
- * - 只包住标签自带文字
- * - 不使用默认长条宽度
- * - 与拖到白色页面时的紧凑模块尺寸接近
- */
-function getTemplateFloatingWidth(
-  text
-) {
-  const value =
-    String(text || "");
-
-  let estimatedTextWidth = 0;
-
-  for (const character of value) {
-    estimatedTextWidth +=
-      /[\u4e00-\u9fff]/.test(
-        character
-      )
-        ? 16
-        : 8;
-  }
-
-  return clamp(
-    estimatedTextWidth + 32,
-    72,
-    280
-  );
 }
 
 

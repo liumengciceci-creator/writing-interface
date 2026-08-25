@@ -136,6 +136,9 @@ const checks = [
       sidebar.includes("dataTransfer.setDragImage(") &&
       sidebar.includes("const badgeOverlap = 12") &&
       sidebar.includes("const badgeTop =\n    bodyTop - badgeOverlap") &&
+      sidebar.includes("getTemplateFloatingWidth(\n      labelText") &&
+      sidebar.includes("dragCanvas.width =\n    visualWidth") &&
+      !sidebar.includes("window.devicePixelRatio") &&
       sidebar.includes("sourcePointerRatioX * bodyWidth") &&
       sidebar.includes("sourcePointerRatioY * bodyHeight") &&
       sidebar.includes("onTemplateDragEnd?.()") &&

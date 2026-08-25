@@ -18,6 +18,7 @@ import {
   SEMANTIC_BLOCK_MIME,
   WRITING_BLOCK_MIME,
   clearActiveTemplateDragData,
+  getTemplateFloatingWidth,
   setActiveTemplateDragData,
 } from "../utils/templateDrag.js";
 
@@ -929,32 +930,9 @@ function setRoundedTemplateDragImage(
         ""
     );
 
-  const measurementCanvas =
-    document.createElement("canvas");
-
-  const measurementContext =
-    measurementCanvas.getContext("2d");
-
-  if (measurementContext) {
-    measurementContext.font =
-      `400 14px ${sourceStyle.fontFamily || "sans-serif"}`;
-  }
-
-  const measuredTextWidth =
-    measurementContext
-      ?.measureText(labelText)
-      .width ||
-    Array.from(labelText).length * 14;
-
   const bodyWidth =
-    Math.min(
-      280,
-      Math.max(
-        72,
-        Math.ceil(
-          measuredTextWidth + 28
-        )
-      )
+    getTemplateFloatingWidth(
+      labelText
     );
 
   const bodyHeight = 40;
@@ -973,26 +951,13 @@ function setRoundedTemplateDragImage(
     badgeOverlap +
     shadowPadding * 2;
 
-  const pixelRatio =
-    Math.min(
-      2,
-      Math.max(
-        1,
-        window.devicePixelRatio || 1
-      )
-    );
-
   const dragCanvas =
     document.createElement("canvas");
 
   dragCanvas.width =
-    Math.ceil(
-      visualWidth * pixelRatio
-    );
+    visualWidth;
   dragCanvas.height =
-    Math.ceil(
-      visualHeight * pixelRatio
-    );
+    visualHeight;
   dragCanvas.style.width =
     `${visualWidth}px`;
   dragCanvas.style.height =
@@ -1013,10 +978,6 @@ function setRoundedTemplateDragImage(
     return;
   }
 
-  context.scale(
-    pixelRatio,
-    pixelRatio
-  );
   context.clearRect(
     0,
     0,
