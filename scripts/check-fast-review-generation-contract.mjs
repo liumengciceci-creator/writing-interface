@@ -154,6 +154,9 @@ const checks = [
 	    quickInstructionComposer.includes("deleteInstruction") &&
 	    quickInstructionComposer.includes("isUserEdited: true") &&
 	    quickInstructionComposer.includes("INSTRUCTIONS_DEFAULT_VERSION_KEY") &&
+	    quickInstructionComposer.includes("const width = Math.min(480") &&
+	    quickInstructionComposer.includes("fontSize: 12") &&
+	    quickInstructionComposer.includes("width: 18") &&
 	    i18n.includes("instruction?.isUserEdited === true"),
 	},
   {

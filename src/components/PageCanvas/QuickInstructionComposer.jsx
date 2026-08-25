@@ -109,8 +109,8 @@ export default function QuickInstructionComposer({
   const initialGeometry = useMemo(() => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const width = Math.min(430, Math.max(280, viewportWidth - 24));
-    const estimatedHeight = 118;
+    const width = Math.min(480, Math.max(300, viewportWidth - 24));
+    const estimatedHeight = 134;
     const moduleLeft = anchorRect?.left ?? viewportWidth / 2 - width / 2;
     const moduleRight = anchorRect?.right ?? moduleLeft + width;
     const moduleTop = anchorRect?.top ?? viewportHeight / 2;
@@ -385,9 +385,9 @@ export default function QuickInstructionComposer({
         top: position.top,
         width: initialGeometry.width,
         zIndex: 5100,
-        padding: "9px 11px 9px",
+        padding: "11px 13px 11px",
         border: "1px solid rgba(17,24,39,0.08)",
-        borderRadius: 16,
+        borderRadius: 18,
         background: "rgba(255,255,255,0.98)",
         boxShadow: "0 10px 28px rgba(15,23,42,0.16)",
         boxSizing: "border-box",
@@ -456,8 +456,8 @@ export default function QuickInstructionComposer({
           display: "flex",
           flexWrap: "wrap",
           alignItems: "center",
-          gap: 5,
-          marginTop: 7,
+          gap: 6,
+          marginTop: 8,
         }}
       >
         {instructions.map((instruction) => {
@@ -468,16 +468,16 @@ export default function QuickInstructionComposer({
             <div
               key={instruction.id}
               style={{
-                height: 23,
+                height: 28,
                 flex: "0 0 auto",
                 display: "inline-flex",
                 alignItems: "center",
-                padding: "0 3px 0 8px",
+                padding: "0 4px 0 10px",
                 border: `1px solid ${selected ? "#6b7280" : "rgba(55,65,81,0.38)"}`,
                 borderRadius: 999,
                 background: selected ? "#f1f3f5" : "#ffffff",
                 color: "#5f6670",
-                fontSize: 10,
+                fontSize: 12,
                 whiteSpace: "nowrap",
               }}
             >
@@ -492,7 +492,7 @@ export default function QuickInstructionComposer({
                 style={{
                   height: "100%",
                   minWidth: 0,
-                  padding: "0 3px 0 0",
+                  padding: "0 5px 0 0",
                   border: 0,
                   background: "transparent",
                   color: "inherit",
@@ -510,8 +510,8 @@ export default function QuickInstructionComposer({
                 title={t("instruction.edit")}
                 onClick={() => beginEditInstruction(instruction)}
                 style={{
-                  width: 15,
-                  height: 15,
+                  width: 18,
+                  height: 18,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -523,7 +523,7 @@ export default function QuickInstructionComposer({
                   cursor: "pointer",
                 }}
               >
-                <svg aria-hidden="true" width="9" height="9" viewBox="0 0 12 12">
+                <svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12">
                   <path d="m2 8.8.35-2.05L7.9 1.2l1.9 1.9-5.55 5.55L2 8.8Z" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
                   <path d="m6.9 2.2 1.9 1.9" fill="none" stroke="currentColor" strokeWidth="1.15" />
                 </svg>
@@ -535,8 +535,8 @@ export default function QuickInstructionComposer({
                 title={t("instruction.delete")}
                 onClick={() => deleteInstruction(instruction.id)}
                 style={{
-                  width: 15,
-                  height: 15,
+                  width: 18,
+                  height: 18,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -545,7 +545,7 @@ export default function QuickInstructionComposer({
                   borderRadius: "50%",
                   background: "transparent",
                   color: "#8a9099",
-                  fontSize: 13,
+                  fontSize: 16,
                   lineHeight: 1,
                   cursor: "pointer",
                 }}
@@ -571,16 +571,16 @@ export default function QuickInstructionComposer({
             setShowCustomForm(true);
           }}
           style={{
-            width: 23,
-            height: 23,
-            flex: "0 0 23px",
+            width: 28,
+            height: 28,
+            flex: "0 0 28px",
             padding: 0,
             border: "1px solid rgba(55,65,81,0.38)",
             borderRadius: "50%",
             background: showCustomForm ? "#f3f4f6" : "#fff",
             color: "#4b5563",
-            fontSize: 17,
-            lineHeight: "21px",
+            fontSize: 20,
+            lineHeight: "26px",
             cursor: "pointer",
           }}
         >
