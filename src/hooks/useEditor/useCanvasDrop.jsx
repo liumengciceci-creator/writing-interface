@@ -47,6 +47,54 @@ function isInsideSingleSemanticEditor(
   );
 }
 
+/**
+ * drop 阶段直接恢复 Sidebar 标签数据。
+ * React 的临时 draggingType 可能因 dragend、删除后的重渲染或浏览器
+ * 事件顺序提前清空；原生 DataTransfer 才是本次手势的最终数据源。
+ */
+function readTemplateDragPayload(event) {
+  const dataTransfer =
+    event?.dataTransfer;
+
+  if (!dataTransfer) {
+    return null;
+  }
+
+  const types = [
+    "application/x-writing-block",
+    "application/x-semantic-block",
+    "application/json",
+  ];
+
+  for (const type of types) {
+    const raw =
+      dataTransfer.getData(type);
+
+    if (!raw) {
+      continue;
+    }
+
+    try {
+      const payload = JSON.parse(raw);
+
+      if (
+        payload?.kind === "existing-block" ||
+        payload?.source === "semantic-editor"
+      ) {
+        return null;
+      }
+
+      if (payload?.type || payload?.label) {
+        return payload;
+      }
+    } catch {
+      // 继续尝试下一个 ArguWeave 数据格式。
+    }
+  }
+
+  return null;
+}
+
 
 /**
  * 根据模板标签文字计算 floating 模块初始宽度。
@@ -275,12 +323,19 @@ export function useCanvasDrop({
   const handleCanvasMouseUp =
     useCallback(
       (event) => {
+        const draggedTemplate =
+          draggingType ||
+          readTemplateDragPayload(event);
+
         /**
          * 正在框选时不执行拖拽放置。
          */
         if (
-          isSelecting ||
-          selectionRect
+          (
+            isSelecting ||
+            selectionRect
+          ) &&
+          !draggedTemplate
         ) {
           clearDragState();
 
@@ -295,7 +350,7 @@ export function useCanvasDrop({
          * 插入到精确的文字 inline 位置。
          */
         if (
-          draggingType &&
+          draggedTemplate &&
           isInsideSingleSemanticEditor(
             event
           )
@@ -374,13 +429,13 @@ export function useCanvasDrop({
          * 白色页面 -> inline
          * 灰色区域 -> floating
          */
-        if (draggingType) {
+        if (draggedTemplate) {
           const newBlockId =
             nextBlockIdRef
               .current++;
 
           const blockWidth =
-            draggingType.width ??
+            draggedTemplate.width ??
             BLOCK_WIDTH;
 
           /**
@@ -388,9 +443,9 @@ export function useCanvasDrop({
            */
           const templateText =
             String(
-              draggingType.label ||
-                draggingType.text ||
-                draggingType.type ||
+              draggedTemplate.label ||
+                draggedTemplate.text ||
+                draggedTemplate.type ||
                 ""
             );
 
@@ -486,16 +541,16 @@ export function useCanvasDrop({
               templateText,
 
             type:
-              draggingType.type,
+              draggedTemplate.type,
 
             label:
-              draggingType.label,
+              draggedTemplate.label,
 
             color:
-              draggingType.color,
+              draggedTemplate.color,
 
             fill:
-              draggingType.fill,
+              draggedTemplate.fill,
 
             isGenerated:
               false,
@@ -529,8 +584,9 @@ export function useCanvasDrop({
               previousSections
             ) => {
               const nextSections =
-                cloneSections(
-                  previousSections
+                normalizeSections(
+                  previousSections,
+                  createEditingSectionFn
                 );
 
               /**
