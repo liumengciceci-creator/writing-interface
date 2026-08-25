@@ -13,16 +13,16 @@ const [server, app, reviewApi, reviewCurve, reviewPanel, i18n] = await Promise.a
 
 const checks = [
   [
-    server.includes('"action":"revise或insert"') &&
-      server.includes("建议数量没有上下限") &&
+    server.includes('"type":"criterion_result"') &&
+      server.includes("问题数量没有上下限") &&
       server.includes("suggestion 不设字数限制"),
-    "review prompt must allow revise/insert without fixed suggestion or word counts",
+    "dynamic criterion review must allow revise/insert without fixed issue or word counts",
   ],
   [
-    server.includes("你先写了……，提出……") &&
-      server.includes("这里只概括现有内容及关系") &&
-      server.includes("不评价不足、不提出建议"),
-    "overall review must remain a concise narrative of the author's argument",
+    server.includes("你先写了……；随后从……角度说明") &&
+      server.includes("只概括现有内容与关系") &&
+      server.includes('type: "summary_delta"'),
+    "overall review must remain a concise, genuinely streamed narrative",
   ],
   [
     server.includes("2—4 个以“• ”开头的完整要点") &&
@@ -50,11 +50,20 @@ const checks = [
     "server must allow new review-defined labels while validating the adjacent insertion gap",
   ],
   [
-    server.includes("relationshipPrompt") &&
+    server.includes("overallSummaryPrompt") &&
+      server.includes("criteriaPlanPrompt") &&
       server.includes("diagnosticPrompt") &&
-      server.includes('reasoning: { effort: "low" }') &&
-      server.includes('collectResponseText(diagnosticPrompt, "medium")'),
-    "review must separate fast relationship feedback from deeper diagnosis",
+      server.includes('type: "criterion_start"') &&
+      server.includes('type: "criterion_result"'),
+    "review must separate streamed overall assessment from dynamic criterion diagnosis",
+  ],
+  [
+    server.includes("这不是必须全部执行的固定清单") &&
+      server.includes("不得为了显得完整而把九项全部列出") &&
+      app.includes('event.type === "criterion_start"') &&
+      app.includes('event.type === "criterion_result"') &&
+      reviewPanel.includes("criteria.map"),
+    "criteria must be selected from actual content and rendered progressively",
   ],
   [
     app.includes("createReviewTemplateStyle") &&

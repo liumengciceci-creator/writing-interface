@@ -80,6 +80,8 @@ function renderSuggestionPoints(value) {
 export default function ReviewIssuesPanel({
   open,
   results = [],
+  criteria = [],
+  phase = "idle",
   overallSummary = "",
   summaryHighlights = [],
   onFocusIssue,
@@ -166,7 +168,7 @@ export default function ReviewIssuesPanel({
         >
           <div>
             <div style={{ color: "#1f2937", fontSize: 13, fontWeight: 800 }}>
-              {overallSummary ? t("review.overall") : t("review.result")}
+              {overallSummary || phase === "summary" ? t("review.overall") : t("review.result")}
             </div>
           </div>
           <button
@@ -210,81 +212,122 @@ export default function ReviewIssuesPanel({
           </div>
         ) : null}
 
-        <div
-          style={{
-            padding: "13px 14px 0",
-          }}
-        >
+        {phase !== "summary" ? <>
+        <div style={{ padding: "14px 14px 7px" }}>
           <div style={{ color: "#1f2937", fontSize: 12, fontWeight: 800 }}>
-            {pendingResults.length > 0
-              ? t("review.found", { count: pendingResults.length })
-              : t("review.completed")}
+            {t("review.criteriaHeading")}
           </div>
-          {pendingResults.length > 0 ? (
-            <div style={{ marginTop: 4, color: "#7b8190", fontSize: 10.5, lineHeight: 1.45 }}>
-              {t("review.selectDot")}
-            </div>
-          ) : null}
         </div>
 
-        {pendingResults.length === 0 ? (
-          <div style={{ padding: "18px 14px", color: "#6b7280", fontSize: 11.5, lineHeight: 1.6 }}>
-            {t("review.none")}
+        {criteria.length === 0 ? (
+          <div
+            aria-live="polite"
+            style={{ padding: "8px 14px 18px", color: "#7b8190", fontSize: 11, lineHeight: 1.6 }}
+          >
+            {t("review.waitingResults")}
           </div>
         ) : (
           <div
             role="list"
-            aria-label={t("review.issueNumbers")}
+            aria-label={t("review.criteriaHeading")}
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 10,
-              padding: "14px",
+              display: "grid",
+              gap: 0,
+              padding: "0 14px 14px",
             }}
           >
-            {pendingResults.map((item, index) => {
-              const selected = item.id === selectedIssueId;
-              const itemColor = item.action === "insert"
-                ? item.suggestedModule?.color || "#d6a31a"
-                : item.sourceBlock?.color || "#d6a31a";
+            {criteria.map((criterion, index) => {
+              const issueItem = criterion.issueId
+                ? results.find((item) => item.id === criterion.issueId)
+                : null;
+              const selected = Boolean(issueItem && issueItem.id === selectedIssueId);
+              const itemColor = issueItem?.action === "insert"
+                ? issueItem?.suggestedModule?.color || "#d6a31a"
+                : issueItem?.sourceBlock?.color || "#d6a31a";
+              const accepted = issueItem?.decision === "accepted";
+              const rejected = issueItem?.decision === "rejected";
 
               return (
-                <button
-                  key={item.id}
-                  type="button"
+                <div
+                  key={`${criterion.key}-${index}`}
                   role="listitem"
-                  aria-label={t("review.viewIssue", { count: index + 1 })}
-                  aria-pressed={selected}
-                  title={item.summary || item.category || t("review.issue", { count: index + 1 })}
-                  onClick={() => handleSelectIssue(item)}
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 34,
-                    height: 34,
-                    padding: 0,
-                    border: selected ? `2px solid ${itemColor}` : "2px solid #fff",
-                    borderRadius: "50%",
-                    background: itemColor,
-                    boxShadow: selected
-                      ? `0 0 0 3px color-mix(in srgb, ${itemColor} 22%, transparent)`
-                      : "0 2px 7px rgba(15,23,42,0.15)",
-                    color: "#fff",
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    transform: selected ? "scale(1.08)" : "scale(1)",
-                    transition: "transform 160ms ease, box-shadow 160ms ease",
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 26px",
+                    alignItems: "start",
+                    gap: 9,
+                    padding: "10px 0",
+                    borderTop: index === 0 ? "1px solid rgba(17,24,39,0.08)" : "1px solid rgba(17,24,39,0.07)",
                   }}
                 >
-                  {index + 1}
-                </button>
+                  <div style={{ color: "#4b5563", fontSize: 11.1, lineHeight: 1.65 }}>
+                    {criterion.summary}
+                  </div>
+
+                  {!issueItem || accepted ? (
+                    <span
+                      aria-label={t("review.passed")}
+                      title={t("review.passed")}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 23,
+                        height: 23,
+                        color: "#2f8f63",
+                        fontSize: 16,
+                        fontWeight: 900,
+                      }}
+                    >
+                      ✓
+                    </span>
+                  ) : rejected ? (
+                    <span
+                      aria-label={t("review.skipped")}
+                      title={t("review.skipped")}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 23,
+                        height: 23,
+                        color: "#9ca3af",
+                        fontSize: 15,
+                      }}
+                    >
+                      —
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={t("review.viewIssue", { count: index + 1 })}
+                      aria-pressed={selected}
+                      title={issueItem.summary || issueItem.category || t("review.issue", { count: index + 1 })}
+                      onClick={() => handleSelectIssue(issueItem)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 22,
+                        height: 22,
+                        padding: 0,
+                        border: `2px solid ${itemColor}`,
+                        borderRadius: "50%",
+                        background: selected ? itemColor : "#fff",
+                        boxShadow: selected
+                          ? `0 0 0 3px color-mix(in srgb, ${itemColor} 20%, transparent)`
+                          : "0 1px 4px rgba(15,23,42,0.10)",
+                        cursor: "pointer",
+                        transition: "background 150ms ease, box-shadow 150ms ease",
+                      }}
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
         )}
+        </> : null}
       </section>
 
       {selectedItem ? (

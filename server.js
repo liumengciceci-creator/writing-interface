@@ -2184,8 +2184,11 @@ app.post(
 );
 
 /**
- * 流式整体论证审阅。
- * 模型每确认一个模块概括或一条关系，立即以 NDJSON 推送给前端。
+ * 两阶段的流式论证审阅。
+ *
+ * 第一阶段直接流式输出整体论证概括；第二阶段先根据当前模块选择
+ * 真正适用的 GRE 检查项，再逐项推送“正在检查”与最终结果。前端因此
+ * 展示的是真实模型进度，而不是审阅完成后的延时动画。
  */
 app.post(
   "/api/review-framework-stream",
@@ -2235,95 +2238,22 @@ app.post(
     res.flushHeaders?.();
     writeLine(res, { type: "ready", blockIds: blocks.map((block) => block.id) });
 
-    const maxRelations = Math.min(5, Math.max(1, blocks.length));
     const validIds = new Set(blocks.map((block) => block.id));
-    const emittedModuleIds = new Set();
-    const emittedRelationKeys = new Set();
-    const confirmedRelations = [];
     let overallSummary = "";
     let summaryHighlights = [];
 
-    const relationshipPrompt = `你是一名严谨的多语言论证写作编辑。现在只完成第一遍审阅：识别模块作用、关键关系，并简洁概括整体论证。严格按进度逐行输出 NDJSON；每确认一个模块或关系就立刻输出一行，不要等待全部分析完成，不要输出代码块或额外文字。
+    const overallSummaryPrompt = `你是一名严谨的多语言论证写作编辑。现在只完成第一阶段：通读全部模块，简洁概括作者已经建立的整体论证关系。
 
-语言规则：先判断模块正文的主要语言。focus、relation、overallSummary 和 summaryHighlights 必须使用与正文相同的主要语言，界面语言不影响输出语言。
-
-模块（数组顺序即写作顺序）：
+模块数组的顺序就是正文顺序：
 ${JSON.stringify(blocks, null, 2)}
 
-这不是线性大纲，而是一张可能跨段、回指和分支的论证关系图。按顺序阅读，但同时检查相邻与非相邻模块的真实语义联系。
-
-先按顺序逐一输出：
-{"type":"module","id":"模块id","focus":"一句简短文字，说明正在检查的内容作用"}
-focus 只用于实时反馈，必须简短，不要复述整段原文。
-
-确认一条关键直接关系时立即输出：
-{"type":"relation","sourceId":"主动提供解释、支持、质疑、限定或推进的模块id","targetId":"被作用的模块id","relation":"具体而简短的关系词","importance":1到5的整数}
-语义方向不能由位置先后决定。只保留决定论证成立的直接关系，总数最多 ${maxRelations} 条；不要因为相邻而连线，不要输出能够由其他关系间接推出的冗余连线。
-
-最后输出且只输出一行整体概括：
-{"type":"framework","overallSummary":"简洁的整体论证叙述","summaryHighlights":["可在概括中逐字找到的关键短语"]}
-overallSummary 必须说明作者实际写了什么、各部分怎样推进。语言可参考“你先写了……，提出……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”，但不要机械套用。必须写出具体观点和证明角度，不能只说模块名称。这里只概括现有内容及关系，不评价不足、不提出建议、不列审阅标准、不使用箭头链或分点，保持简洁。`;
-
-    const emitRelationshipLine = (rawLine) => {
-      const line = String(rawLine || "")
-        .trim()
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/```$/, "")
-        .trim();
-      if (!line) return;
-
-      try {
-        const item = JSON.parse(line);
-        if (item.type === "module" && validIds.has(String(item.id))) {
-          const id = String(item.id);
-          if (emittedModuleIds.has(id)) return;
-          emittedModuleIds.add(id);
-          writeLine(res, {
-            type: "module",
-            id,
-            focus: String(item.focus || "检查模块在论证中的作用")
-              .replace(/\s+/g, " ")
-              .trim(),
-          });
-          return;
-        }
-
-        if (
-          item.type === "relation" &&
-          validIds.has(String(item.sourceId)) &&
-          validIds.has(String(item.targetId)) &&
-          String(item.sourceId) !== String(item.targetId)
-        ) {
-          const relation = {
-            sourceId: String(item.sourceId),
-            targetId: String(item.targetId),
-            relation: String(item.relation || "关联").replace(/\s+/g, " ").trim(),
-            importance: Math.max(1, Math.min(5, Number(item.importance) || 3)),
-          };
-          const key = `${relation.sourceId}::${relation.targetId}::${relation.relation}`;
-          if (emittedRelationKeys.has(key) || confirmedRelations.length >= maxRelations) return;
-          emittedRelationKeys.add(key);
-          confirmedRelations.push(relation);
-          writeLine(res, { type: "relation", ...relation });
-          return;
-        }
-
-        if (item.type === "framework") {
-          overallSummary = String(item.overallSummary || "")
-            .replace(/[ \t]+/g, " ")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
-          summaryHighlights = Array.isArray(item.summaryHighlights)
-            ? item.summaryHighlights
-                .map((value) => String(value || "").replace(/\s+/g, " ").trim())
-                .filter((value) => value && overallSummary.includes(value))
-                .slice(0, 5)
-            : [];
-        }
-      } catch (error) {
-        console.warn("跳过无法解析的关系审阅流行：", line, error.message);
-      }
-    };
+输出要求：
+- 使用模块正文的主要语言，界面语言不影响输出。
+- 只输出一段可直接显示的连续文字，不输出 JSON、Markdown、标题或分点。
+- 具体说明作者先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
+- 可参考“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”的语气，但不要机械套用。
+- 只概括现有内容与关系；不评价不足、不提修改建议、不列审阅标准、不使用箭头链。
+- 保持简洁，但不得只复述模块名称。`;
 
     const collectResponseText = async (input, effort) => {
       let output = "";
@@ -2342,48 +2272,112 @@ overallSummary 必须说明作者实际写了什么、各部分怎样推进。�
     };
 
     try {
-      let relationshipBuffer = "";
-      const relationshipStream = await openai.responses.create({
+      writeLine(res, { type: "phase", phase: "summary" });
+      const summaryStream = await openai.responses.create({
         model: WRITING_MODEL,
-        input: relationshipPrompt,
+        input: overallSummaryPrompt,
         reasoning: { effort: "low" },
         stream: true,
       });
 
-      for await (const event of relationshipStream) {
+      for await (const event of summaryStream) {
         if (event.type !== "response.output_text.delta") continue;
-        relationshipBuffer += String(event.delta || "");
-        const lines = relationshipBuffer.split("\n");
-        relationshipBuffer = lines.pop() || "";
-        lines.forEach(emitRelationshipLine);
+        const delta = String(event.delta || "");
+        if (!delta) continue;
+        overallSummary += delta;
+        writeLine(res, { type: "summary_delta", delta });
       }
-      if (relationshipBuffer.trim()) emitRelationshipLine(relationshipBuffer);
+      overallSummary = overallSummary
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 
-      writeLine(res, { type: "phase", phase: "enhancements" });
+      const criteriaPlanPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在只为这篇具体文章制定第二阶段检查计划。
 
-      const diagnosticPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在进行独立的第二遍诊断。不要重复概括全文；先诊断论证缺口，再选择最小但足够的干预方式。最终只输出一个合法 JSON 对象，不要代码块或额外文字。
+模块：
+${JSON.stringify(blocks, null, 2)}
+
+可选的 GRE 论证检查维度：
+1. coreThesis：核心主张是否明确，并统领全文。
+2. claimDerivation：各级主张能否由前文推出。
+3. intermediateReasoning：是否缺少必要的中间推理。
+4. causalExplanation：原因是否真正解释了结果。
+5. theoryUse：理论是否被展开并用于分析。
+6. supportQuality：理由、例子或证据是否相关、充分，支持关系是否说明。
+7. counterargument：反论是否回应关键前提。
+8. conclusionCoverage：结论是否覆盖主要论证。
+9. logicalContinuity：段落或模块之间是否存在逻辑断层。
+
+这不是必须全部执行的固定清单。必须先根据实际模块、论证层级和文章需求选择真正适用的检查项：
+- 有原因或因果主张才检查 causalExplanation；有理论或该论证明显缺少理论解释才检查 theoryUse。
+- 有理由、例子或证据才检查 supportQuality；有反论，或核心主张必须处理关键反方前提时，才检查 counterargument。
+- 有结论才检查 conclusionCoverage；存在多段、多层主张或跨模块推进时，才检查相应的推导与连续性。
+- 不得为了显得完整而把九项全部列出，也不得因为某种模块缺失就默认它必须存在。
+- 若实际内容出现上述九项之外的重要论证问题，可增加 custom 检查项。
+
+严格只输出一个 JSON 对象：
+{"summaryHighlights":["能在整体概括中逐字找到的关键短语"],"criteria":[{"key":"上述9个key之一或custom-xxx","criterion":"与正文同语言的简短检查说明","relatedIds":["本项实际需要对照的模块id"]}]}
+
+criteria 按最合理的审阅顺序排列；relatedIds 可以包含不相邻模块，但不得包含未知 id。summaryHighlights 最多 5 项。不要输出代码块或额外文字。`;
+
+      const planText = await collectResponseText(criteriaPlanPrompt, "low");
+      const parsedPlan = JSON.parse(cleanModelJsonText(planText));
+      summaryHighlights = Array.isArray(parsedPlan?.summaryHighlights)
+        ? parsedPlan.summaryHighlights
+            .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+            .filter((value) => value && overallSummary.includes(value))
+            .slice(0, 5)
+        : [];
+      const seenCriterionKeys = new Set();
+      const plannedCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
+        .map((item, index) => {
+          const key = String(item?.key || `custom-${index + 1}`).trim();
+          const criterion = String(item?.criterion || "").replace(/\s+/g, " ").trim();
+          const relatedIds = Array.from(new Set(
+            (Array.isArray(item?.relatedIds) ? item.relatedIds : [])
+              .map(String)
+              .filter((id) => validIds.has(id))
+          ));
+          if (!criterion || !relatedIds.length || seenCriterionKeys.has(key)) return null;
+          seenCriterionKeys.add(key);
+          return { key, criterion, relatedIds };
+        })
+        .filter(Boolean);
+
+      writeLine(res, {
+        type: "summary_done",
+        overallSummary,
+        summaryHighlights,
+      });
+      writeLine(res, { type: "phase", phase: "criteria", total: plannedCriteria.length });
+
+      if (!plannedCriteria.length) {
+        writeLine(res, {
+          type: "final",
+          overallSummary,
+          summaryHighlights,
+          criteria: [],
+          enhancements: [],
+        });
+        writeLine(res, { type: "done" });
+        return res.end();
+      }
+
+      const diagnosticPrompt = `你是一名以 GRE 分析性写作核心标准审阅论证的高级编辑。现在执行已根据文章内容制定的第二阶段检查。严格按计划顺序，每完成一项就立即输出一行 NDJSON，不要等待全部检查完成。
 
 语言规则：所有 category、criterion、summary、suggestion 和 insertLabel 必须使用模块正文的主要语言。
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
 
-第一遍确认的关键关系：
-${JSON.stringify(confirmedRelations, null, 2)}
+第一阶段的整体概括：
+${overallSummary}
+
+已选择的检查计划：
+${JSON.stringify(plannedCriteria, null, 2)}
 
 当前已有标签（可以复用，但不是白名单）：
 ${JSON.stringify(templates, null, 2)}
-
-请全面检查以下维度，而不是优先寻找数据或实证：
-1. 核心主张与任务焦点是否明确并保持一致；
-2. 理由能否推出主张，是否缺少必要前提、中间推理、因果机制或一般化依据；
-3. 分析是否真正解释“为什么”和“如何”，还是只重复结论、罗列现象；
-4. 理论是否被准确用于解释材料，而不是只出现名称；
-5. 理由、例子、理论与证据是否相关且足以承担作者赋予的证明作用，作者是否解释支持关系；
-6. 多个理由是递进、并列还是重复，是否构成有深度的分析；
-7. 替代解释、关键假设和反论是否得到有效处理；
-8. 段落之间是否缺少独立过渡或逻辑桥梁；
-9. 结论是否由前文推出并覆盖主要论证链，是否引入未建立的新判断。
 
 GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且有说服力的理由和例子；它不要求每个主张都配实证数据。必须遵守：
 - 能靠补足推理、机制、理论运用或解释支持关系解决的问题，不得建议新增 Evidence/数据模块。
@@ -2392,17 +2386,21 @@ GRE 分析性写作要求有洞察、有深度的分析，以及合乎逻辑且�
 - 理论名称已经出现但运用不足，通常是局部加强理论分析，不等于缺少实证。
 - 不得把增加“可能”“也许”、补泛泛限定、换词、调整语气或“更学术”作为独立建议。
 
-每个问题只能选择一种动作：
+若本项通过，status="pass"，用 summary 直接说明文章已经建立了什么，不输出空洞的“符合要求”。
+若存在真正影响论证的问题，status="issue"，summary 直接说明当前哪一步不成立，并提供 issue。不要把补“可能”“也许”、调整语气或换词当成问题。
+问题数量没有上下限；只标记真正影响论证质量的根本问题，不得为了凑数输出次要建议。
+
+每个问题选择最合适的处理动作：
 - action="revise", rewriteScope="local"：模块方向正确，但关键分析、推理、机制或支持关系不充分。保留核心内容，只加强现有模块。
 - action="revise", rewriteScope="full"：证据、理由或反论方向错误，实际不能承担当前论证功能。接受后重写整个 sourceId 模块。
 - action="insert"：两个相邻模块之间缺少一个真正独立的论证功能，局部修改任何一个模块都无法清楚承担。接受后在两者之间新增模块。
 
 新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。
 
-先在内部识别全部问题，再只保留最重要且互不重复的根本问题。一个根本缺口只输出一条建议；如果补足一段机制或推理可以解决多个表面症状，只输出这一个机制或推理建议。建议数量没有上下限，也不得为了凑数输出次要问题。
+严格按计划顺序，每项只输出一行：
+{"type":"criterion_result","key":"计划中的key","criterion":"计划中的criterion","status":"pass或issue","summary":"可直接显示在右侧的完整判断","relatedIds":["本判断实际涉及的模块id"],"issue":null或{"action":"revise或insert","rewriteScope":"local、full或空字符串","sourceId":"需修改的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}}
 
-输出格式：
-{"enhancements":[{"action":"revise或insert","rewriteScope":"local、full或空字符串","sourceId":"模块id","targetId":"相关模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","gapDimension":"taskFocus/development/warrant/assumption/causality/theoryUse/support/counterargument/organization/conclusion","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"同一根本问题的稳定短标识","priority":1到5,"category":"具体问题类别","criterion":"本条判断标准","summary":"一句清楚判断","suggestion":"分点的可执行修改指令"}]}
+status="pass" 时 issue 必须是 null；status="issue" 时 issue 必须完整。不输出代码块、数组外壳或额外文字。
 
 suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的完整要点，并根据具体内容依次讲清：
 - 现在哪里不充分或方向为何错误；
@@ -2410,20 +2408,26 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
 - 修改后哪一步推理、解释或整体论证链会变得成立或更有说服力。
 不要机械复制固定句式，但每个要点必须是能独立读懂的完整句子。不要给出“修正为……”后的完整替换正文，也不要虚构原文没有的理论、数据、研究、来源或事实。若确需外部材料，清楚说明作者需要提供哪类材料以及它必须验证什么。`;
 
-      const diagnosticText = await collectResponseText(diagnosticPrompt, "medium");
-      const parsedDiagnostic = JSON.parse(cleanModelJsonText(diagnosticText));
       const seenRootIssues = new Set();
-      const enhancements = (Array.isArray(parsedDiagnostic?.enhancements)
-        ? parsedDiagnostic.enhancements
-        : [])
-        .map((enhancement) => {
+      const completedCriteria = [];
+      const enhancements = [];
+      let nextCriterionIndex = 0;
+      let diagnosticProtocolError = null;
+
+      const emitCriterionStart = (index) => {
+        const criterion = plannedCriteria[index];
+        if (!criterion) return;
+        writeLine(res, { type: "criterion_start", ...criterion, index, total: plannedCriteria.length });
+      };
+
+      const normalizeEnhancement = (enhancement, criterionItem) => {
           const action = enhancement?.action === "insert" ? "insert" : "revise";
           const rewriteScope = action === "revise"
             ? enhancement?.rewriteScope === "full" ? "full" : "local"
             : "";
           const sourceId = String(enhancement?.sourceId || "");
           const targetId = String(enhancement?.targetId || "");
-          if (!validIds.has(sourceId) || !validIds.has(targetId) || sourceId === targetId) {
+          if (!validIds.has(sourceId) || !validIds.has(targetId)) {
             return null;
           }
 
@@ -2443,7 +2447,7 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
 
           const rootIssueKey = String(
             enhancement?.rootIssueKey ||
-              `${sourceId}:${targetId}:${enhancement?.gapDimension || action}`
+              `${criterionItem?.key || "criterion"}:${sourceId}:${targetId}:${action}`
           ).trim();
           if (seenRootIssues.has(rootIssueKey)) return null;
           seenRootIssues.add(rootIssueKey);
@@ -2459,19 +2463,95 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
             supportNeeded,
             rootIssueKey,
             priority: Math.max(1, Math.min(5, Number(enhancement?.priority) || 3)),
+            criterionKey: criterionItem?.key || "",
+            criterion: criterionItem?.criterion || "",
             suggestion: String(enhancement?.suggestion || "")
               .replace(/[ \t]+/g, " ")
               .replace(/\n{3,}/g, "\n\n")
               .trim(),
           };
-        })
-        .filter((enhancement) => enhancement?.suggestion)
-        .sort((first, second) => second.priority - first.priority);
+      };
+
+      const emitCriterionResultLine = (rawLine) => {
+        const line = String(rawLine || "")
+          .trim()
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/```$/, "")
+          .trim();
+        if (!line) return;
+
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed?.type !== "criterion_result") return;
+          const expected = plannedCriteria[completedCriteria.length];
+          if (!expected || String(parsed.key || "") !== expected.key) return;
+
+          const status = parsed.status === "issue" ? "issue" : "pass";
+          const relatedIds = Array.from(new Set(
+            (Array.isArray(parsed.relatedIds) ? parsed.relatedIds : expected.relatedIds)
+              .map(String)
+              .filter((id) => validIds.has(id))
+          ));
+          const summary = String(parsed.summary || "").replace(/\s+/g, " ").trim();
+          if (!summary) return;
+
+          const issue = status === "issue"
+            ? normalizeEnhancement(parsed.issue, expected)
+            : null;
+          if (status === "issue" && !issue) {
+            diagnosticProtocolError = new Error(
+              `检查项 ${expected.key} 的修改意见不完整`
+            );
+            return;
+          }
+          const normalizedStatus = issue ? "issue" : "pass";
+          const result = {
+            key: expected.key,
+            criterion: expected.criterion,
+            status: normalizedStatus,
+            summary,
+            relatedIds: relatedIds.length ? relatedIds : expected.relatedIds,
+            issue,
+          };
+          completedCriteria.push(result);
+          if (issue) enhancements.push(issue);
+          writeLine(res, { type: "criterion_result", ...result });
+
+          nextCriterionIndex = completedCriteria.length;
+          emitCriterionStart(nextCriterionIndex);
+        } catch (error) {
+          console.warn("跳过无法解析的 GRE 检查流行：", line, error.message);
+        }
+      };
+
+      emitCriterionStart(0);
+      let diagnosticBuffer = "";
+      const diagnosticStream = await openai.responses.create({
+        model: WRITING_MODEL,
+        input: diagnosticPrompt,
+        reasoning: { effort: "medium" },
+        stream: true,
+      });
+      for await (const event of diagnosticStream) {
+        if (event.type !== "response.output_text.delta") continue;
+        diagnosticBuffer += String(event.delta || "");
+        const lines = diagnosticBuffer.split("\n");
+        diagnosticBuffer = lines.pop() || "";
+        lines.forEach(emitCriterionResultLine);
+      }
+      if (diagnosticBuffer.trim()) emitCriterionResultLine(diagnosticBuffer);
+      if (diagnosticProtocolError) throw diagnosticProtocolError;
+      if (completedCriteria.length !== plannedCriteria.length) {
+        throw new Error(
+          `审阅结果不完整：仅完成 ${completedCriteria.length}/${plannedCriteria.length} 项检查`
+        );
+      }
 
       writeLine(res, {
         type: "final",
         overallSummary,
         summaryHighlights,
+        criteria: completedCriteria,
         enhancements,
       });
       writeLine(res, { type: "done" });

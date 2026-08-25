@@ -204,6 +204,7 @@ export default function App() {
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
     running: false,
+    phase: "idle",
     current: 0,
     total: 0,
     activeIds: [],
@@ -214,6 +215,7 @@ export default function App() {
     activeGraphId: null,
     activeIssue: null,
     results: [],
+    criteria: [],
     overallSummary: "",
     summaryHighlights: [],
   });
@@ -499,9 +501,11 @@ export default function App() {
 
     if (blocks.length < 2) return;
 
-    setReviewPanelOpen(false);
+    // 第一阶段的总结从第一个字开始就在右侧显示。
+    setReviewPanelOpen(true);
     setReviewState({
       running: true,
+      phase: "summary",
       current: 0,
       total: blocks.length,
       activeIds: blocks.map((block) => String(block.id)),
@@ -512,6 +516,7 @@ export default function App() {
       activeGraphId: "overall-review",
       activeIssue: null,
       results: [],
+      criteria: [],
       overallSummary: "",
       summaryHighlights: [],
     });
@@ -521,6 +526,106 @@ export default function App() {
     const relationByPair = new Map();
     const getRelationPairKey = (sourceId, targetId) =>
       [String(sourceId), String(targetId)].sort().join("::");
+    const createReviewResult = (item, index = 0) => {
+      if (!item) return null;
+      const action = item.action === "insert" ? "insert" : "revise";
+      const sourceBlock = blockById.get(String(item.sourceId));
+      const targetBlock = blockById.get(String(item.targetId));
+      if (!sourceBlock || !targetBlock) return null;
+
+      const requestedInsertType = String(item.insertType || item.insertLabel || "").trim();
+      const requestedInsertLabel = String(item.insertLabel || item.insertType || "").trim();
+      const existingSuggestedTemplate = action === "insert"
+        ? reviewTemplates.find((template) =>
+            String(template.type || "").toLocaleLowerCase() === requestedInsertType.toLocaleLowerCase() ||
+            String(template.label || "").toLocaleLowerCase() === requestedInsertLabel.toLocaleLowerCase()
+          )
+        : null;
+      const dynamicStyle = createReviewTemplateStyle(
+        requestedInsertLabel || requestedInsertType
+      );
+      const suggestedTemplate = action === "insert"
+        ? existingSuggestedTemplate || (requestedInsertType && requestedInsertLabel
+            ? {
+                type: requestedInsertType,
+                label: requestedInsertLabel,
+                ...dynamicStyle,
+                width: 160,
+                isCustom: true,
+                isReviewGenerated: true,
+              }
+            : null)
+        : null;
+      if (action === "insert" && !suggestedTemplate) return null;
+
+      const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
+      const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
+      const targetType = blockTypeLabel(targetBlock.type, targetBlock.type || t("app.module"));
+      const modificationInstruction = String(item.suggestion || "").trim();
+      if (!modificationInstruction) return null;
+
+      return {
+        id: String(
+          item.rootIssueKey ||
+          `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`
+        ),
+        action,
+        rewriteScope: action === "revise" && item.rewriteScope === "full"
+          ? "full"
+          : action === "revise"
+            ? "local"
+            : "",
+        relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
+        category: String(item.category || t("app.contentReview")),
+        criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
+        criterionKey: String(item.criterionKey || ""),
+        relationSourceId: String(sourceBlock.id),
+        relationTargetId: String(targetBlock.id),
+        targetBlockId: sourceBlock.id,
+        insertAfterId: action === "insert" ? String(sourceBlock.id) : null,
+        insertBeforeId: action === "insert" ? String(targetBlock.id) : null,
+        insertType: action === "insert" ? suggestedTemplate.type : null,
+        suggestedModule: action === "insert"
+          ? {
+              type: suggestedTemplate.type,
+              label: blockTypeLabel(
+                suggestedTemplate.type,
+                suggestedTemplate.label || suggestedTemplate.type
+              ),
+              color: suggestedTemplate.color || "#64748b",
+              fill: suggestedTemplate.fill || "#f8fafc",
+              isReviewGenerated: suggestedTemplate.isReviewGenerated === true,
+            }
+          : null,
+        sourceBlock: {
+          id: sourceBlock.id,
+          type: sourceBlock.type,
+          label: sourceType,
+          text: String(sourceBlock.text || ""),
+          color: sourceBlock.color || "#64748b",
+          fill: sourceBlock.fill || "#f8fafc",
+        },
+        targetBlock: {
+          id: targetBlock.id,
+          type: targetBlock.type,
+          label: targetType,
+          text: String(targetBlock.text || ""),
+          color: targetBlock.color || "#64748b",
+          fill: targetBlock.fill || "#f8fafc",
+        },
+        contextBlocks: blocks.map((block) => ({
+          id: block.id,
+          type: block.type,
+          text: String(block.text || ""),
+        })),
+        originalText: String(sourceBlock.text || "").trim(),
+        summary: String(item.summary || t("app.canStrengthen")),
+        comment: String(item.summary || t("app.canStrengthen")),
+        suggestion: modificationInstruction,
+        modificationInstruction,
+        decision: null,
+      };
+    };
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) => state.running && state.activeGraphId
         ? { ...state, blinkOn: !state.blinkOn }
@@ -532,6 +637,92 @@ export default function App() {
         blocks,
         templates: reviewTemplates,
         onEvent: async (event) => {
+          if (event.type === "summary_delta") {
+            setReviewState((state) => ({
+              ...state,
+              phase: "summary",
+              overallSummary: `${state.overallSummary}${String(event.delta || "")}`,
+              activeIds: blocks.map((block) => String(block.id)),
+              activeGraphId: "overall-review",
+              status: t("app.reviewWhole"),
+            }));
+            return;
+          }
+
+          if (event.type === "summary_done") {
+            setReviewState((state) => ({
+              ...state,
+              phase: "summary",
+              overallSummary: String(event.overallSummary || state.overallSummary).trim(),
+              summaryHighlights: Array.isArray(event.summaryHighlights)
+                ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
+                : [],
+            }));
+            return;
+          }
+
+          if (event.type === "phase" && event.phase === "criteria") {
+            setReviewState((state) => ({
+              ...state,
+              phase: "criteria",
+              activeIds: [],
+              activeGraphId: null,
+              blinkOn: false,
+              current: 0,
+              total: Number(event.total) || 0,
+              status: t("app.reviewPreparingCriteria"),
+            }));
+            return;
+          }
+
+          if (event.type === "criterion_start") {
+            const relatedIds = (Array.isArray(event.relatedIds) ? event.relatedIds : [])
+              .map(String)
+              .filter((id) => blockById.has(id));
+            setReviewState((state) => ({
+              ...state,
+              activeIds: relatedIds,
+              activeGraphId: `criterion-${String(event.key || event.index || "active")}`,
+              blinkOn: true,
+              current: Number(event.index) || 0,
+              total: Number(event.total) || state.total,
+              status: t("app.reviewCheckingCriterion", {
+                criterion: String(event.criterion || "").trim(),
+              }),
+            }));
+            return;
+          }
+
+          if (event.type === "criterion_result") {
+            const issue = event.status === "issue"
+              ? createReviewResult({
+                  ...event.issue,
+                  criterionKey: event.key,
+                  criterion: event.criterion,
+                  summary: event.summary,
+                }, 0)
+              : null;
+            const criterionResult = {
+              key: String(event.key || `criterion-${Date.now()}`),
+              criterion: String(event.criterion || ""),
+              summary: String(event.summary || "").trim(),
+              status: issue ? "issue" : "pass",
+              relatedIds: (Array.isArray(event.relatedIds) ? event.relatedIds : []).map(String),
+              issueId: issue?.id || null,
+            };
+            setReviewState((state) => ({
+              ...state,
+              current: Math.min(state.total || Infinity, state.criteria.length + 1),
+              criteria: state.criteria.some((item) => item.key === criterionResult.key)
+                ? state.criteria.map((item) => item.key === criterionResult.key ? criterionResult : item)
+                : [...state.criteria, criterionResult],
+              results: issue && !state.results.some((item) => item.id === issue.id)
+                ? [...state.results, issue]
+                : state.results,
+            }));
+            return;
+          }
+
           if (event.type === "module") {
             summaries.set(String(event.id), String(event.focus || ""));
             const block = blockById.get(String(event.id));
@@ -599,125 +790,21 @@ export default function App() {
             return;
           }
 
-          if (event.type === "phase" && event.phase === "enhancements") {
-            setReviewState((state) => ({
-              ...state,
-              activeIds: [],
-              activeGraphId: null,
-              activeIssue: null,
-              blinkOn: false,
-              status: t("app.reviewSuggestions"),
-            }));
-            return;
-          }
-
           if (event.type === "final") {
-            const results = (Array.isArray(event.enhancements) ? event.enhancements : []).map((item, index) => {
-              const action = item.action === "insert" ? "insert" : "revise";
-              const sourceBlock = blockById.get(String(item.sourceId));
-              const targetBlock = blockById.get(String(item.targetId));
-              if (!sourceBlock || !targetBlock) return null;
-              const requestedInsertType = String(item.insertType || item.insertLabel || "").trim();
-              const requestedInsertLabel = String(item.insertLabel || item.insertType || "").trim();
-              const existingSuggestedTemplate = action === "insert"
-                ? reviewTemplates.find((template) =>
-                    String(template.type || "").toLocaleLowerCase() === requestedInsertType.toLocaleLowerCase() ||
-                    String(template.label || "").toLocaleLowerCase() === requestedInsertLabel.toLocaleLowerCase()
-                  )
-                : null;
-              const dynamicStyle = createReviewTemplateStyle(
-                requestedInsertLabel || requestedInsertType
-              );
-              const suggestedTemplate = action === "insert"
-                ? existingSuggestedTemplate || (requestedInsertType && requestedInsertLabel
-                    ? {
-                        type: requestedInsertType,
-                        label: requestedInsertLabel,
-                        ...dynamicStyle,
-                        width: 160,
-                        isCustom: true,
-                        isReviewGenerated: true,
-                      }
-                    : null)
-                : null;
-              if (action === "insert" && !suggestedTemplate) return null;
-              const relation = relationByPair.get(getRelationPairKey(item.sourceId, item.targetId));
-              const sourceType = blockTypeLabel(sourceBlock.type, sourceBlock.type || t("app.module"));
-              const targetType = blockTypeLabel(targetBlock.type, targetBlock.type || t("app.module"));
-              const originalText = String(sourceBlock.text || "").trim();
-              const modificationInstruction = String(item.suggestion || "").trim();
-              if (!modificationInstruction) return null;
-              return {
-                id: `${relation?.id || `enhancement-${sourceBlock.id}-${targetBlock.id}`}-${index}`,
-                action,
-                rewriteScope: action === "revise" && item.rewriteScope === "full"
-                  ? "full"
-                  : action === "revise"
-                    ? "local"
-                    : "",
-                relationLabel: relation?.relationLabel || `${sourceType} → ${targetType}`,
-                category: String(item.category || t("app.contentReview")),
-                criterion: String(item.criterion || relation?.criterion || t("app.modelRelation")),
-                relationSourceId: String(sourceBlock.id),
-                relationTargetId: String(targetBlock.id),
-                targetBlockId: sourceBlock.id,
-                insertAfterId: action === "insert" ? String(sourceBlock.id) : null,
-                insertBeforeId: action === "insert" ? String(targetBlock.id) : null,
-                insertType: action === "insert" ? suggestedTemplate.type : null,
-                suggestedModule: action === "insert"
-                  ? {
-                      type: suggestedTemplate.type,
-                      label: blockTypeLabel(
-                        suggestedTemplate.type,
-                        suggestedTemplate.label || suggestedTemplate.type
-                      ),
-                      color: suggestedTemplate.color || "#64748b",
-                      fill: suggestedTemplate.fill || "#f8fafc",
-                      isReviewGenerated: suggestedTemplate.isReviewGenerated === true,
-                    }
-                  : null,
-                sourceBlock: {
-                  id: sourceBlock.id,
-                  type: sourceBlock.type,
-                  label: sourceType,
-                  text: String(sourceBlock.text || ""),
-                  color: sourceBlock.color || "#64748b",
-                  fill: sourceBlock.fill || "#f8fafc",
-                },
-                targetBlock: {
-                  id: targetBlock.id,
-                  type: targetBlock.type,
-                  label: targetType,
-                  text: String(targetBlock.text || ""),
-                  color: targetBlock.color || "#64748b",
-                  fill: targetBlock.fill || "#f8fafc",
-                },
-                contextBlocks: blocks.map((block) => ({
-                  id: block.id,
-                  type: block.type,
-                  text: String(block.text || ""),
-                })),
-                originalText,
-                summary: String(item.summary || t("app.canStrengthen")),
-                comment: String(item.summary || t("app.canStrengthen")),
-                suggestion: modificationInstruction,
-                modificationInstruction,
-                decision: null,
-              };
-            }).filter(Boolean);
             setReviewState((state) => ({
               ...state,
+              phase: "done",
               activeIds: [],
               activeGraphId: null,
               activeIssue: null,
               blinkOn: false,
-              results,
-              overallSummary: String(event.overallSummary || "").trim(),
+              overallSummary: String(event.overallSummary || state.overallSummary).trim(),
               summaryHighlights: Array.isArray(event.summaryHighlights)
                 ? event.summaryHighlights.map((value) => String(value || "").trim()).filter(Boolean)
-                : [],
+                : state.summaryHighlights,
               status: t("app.reviewOrganizing"),
             }));
+            return;
           }
         },
       });
@@ -725,13 +812,14 @@ export default function App() {
       setReviewState((state) => ({
         ...state,
         running: false,
+        phase: "done",
         activeIds: [],
         activeGraphId: null,
         activeIssue: null,
         blinkOn: false,
         status: state.results.length > 0
           ? t("app.reviewDoneIssues", { count: state.results.length })
-          : t("app.reviewDoneModules", { count: state.notes.length }),
+          : t("app.reviewDoneChecks", { count: state.criteria.length }),
       }));
       setReviewPanelOpen(true);
     } catch (error) {
@@ -739,6 +827,7 @@ export default function App() {
       setReviewState((state) => ({
         ...state,
         running: false,
+        phase: "idle",
         activeIds: [],
         activeGraphId: null,
         activeIssue: null,
@@ -1463,6 +1552,8 @@ export default function App() {
           <ReviewIssuesPanel
             open={reviewPanelOpen}
             results={reviewState.results}
+            criteria={reviewState.criteria}
+            phase={reviewState.phase}
             overallSummary={reviewState.overallSummary}
             summaryHighlights={reviewState.summaryHighlights}
             onFocusIssue={handleFocusReviewIssue}
