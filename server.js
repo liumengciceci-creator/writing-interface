@@ -2230,6 +2230,10 @@ app.post(
     if (blocks.length < 2) {
       return res.status(400).json({ error: "至少需要两个有效模块" });
     }
+    const interfaceLanguage = req.body?.interfaceLanguage === "en" ? "en" : "zh";
+    const interfaceLabelRule = interfaceLanguage === "en"
+      ? "insertLabel 和 replaceLabel 必须使用英文界面标签；模块正文仍跟随用户文本语言。"
+      : "insertLabel 和 replaceLabel 必须使用中文界面标签；模块正文仍跟随用户文本语言。";
 
     const fallbackTemplates = [
       { type: "Claim", label: "论点" },
@@ -2323,6 +2327,7 @@ ${JSON.stringify(blocks, null, 2)}
 - 已有证据方向相关但缺少“为何支持主张”的解释时，加强已有分析／推理；没有承载位置时新增分析模块，不得把它改判为“让证据更严谨”。
 - 只有真实外部材料不可替代时才建议数据或证据，绝不虚构研究、理论、数据、来源或事实。
 - suggestion 不设字数限制，通常用 3 个“• ”要点依次说明：当前模块关系完成了什么但还缺什么；建议加强、插入或重构什么；这样会建立哪条支持、解释、回应或归纳关系。不要给完整替换正文。
+- ${interfaceLabelRule}
 - 问题数量没有上下限；只标记真正影响关系强度的修改点，不得为了凑数输出次要建议。
 
 每项关系分三步输出。meta 使用以下对象：
@@ -2670,7 +2675,7 @@ relation_map、整体评价与逐项结果必须基于同一次全文理解。�
 
       const diagnosticPrompt = `你是一名以 GRE 论证逻辑标准审阅模块化文章的高级编辑。现在逐一检查计划中的真实模块关系。严格按计划顺序，每完成一项就立即输出一行 NDJSON，不要等待全部检查完成。
 
-语言规则：所有 category、criterion、summary、suggestion 和 insertLabel 必须使用模块正文的主要语言。
+语言规则：category、criterion、summary 和 suggestion 必须使用模块正文的主要语言；${interfaceLabelRule}
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
@@ -2878,8 +2883,8 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
               action = "insert";
               rewriteScope = "";
               targetId = insertionTarget.id;
-              insertType = reviewUsesCjk ? "分析" : "Analysis";
-              insertLabel = reviewUsesCjk ? "分析" : "Analysis";
+              insertType = "Analysis";
+              insertLabel = interfaceLanguage === "en" ? "Analysis" : "分析";
               ownershipCorrected = true;
             }
           }

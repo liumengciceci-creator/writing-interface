@@ -56,7 +56,8 @@ const checks = [
       server.includes("审阅对象是模块之间的论证关系") &&
       server.includes("sourceIsEvidence") &&
       server.includes("targetNeedsSupport") &&
-      server.includes('insertType = reviewUsesCjk ? "分析" : "Analysis"') &&
+	      server.includes('insertType = "Analysis"') &&
+	      server.includes('insertLabel = interfaceLanguage === "en" ? "Analysis" : "分析"') &&
       server.includes("不得把这种关系缺口改判为“让证据更严谨”"),
     "relevant evidence with a missing inferential link must create or strengthen analysis instead of receiving a rigor edit",
   ],
@@ -133,6 +134,15 @@ const checks = [
       reviewApi.includes("review-insert-target"),
     "inserted review blocks must reuse the validated streaming generation path",
   ],
+	[
+	  reviewApi.includes('interfaceLanguage = "zh"') &&
+	    reviewApi.includes('interfaceLanguage: interfaceLanguage === "en" ? "en" : "zh"') &&
+	    app.includes("interfaceLanguage: language") &&
+	    server.includes("insertLabel 和 replaceLabel 必须使用中文界面标签") &&
+	    i18n.includes('Analysis: "分析"') &&
+	    i18n.includes('分析: "Analysis"'),
+	  "review-generated module labels must follow the interface language",
+	],
   [
     reviewCurve.includes("createGapAnchorRect") &&
       reviewCurve.includes("issue?.insertAfterId") &&

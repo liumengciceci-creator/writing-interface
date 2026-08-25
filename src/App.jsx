@@ -222,7 +222,7 @@ function getReviewableBlocksFromSections(sourceSections) {
 }
 
 export default function App() {
-  const { blockTypeLabel, t } = useI18n();
+  const { blockTypeLabel, language, t } = useI18n();
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [reviewState, setReviewState] = useState({
     running: false,
@@ -253,6 +253,13 @@ export default function App() {
 
   const reviewTemplates = useMemo(
     () => [...BLOCK_TYPES, ...customTemplates]
+      .map((template) => ({
+        ...template,
+        label: blockTypeLabel(
+          template.type,
+          template.label || template.type
+        ),
+      }))
       .filter(
         (template, index, templates) =>
           template?.type &&
@@ -262,7 +269,7 @@ export default function App() {
           ) &&
           templates.findIndex((candidate) => candidate?.type === template.type) === index
       ),
-    [customTemplates]
+    [blockTypeLabel, customTemplates, language]
   );
 
 
@@ -673,6 +680,7 @@ export default function App() {
       await reviewArgumentFrameworkStream({
         blocks,
         templates: reviewTemplates,
+        interfaceLanguage: language,
         onEvent: async (event) => {
           if (event.type === "summary_delta") {
             setReviewState((state) => ({

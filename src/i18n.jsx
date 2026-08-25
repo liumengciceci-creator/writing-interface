@@ -22,6 +22,17 @@ const BLOCK_LABELS = {
     Generated: "生成",
     Transition: "过渡",
     Merged: "融合",
+    Analysis: "分析",
+    Theory: "理论",
+    Mechanism: "机制",
+    Reasoning: "推理",
+    Premise: "前提",
+    Definition: "概念界定",
+    Hypothesis: "假设",
+    Rebuttal: "反驳",
+    Synthesis: "综合",
+    Method: "方法说明",
+    "Theoretical Analysis": "理论分析",
   },
   en: {
     Title: "Title",
@@ -35,6 +46,28 @@ const BLOCK_LABELS = {
     Generated: "Generated",
     Transition: "Transition",
     Merged: "Merged",
+    Analysis: "Analysis",
+    Theory: "Theory",
+    Mechanism: "Mechanism",
+    Reasoning: "Reasoning",
+    Premise: "Premise",
+    Definition: "Definition",
+    Hypothesis: "Hypothesis",
+    Rebuttal: "Rebuttal",
+    Synthesis: "Synthesis",
+    Method: "Method",
+    "Theoretical Analysis": "Theoretical Analysis",
+    分析: "Analysis",
+    理论: "Theory",
+    机制: "Mechanism",
+    推理: "Reasoning",
+    前提: "Premise",
+    概念界定: "Definition",
+    假设: "Hypothesis",
+    反驳: "Rebuttal",
+    综合: "Synthesis",
+    方法说明: "Method",
+    理论分析: "Theoretical Analysis",
   },
 };
 
@@ -495,6 +528,9 @@ export function LanguageProvider({ children }) {
       if (text === "模块长度调整完成") return "Module length adjusted";
 	      if (text === "文本风格调整完成") return "Text style adjusted";
 	      if (text === "正在根据指令内容修改") return "Revising according to the instruction";
+      if (text === "正在根据所选模块内容生成") {
+        return "Generating from the selected module content";
+      }
       return text;
     };
 

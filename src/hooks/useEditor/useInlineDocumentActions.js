@@ -15,6 +15,68 @@ import {
 } from "./sectionHelpers";
 
 /**
+ * 删除模块时保留段落边界。
+ *
+ * 段落起点由该段第一个模块的 forceLineBreakBefore 表示。如果这个模块
+ * 被删除，就把段首标记转交给它后面的第一个未删除模块，避免整段并入
+ * 上一段。这个规则同时适用于单个删除和多选删除。
+ */
+function deleteBlocksPreservingParagraphStarts(
+  model,
+  blockIds
+) {
+  const deletedIds = new Set(
+    (blockIds || []).map((id) => String(id))
+  );
+
+  if (deletedIds.size === 0) {
+    return model;
+  }
+
+  const originalBlocks = model.toArray();
+  const paragraphStartSuccessors = new Set();
+
+  originalBlocks.forEach((block, index) => {
+    const blockId = String(block.id);
+    if (
+      !deletedIds.has(blockId) ||
+      !block.forceLineBreakBefore
+    ) {
+      return;
+    }
+
+    for (
+      let nextIndex = index + 1;
+      nextIndex < originalBlocks.length;
+      nextIndex += 1
+    ) {
+      const nextBlock = originalBlocks[nextIndex];
+      const nextId = String(nextBlock.id);
+      if (deletedIds.has(nextId)) {
+        continue;
+      }
+
+      paragraphStartSuccessors.add(nextId);
+      break;
+    }
+  });
+
+  let nextModel = model.deleteBlocks([...deletedIds]);
+
+  paragraphStartSuccessors.forEach((blockId) => {
+    if (!nextModel.hasBlock(blockId)) {
+      return;
+    }
+
+    nextModel = nextModel.updateBlock(blockId, {
+      forceLineBreakBefore: true,
+    });
+  });
+
+  return nextModel;
+}
+
+/**
  * 管理 inline 文档流中的结构操作。
  *
  * 包括：
@@ -719,8 +781,9 @@ export function useInlineDocumentActions({
             }
 
             const nextModel =
-              currentModel.deleteBlock(
-                targetId
+              deleteBlocksPreservingParagraphStarts(
+                currentModel,
+                [targetId]
               );
 
             pushHistorySnapshot?.(
@@ -801,7 +864,8 @@ export function useInlineDocumentActions({
             }
 
             const nextModel =
-              currentModel.deleteBlocks(
+              deleteBlocksPreservingParagraphStarts(
+                currentModel,
                 existingIds
               );
 

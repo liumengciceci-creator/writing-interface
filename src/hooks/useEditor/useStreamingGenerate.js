@@ -845,7 +845,7 @@ export function useStreamingGenerate({
     setGenerationStatus(
       instructionDrivenGeneration
         ? "正在根据指令内容修改"
-        : `正在整体分析 ${targets.length} 个模块及其上下文…`
+        : "正在根据所选模块内容生成"
     );
     setSections((previous) =>
       patchBlocks(previous, (block) => {
@@ -941,7 +941,6 @@ export function useStreamingGenerate({
           }
 
           const realBlockId = String(targetEntry.block.id);
-          const targetIndex = Number(requestId) - 1;
 
           if (
             (event.type === "block_start" || event.type === "chunk") &&
@@ -952,7 +951,7 @@ export function useStreamingGenerate({
             setGenerationStatus(
               instructionDrivenGeneration
                 ? "正在根据指令内容修改"
-                : `已完成校验，正在接收 ${targetIndex + 1}/${targets.length} 个模块…`
+                : "正在根据所选模块内容生成"
             );
           }
 

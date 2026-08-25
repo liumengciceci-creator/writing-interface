@@ -113,6 +113,8 @@ const checks = [
 	    styles.length > 0 &&
 	    generationHook.includes('instructionDrivenGeneration') &&
 	    generationHook.includes('"正在根据指令内容修改"') &&
+	    generationHook.includes('"正在根据所选模块内容生成"') &&
+	    !generationHook.includes('`正在整体分析 ${targets.length} 个模块及其上下文…`') &&
 	    generationHook.includes('setGenerationStatus("")') &&
 	    !generationHook.includes('setGenerationStatus(`生成完成 ${targets.length}/${targets.length}`)') &&
 	    aiActions.includes('"正在根据指令内容修改"') &&

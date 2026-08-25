@@ -10,13 +10,18 @@ const APPLY_REVIEW_INSTRUCTION_STREAM_URL = `${API_BASE_URL}/api/apply-review-in
 export async function reviewArgumentFrameworkStream({
   blocks = [],
   templates = [],
+  interfaceLanguage = "zh",
   onEvent,
   signal,
 }) {
   const response = await fetch(REVIEW_STREAM_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ blocks, templates }),
+    body: JSON.stringify({
+      blocks,
+      templates,
+      interfaceLanguage: interfaceLanguage === "en" ? "en" : "zh",
+    }),
     signal,
   });
   if (!response.ok) {
