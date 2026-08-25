@@ -131,16 +131,20 @@ const checks = [
       sidebar.includes('event.dataTransfer.effectAllowed =\n        "copy"') &&
       !sidebar.includes('data-template-copy-cue="true"') &&
       !pageCanvas.includes('data-template-drop-cue="true"') &&
+      sidebar.includes("setTransparentNativeDragImage") &&
+      !sidebar.includes("setRoundedTemplateDragImage") &&
+      sidebar.includes("transparentCanvas.width = 1") &&
+      sidebar.includes("createTemplateDragPreview") &&
+      sidebar.includes('previewElement.dataset.templateDragPreview = "true"') &&
+      sidebar.includes('minHeight: `${bodyHeight}px`') &&
+      sidebar.includes('transform: `scale(${visualScale})`') &&
       sidebar.includes('document.createElement("canvas")') &&
-      sidebar.includes("context.clearRect(") &&
       sidebar.includes("dataTransfer.setDragImage(") &&
-      sidebar.includes("const badgeOverlap = 12") &&
-      sidebar.includes("const badgeTop =\n    bodyTop - badgeOverlap") &&
       sidebar.includes("getTemplateFloatingWidth(\n      labelText") &&
-      sidebar.includes("dragCanvas.width =\n    visualWidth") &&
-      !sidebar.includes("window.devicePixelRatio") &&
-      sidebar.includes("sourcePointerRatioX * bodyWidth") &&
-      sidebar.includes("sourcePointerRatioY * bodyHeight") &&
+      sidebar.includes("sourcePointerRatioX * bodyWidth * visualScale") &&
+      sidebar.includes("sourcePointerRatioY * bodyHeight * visualScale") &&
+      sidebar.includes("templateDragPreviewRef.current?.update?.(") &&
+      app.includes("<Sidebar\n            zoom={zoom}") &&
       sidebar.includes("onTemplateDragEnd?.()") &&
       canvasDrop.includes("const cancelTemplateDrag =") &&
       app.includes("onTemplateDragEnd={") &&

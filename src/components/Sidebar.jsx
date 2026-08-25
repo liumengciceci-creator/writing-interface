@@ -888,30 +888,45 @@ function createDraggedModuleData(
   };
 }
 
+function setTransparentNativeDragImage(
+  event
+) {
+  const dataTransfer = event.dataTransfer;
+  if (!dataTransfer || typeof document === "undefined") return;
+
+  const transparentCanvas = document.createElement("canvas");
+  transparentCanvas.width = 1;
+  transparentCanvas.height = 1;
+  Object.assign(transparentCanvas.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "-10000px",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(transparentCanvas);
+  dataTransfer.setDragImage(transparentCanvas, 0, 0);
+  window.setTimeout(() => transparentCanvas.remove(), 0);
+}
+
 /**
- * 为 Sidebar 标签生成与灰色工作区模块一致的透明拖拽影像。
- *
- * 拖拽一开始就绘制“圆角正文框 + 上方类型标签”，而不是先显示
- * Sidebar 的扁平按钮、落下后才改变外观。Canvas 未绘制区域保持透明，
- * Chrome/macOS 不会再补白色方底；copy 加号仍使用系统原生反馈。
+ * Chrome/macOS 会自行缩放原生 drag image，因此即便 Canvas 数值与
+ * 落地模块相同，屏幕上仍会大一圈。这里隐藏原生影像，改用页面内 DOM
+ * 跟随鼠标；它直接复用 FloatingEditableBlock 的尺寸、字体和视觉样式。
  */
-function setRoundedTemplateDragImage(
+function createTemplateDragPreview(
   event,
   item,
-  displayLabel
+  displayLabel,
+  zoom = 1
 ) {
-  const dataTransfer =
-    event.dataTransfer;
-
   const sourceElement =
     event.currentTarget;
 
   if (
-    !dataTransfer ||
     !sourceElement ||
     typeof document === "undefined"
   ) {
-    return;
+    return null;
   }
 
   const sourceRect =
@@ -934,213 +949,11 @@ function setRoundedTemplateDragImage(
     getTemplateFloatingWidth(
       labelText
     );
-
   const bodyHeight = 40;
-  const badgeHeight = 16;
-  const badgeOverlap = 12;
-  const shadowPadding = 10;
-  const bodyLeft = shadowPadding;
-  const bodyTop =
-    shadowPadding +
-    badgeOverlap;
-  const visualWidth =
-    bodyWidth +
-    shadowPadding * 2;
-  const visualHeight =
-    bodyHeight +
-    badgeOverlap +
-    shadowPadding * 2;
-
-  const dragCanvas =
-    document.createElement("canvas");
-
-  dragCanvas.width =
-    visualWidth;
-  dragCanvas.height =
-    visualHeight;
-  dragCanvas.style.width =
-    `${visualWidth}px`;
-  dragCanvas.style.height =
-    `${visualHeight}px`;
-  dragCanvas.style.position =
-    "fixed";
-  dragCanvas.style.left =
-    "-10000px";
-  dragCanvas.style.top =
-    "-10000px";
-  dragCanvas.style.pointerEvents =
-    "none";
-
-  const context =
-    dragCanvas.getContext("2d");
-
-  if (!context) {
-    return;
-  }
-
-  context.clearRect(
-    0,
-    0,
-    visualWidth,
-    visualHeight
-  );
-
-  const drawRoundedRect = (
-    left,
-    top,
-    width,
-    height,
-    radius
-  ) => {
-    const safeRadius =
-      Math.min(
-        radius,
-        width / 2,
-        height / 2
-      );
-
-    context.beginPath();
-    context.moveTo(
-      left + safeRadius,
-      top
-    );
-    context.lineTo(
-      left + width - safeRadius,
-      top
-    );
-    context.quadraticCurveTo(
-      left + width,
-      top,
-      left + width,
-      top + safeRadius
-    );
-    context.lineTo(
-      left + width,
-      top + height - safeRadius
-    );
-    context.quadraticCurveTo(
-      left + width,
-      top + height,
-      left + width - safeRadius,
-      top + height
-    );
-    context.lineTo(
-      left + safeRadius,
-      top + height
-    );
-    context.quadraticCurveTo(
-      left,
-      top + height,
-      left,
-      top + height - safeRadius
-    );
-    context.lineTo(
-      left,
-      top + safeRadius
-    );
-    context.quadraticCurveTo(
-      left,
-      top,
-      left + safeRadius,
-      top
-    );
-    context.closePath();
-  };
-
-  drawRoundedRect(
-    bodyLeft,
-    bodyTop,
-    bodyWidth,
-    bodyHeight,
-    10
-  );
-
-  context.fillStyle =
-    item.fill ||
-    createSoftFillColor(
-      item.color
-    );
-  context.shadowColor =
-    "rgba(0,0,0,0.12)";
-  context.shadowBlur = 12;
-  context.shadowOffsetY = 5;
-  context.fill();
-
-  context.shadowColor =
-    "transparent";
-  context.shadowBlur = 0;
-  context.shadowOffsetY = 0;
-
-  drawRoundedRect(
-    bodyLeft,
-    bodyTop,
-    bodyWidth,
-    bodyHeight,
-    10
-  );
-  context.strokeStyle =
-    item.color || "#7c83fd";
-  context.globalAlpha = 0.52;
-  context.lineWidth = 1;
-  context.stroke();
-  context.globalAlpha = 1;
-
-  context.fillStyle = "#333";
-  context.font =
-    `400 14px ${sourceStyle.fontFamily || "sans-serif"}`;
-  context.textAlign = "left";
-  context.textBaseline = "middle";
-  context.fillText(
-    labelText,
-    bodyLeft + 14,
-    bodyTop + bodyHeight / 2,
-    Math.max(
-      0,
-      bodyWidth - 28
-    )
-  );
-
-  context.font =
-    `600 9px ${sourceStyle.fontFamily || "sans-serif"}`;
-  const badgeWidth =
-    Math.min(
-      bodyWidth - 8,
-      Math.max(
-        28,
-        Math.ceil(
-          context.measureText(labelText).width + 12
-        )
-      )
-    );
-  const badgeLeft =
-    bodyLeft + 7;
-  const badgeTop =
-    bodyTop - badgeOverlap;
-
-  drawRoundedRect(
-    badgeLeft,
-    badgeTop,
-    badgeWidth,
-    badgeHeight,
-    5
-  );
-  context.fillStyle =
-    item.color || "#7c83fd";
-  context.fill();
-
-  context.fillStyle = "#fff";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(
-    labelText,
-    badgeLeft + badgeWidth / 2,
-    badgeTop + badgeHeight / 2,
-    badgeWidth - 8
-  );
-
-  document.body.appendChild(
-    dragCanvas
-  );
+  const visualScale =
+    Number.isFinite(Number(zoom)) && Number(zoom) > 0
+      ? Number(zoom)
+      : 1;
 
   const sourcePointerRatioX =
     Math.max(
@@ -1160,26 +973,81 @@ function setRoundedTemplateDragImage(
           Math.max(1, sourceRect.height)
       )
     );
-  const hotspotX =
-    bodyLeft +
-    sourcePointerRatioX * bodyWidth;
-  const hotspotY =
-    bodyTop +
-    sourcePointerRatioY * bodyHeight;
+  const hotspotX = sourcePointerRatioX * bodyWidth * visualScale;
+  const hotspotY = sourcePointerRatioY * bodyHeight * visualScale;
 
-  dataTransfer.setDragImage(
-    dragCanvas,
-    hotspotX,
-    hotspotY
-  );
+  const previewElement = document.createElement("div");
+  previewElement.dataset.templateDragPreview = "true";
+  previewElement.textContent = labelText;
+  Object.assign(previewElement.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: `${bodyWidth}px`,
+    minHeight: `${bodyHeight}px`,
+    padding: "8px 14px",
+    boxSizing: "border-box",
+    border: `1px solid color-mix(in srgb, ${item.color || "#7c83fd"} 52%, white)`,
+    borderRadius: "10px",
+    background: item.fill || createSoftFillColor(item.color),
+    boxShadow: "0 8px 18px rgba(0,0,0,0.12)",
+    color: "#333",
+    fontFamily: sourceStyle.fontFamily || "sans-serif",
+    fontSize: "14px",
+    fontWeight: "400",
+    lineHeight: "20px",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    pointerEvents: "none",
+    userSelect: "none",
+    zIndex: "2147483647",
+    opacity: "1",
+    transform: `scale(${visualScale})`,
+    transformOrigin: "top left",
+  });
 
-  window.setTimeout(
-    () => dragCanvas.remove(),
-    0
-  );
+  const badgeElement = document.createElement("div");
+  badgeElement.textContent = labelText;
+  Object.assign(badgeElement.style, {
+    position: "absolute",
+    left: "7px",
+    top: "-12px",
+    height: "16px",
+    maxWidth: "calc(100% - 8px)",
+    padding: "0 6px",
+    boxSizing: "border-box",
+    borderRadius: "5px",
+    background: item.color || "#7c83fd",
+    color: "#fff",
+    fontSize: "9px",
+    fontWeight: "600",
+    lineHeight: "16px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    pointerEvents: "none",
+  });
+  previewElement.appendChild(badgeElement);
+  document.body.appendChild(previewElement);
+
+  const update = (clientX, clientY) => {
+    if (clientX <= 0 || clientY <= 0) return;
+    previewElement.style.left = `${clientX - hotspotX}px`;
+    previewElement.style.top = `${clientY - hotspotY}px`;
+  };
+  update(event.clientX, event.clientY);
+
+  return {
+    update,
+    remove() {
+      previewElement.remove();
+    },
+  };
 }
 
 export default function Sidebar({
+  zoom = 1,
   customTemplates = [],
 
   onTemplateMouseDown,
@@ -1291,6 +1159,19 @@ export default function Sidebar({
    */
   const templateDragGestureRef =
     useRef(null);
+
+  /** 高频拖拽坐标不进入 React state，避免每一帧重渲染整列标签。 */
+  const templateDragPreviewRef =
+    useRef(null);
+
+  const clearTemplateDragPreview = () => {
+    templateDragPreviewRef.current?.remove?.();
+    templateDragPreviewRef.current = null;
+  };
+
+  useEffect(() => {
+    return clearTemplateDragPreview;
+  }, []);
 
   useEffect(() => {
     try {
@@ -1753,14 +1634,20 @@ export default function Sidebar({
       );
 
       /**
-       * 使用透明 Canvas 作为拖拽影像，去除 Chrome 给原生 button
-       * 添加的白色方形底；系统 copy 加号由 effectAllowed 保留。
+       * 原生拖拽影像保持透明，只保留系统 copy 加号；页面内跟随预览
+       * 使用与落地模块相同的 CSS，绕开 macOS 对 drag image 的缩放。
        */
-      setRoundedTemplateDragImage(
+      clearTemplateDragPreview();
+      setTransparentNativeDragImage(
+        event
+      );
+      templateDragPreviewRef.current =
+        createTemplateDragPreview(
         event,
         item,
         moduleData.label ||
-          moduleData.type
+          moduleData.type,
+        zoom
       );
 
       /**
@@ -2102,6 +1989,11 @@ export default function Sidebar({
                 }}
 
                 onDrag={(event) => {
+                  templateDragPreviewRef.current?.update?.(
+                    event.clientX,
+                    event.clientY
+                  );
+
                   const gesture =
                     templateDragGestureRef.current;
 
@@ -2196,6 +2088,7 @@ export default function Sidebar({
                   );
                   templateDragGestureRef.current =
                     null;
+                  clearTemplateDragPreview();
                   onTemplateDragEnd?.();
 
                   /**

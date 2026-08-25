@@ -1742,6 +1742,7 @@ export default function App() {
           }}
         >
           <Sidebar
+            zoom={zoom}
             customTemplates={
               customTemplates
             }
