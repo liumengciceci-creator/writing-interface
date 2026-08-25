@@ -2252,14 +2252,14 @@ app.post(
     let overallSummary = "";
     let summaryHighlights = [];
 
-    const overallSummaryPrompt = `你是一名严谨的多语言论证写作编辑。现在只完成第一阶段：通读全部模块，简洁概括作者已经建立的整体论证关系。
+    const overallSummaryPrompt = `整体评价任务：通读全部模块，简洁概括作者已经建立的整体论证关系。
 
 模块数组的顺序就是正文顺序：
 ${JSON.stringify(blocks, null, 2)}
 
 输出要求：
 - 使用模块正文的主要语言，界面语言不影响输出。
-- 只输出一段可直接显示的连续文字，不输出 JSON、Markdown、标题或分点。
+- 生成一段可直接显示的连续文字，不写标题或分点。
 - 第一句必须以“你先”开头，并始终用“你”指代作者。
 - 具体说明你先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
 - 使用“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”这种自然的第二人称叙述，但不要机械套用。
@@ -2267,23 +2267,7 @@ ${JSON.stringify(blocks, null, 2)}
 - 保持为一个紧凑段落，不得只复述模块名称。中文控制在 140—190 个汉字，英文控制在 80—110 个单词。
 - 用成对的 ** 标记 3—5 个最重要的观点、证明角度或结论短语，例如“你先提出了**核心观点**”。除这种加粗标记外，不使用其他 Markdown。`;
 
-    const collectResponseText = async (input, effort) => {
-      let output = "";
-      const stream = await openai.responses.create({
-        model: WRITING_MODEL,
-        input,
-        reasoning: { effort },
-        stream: true,
-      });
-      for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          output += String(event.delta || "");
-        }
-      }
-      return output;
-    };
-
-    const criteriaPlanPrompt = `你是一名以 GRE 论证逻辑标准审阅模块化文章的高级编辑。现在只制定第二阶段的“模块关系检查计划”。
+    const criteriaPlanPrompt = `模块关系计划任务：根据同一次全文理解，制定随后需要逐项核对的模块关系。
 
 模块：
 ${JSON.stringify(blocks, null, 2)}
@@ -2311,10 +2295,23 @@ ${JSON.stringify(blocks, null, 2)}
 - criterion 只命名正在核对的具体关系，必须带段落序号，例如“第二段：论点与原因”“第二段：整段论证与结论”。
 - 不要输出“核心主张是否明确”“证据是否充分”等脱离实际模块组合的抽象清单。
 
-严格只输出一个 JSON 对象：
+关系计划必须使用以下 JSON 对象结构：
 {"summaryHighlights":[],"criteria":[{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","relatedIds":["本项需要共同核对的全部模块id"]}]}
 
-criteria 先按段落、再按论证推进顺序排列；不得包含未知 id，不得重复同一关系，不得预先写判断结果。不要输出代码块或额外文字。`;
+criteria 先按段落、再按论证推进顺序排列；不得包含未知 id，不得重复同一关系，不得预先写判断结果。`;
+
+    const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和模块关系计划。
+
+${criteriaPlanPrompt}
+
+${overallSummaryPrompt}
+
+严格遵守以下输出协议：
+1. 先输出 <relation_plan>，标签内部只放关系计划 JSON；随后立即关闭 </relation_plan>。
+2. 接着输出 <overall_summary>，标签内部只放整体评价正文；随后关闭 </overall_summary>。
+3. 不输出代码块、解释、前言或任何其他内容。
+
+必须先输出关系计划，是为了让整体评价流式显示完成时，模块关系检查已经准备好；两个部分必须基于同一次全文理解，不能互相矛盾。`;
 
     const reviewUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
     const titleBlock = blocks.find((block) => block.type.toLowerCase() === "title");
@@ -2332,32 +2329,82 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
 
     try {
       writeLine(res, { type: "phase", phase: "summary" });
-      // 第二阶段的检查选择与第一阶段总结并行准备，避免总结结束后再空等一次模型调用。
-      const criteriaPlanPromise = collectResponseText(criteriaPlanPrompt, "low");
-      const summaryStream = await openai.responses.create({
+      const firstPassStream = await openai.responses.create({
         model: WRITING_MODEL,
-        input: overallSummaryPrompt,
+        input: firstPassPrompt,
         reasoning: { effort: "low" },
         stream: true,
       });
 
       const summaryCharacterLimit = reviewUsesCjk ? 210 : 820;
       let summaryWasTruncated = false;
+      let parsedPlan = null;
+      let firstPassBuffer = "";
+      let summaryStarted = false;
+      let summaryClosed = false;
+      const planOpenTag = "<relation_plan>";
+      const planCloseTag = "</relation_plan>";
+      const summaryOpenTag = "<overall_summary>";
+      const summaryCloseTag = "</overall_summary>";
 
-      for await (const event of summaryStream) {
-        if (event.type !== "response.output_text.delta") continue;
-        const delta = String(event.delta || "");
-        if (!delta) continue;
+      const emitSummaryText = (value) => {
+        const delta = String(value || "");
+        if (!delta) return;
         const remaining = summaryCharacterLimit - overallSummary.length;
         if (remaining <= 0) {
           summaryWasTruncated = true;
-          continue;
+          return;
         }
         const acceptedDelta = delta.slice(0, remaining);
         if (acceptedDelta.length < delta.length) summaryWasTruncated = true;
         overallSummary += acceptedDelta;
-        writeLine(res, { type: "summary_delta", delta: acceptedDelta });
+        if (acceptedDelta) writeLine(res, { type: "summary_delta", delta: acceptedDelta });
+      };
+
+      for await (const event of firstPassStream) {
+        if (event.type !== "response.output_text.delta") continue;
+        const delta = String(event.delta || "");
+        if (!delta) continue;
+        if (summaryClosed) continue;
+
+        firstPassBuffer += delta;
+
+        if (!parsedPlan) {
+          const planStart = firstPassBuffer.indexOf(planOpenTag);
+          const planEnd = firstPassBuffer.indexOf(planCloseTag);
+          if (planStart < 0 || planEnd < 0 || planEnd <= planStart) continue;
+          const planText = firstPassBuffer.slice(planStart + planOpenTag.length, planEnd).trim();
+          parsedPlan = JSON.parse(cleanModelJsonText(planText));
+          firstPassBuffer = firstPassBuffer.slice(planEnd + planCloseTag.length);
+        }
+
+        if (!summaryStarted) {
+          const summaryStart = firstPassBuffer.indexOf(summaryOpenTag);
+          if (summaryStart < 0) continue;
+          summaryStarted = true;
+          firstPassBuffer = firstPassBuffer.slice(summaryStart + summaryOpenTag.length);
+        }
+
+        const summaryEnd = firstPassBuffer.indexOf(summaryCloseTag);
+        if (summaryEnd >= 0) {
+          emitSummaryText(firstPassBuffer.slice(0, summaryEnd));
+          firstPassBuffer = firstPassBuffer.slice(summaryEnd + summaryCloseTag.length);
+          summaryClosed = true;
+          continue;
+        }
+
+        // 保留一小段尾部，避免结束标签跨流分片时被误显示在评价文字中。
+        const safeLength = Math.max(0, firstPassBuffer.length - summaryCloseTag.length + 1);
+        if (safeLength > 0) {
+          emitSummaryText(firstPassBuffer.slice(0, safeLength));
+          firstPassBuffer = firstPassBuffer.slice(safeLength);
+        }
       }
+
+      if (!parsedPlan) throw new Error("整体审阅没有返回模块关系计划");
+      if (!summaryStarted) throw new Error("整体审阅没有返回整体评价");
+      if (!summaryClosed && firstPassBuffer) emitSummaryText(firstPassBuffer);
+
       overallSummary = overallSummary
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
@@ -2369,24 +2416,6 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
         overallSummary += "…";
       }
 
-      // 总体评价结束后立即切换到模块关系检查，不再等完整关系计划返回。
-      writeLine(res, {
-        type: "summary_done",
-        overallSummary,
-        summaryHighlights,
-      });
-      writeLine(res, { type: "phase", phase: "criteria", total: 0 });
-      if (initialTitleCriterion) {
-        writeLine(res, {
-          type: "criterion_start",
-          ...initialTitleCriterion,
-          index: 0,
-          total: 0,
-        });
-      }
-
-      const planText = await criteriaPlanPromise;
-      const parsedPlan = JSON.parse(cleanModelJsonText(planText));
       summaryHighlights = [];
       const seenCriterionKeys = new Set();
       const modelCriteria = (Array.isArray(parsedPlan?.criteria) ? parsedPlan.criteria : [])
@@ -2417,6 +2446,12 @@ criteria 先按段落、再按论证推进顺序排列；不得包含未知 id�
         ? [initialTitleCriterion, ...modelCriteria]
         : modelCriteria;
 
+      writeLine(res, {
+        type: "summary_done",
+        overallSummary,
+        summaryHighlights,
+      });
+      writeLine(res, { type: "phase", phase: "criteria", total: plannedCriteria.length });
       writeLine(res, { type: "criteria_ready", total: plannedCriteria.length });
 
       if (!plannedCriteria.length) {
@@ -2613,7 +2648,6 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
         }
       };
 
-      if (!initialTitleCriterion) emitCriterionStart(0);
       let diagnosticBuffer = "";
       const diagnosticStream = await openai.responses.create({
         model: WRITING_MODEL,
@@ -2623,6 +2657,9 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
         reasoning: { effort: "low" },
         stream: true,
       });
+      // 请求真正建立后才开始闪烁第一组模块，避免把关系规划耗时错误地
+      // 表现成“标题检查耗时”。
+      emitCriterionStart(0);
       for await (const event of diagnosticStream) {
         if (event.type !== "response.output_text.delta") continue;
         diagnosticBuffer += String(event.delta || "");

@@ -59,11 +59,15 @@ const checks = [
       !inlineEditing.includes("event.currentTarget.textContent =\n              previousText"),
   },
   {
-    name: "review planning starts in parallel with the streaming summary",
+    name: "overall evaluation and relationship planning share one model pass",
     pass:
-      server.indexOf("const criteriaPlanPromise") > -1 &&
-      server.indexOf("const criteriaPlanPromise") < server.indexOf("const summaryStream") &&
-      server.includes("const planText = await criteriaPlanPromise"),
+      server.includes("const firstPassPrompt") &&
+      server.includes("const firstPassStream = await openai.responses.create") &&
+      server.includes('const planOpenTag = "<relation_plan>"') &&
+      server.includes('const summaryOpenTag = "<overall_summary>"') &&
+      server.includes("只通读一次全文，同时完成整体评价和模块关系计划") &&
+      !server.includes("criteriaPlanPromise") &&
+      !server.includes("collectResponseText"),
   },
   {
     name: "overall summary is second-person and criterion results stay concise",
@@ -75,7 +79,7 @@ const checks = [
   {
     name: "second-phase review checks real module dependencies by paragraph",
     pass:
-      server.includes("模块关系检查计划") &&
+      server.includes("模块关系计划任务") &&
       server.includes("论点与原因") &&
       server.includes("论点与证据") &&
       server.includes("前置论证组与结论") &&
@@ -86,24 +90,24 @@ const checks = [
     pass:
       app.includes('status: "checking"') &&
       app.includes('event.type === "criteria_ready"') &&
-      app.includes("await waitForReviewBeat(220)") &&
+      app.includes("await waitForReviewBeat(360)") &&
       reviewPanel.includes("paragraphGroups.map") &&
       reviewPanel.includes('t("review.checking")'),
   },
   {
     name: "relationship review appears immediately and starts from the title",
     pass:
-      server.indexOf('type: "summary_done"') < server.indexOf("const planText = await criteriaPlanPromise") &&
+      server.indexOf("const plannedCriteria") < server.indexOf('type: "summary_done"') &&
       server.includes('key: "relation-title-core"') &&
       server.includes('paragraph: 0') &&
       server.includes('type: "criteria_ready"') &&
       reviewPanel.includes("first.paragraph - second.paragraph"),
   },
   {
-    name: "review panel scrolls with the canvas and only nudges it slightly",
+    name: "review panel scrolls with the canvas and reserves a modest clear gap",
     pass:
       styles.includes("position: absolute") &&
-      styles.includes("padding-right: 28px") &&
+      styles.includes("padding-right: 88px") &&
       styles.includes(".page-canvas-shell.review-panel-open") &&
       !styles.includes("var(--review-panel-width) +"),
   },

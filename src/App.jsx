@@ -766,7 +766,7 @@ export default function App() {
                 : state.results,
             }));
             // 让本项结果与仍在闪烁的相关模块短暂同屏，再进入下一组关系。
-            await waitForReviewBeat(220);
+            await waitForReviewBeat(360);
             return;
           }
 
