@@ -40,6 +40,16 @@ const app = fs.readFileSync(
   "utf8"
 );
 
+const floatingBlock = fs.readFileSync(
+  new URL("../src/components/PageCanvas/FloatingEditableBlock.jsx", import.meta.url),
+  "utf8"
+);
+
+const blockActions = fs.readFileSync(
+  new URL("../src/hooks/useEditor/useBlockActions.js", import.meta.url),
+  "utf8"
+);
+
 const checks = [
   {
 	  name: "paragraph heads expose one near drop line that becomes the new head",
@@ -94,6 +104,23 @@ const checks = [
       pageCanvas.includes('window.addEventListener(\n      "dragover"') &&
       pageCanvas.includes('window.addEventListener(\n      "drop"') &&
       pageCanvas.includes("handleStageDrop(event)"),
+  },
+  {
+    name: "floating labels align with inline labels and resize from every edge",
+    pass:
+      floatingBlock.includes('direction: "nw"') &&
+      floatingBlock.includes('direction: "se"') &&
+      floatingBlock.includes('cursor: "ns-resize"') &&
+      floatingBlock.includes('cursor: "ew-resize"') &&
+      floatingBlock.includes('cursor: "nwse-resize"') &&
+      floatingBlock.includes('cursor: "nesw-resize"') &&
+      floatingBlock.includes("data-resize-direction=") &&
+      floatingBlock.includes('background:\n                  "transparent"') &&
+      floatingBlock.includes("isTitleBlock\n              ? -14\n              : -12") &&
+      blockActions.includes("floatingWidthOrBounds") &&
+      blockActions.includes("bounds.floatingHeight") &&
+      blockActions.includes("bounds.floatingX") &&
+      blockActions.includes("bounds.floatingY"),
   },
 ];
 

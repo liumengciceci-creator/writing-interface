@@ -15,6 +15,90 @@ import BlockSources from "./BlockSources.jsx";
 import { useI18n } from "../../i18n.jsx";
 
 
+const FLOATING_RESIZE_HANDLES = [
+  {
+    direction: "n",
+    cursor: "ns-resize",
+    style: {
+      top: -4,
+      left: 8,
+      right: 8,
+      height: 8,
+    },
+  },
+  {
+    direction: "s",
+    cursor: "ns-resize",
+    style: {
+      bottom: -4,
+      left: 8,
+      right: 8,
+      height: 8,
+    },
+  },
+  {
+    direction: "w",
+    cursor: "ew-resize",
+    style: {
+      left: -4,
+      top: 8,
+      bottom: 8,
+      width: 8,
+    },
+  },
+  {
+    direction: "e",
+    cursor: "ew-resize",
+    style: {
+      right: -4,
+      top: 8,
+      bottom: 8,
+      width: 8,
+    },
+  },
+  {
+    direction: "nw",
+    cursor: "nwse-resize",
+    style: {
+      left: -6,
+      top: -6,
+      width: 12,
+      height: 12,
+    },
+  },
+  {
+    direction: "ne",
+    cursor: "nesw-resize",
+    style: {
+      right: -6,
+      top: -6,
+      width: 12,
+      height: 12,
+    },
+  },
+  {
+    direction: "sw",
+    cursor: "nesw-resize",
+    style: {
+      left: -6,
+      bottom: -6,
+      width: 12,
+      height: 12,
+    },
+  },
+  {
+    direction: "se",
+    cursor: "nwse-resize",
+    style: {
+      right: -6,
+      bottom: -6,
+      width: 12,
+      height: 12,
+    },
+  },
+];
+
+
 /**
  * 简单判断文本主要是英文还是中文。
  */
@@ -74,6 +158,9 @@ export default function FloatingEditableBlock({
     lineFragments.length > 1;
 
   const editorRef =
+    useRef(null);
+
+  const rootRef =
     useRef(null);
 
   const resizingRef =
@@ -212,7 +299,10 @@ export default function FloatingEditableBlock({
   ]);
 
   /**
-   * 浮动模块宽度调整。
+   * 浮动模块八方向尺寸调整。
+   *
+   * 左边缘 / 上边缘拖动时不仅改变尺寸，也同步移动 floatingX / Y，
+   * 保证另一侧边界固定，行为与设计软件中的边界框一致。
    */
   useEffect(() => {
     const handleMouseMove =
@@ -228,16 +318,97 @@ export default function FloatingEditableBlock({
           event.clientX -
           resizing.startX;
 
-        const nextWidth =
-          Math.max(
-            120,
-            resizing.startWidth +
-              deltaX
-          );
+        const deltaY =
+          event.clientY -
+          resizing.startY;
+
+        const direction =
+          resizing.direction;
+
+        let nextWidth =
+          resizing.startWidth;
+        let nextHeight =
+          resizing.startHeight;
+        let nextX =
+          resizing.startLeft;
+        let nextY =
+          resizing.startTop;
+
+        if (
+          direction.includes("e")
+        ) {
+          nextWidth =
+            Math.max(
+              80,
+              resizing.startWidth +
+                deltaX
+            );
+        }
+
+        if (
+          direction.includes("w")
+        ) {
+          nextWidth =
+            Math.max(
+              80,
+              resizing.startWidth -
+                deltaX
+            );
+          nextX =
+            resizing.startLeft +
+            resizing.startWidth -
+            nextWidth;
+        }
+
+        if (
+          direction.includes("s")
+        ) {
+          nextHeight =
+            Math.max(
+              40,
+              resizing.startHeight +
+                deltaY
+            );
+        }
+
+        if (
+          direction.includes("n")
+        ) {
+          nextHeight =
+            Math.max(
+              40,
+              resizing.startHeight -
+                deltaY
+            );
+          nextY =
+            resizing.startTop +
+            resizing.startHeight -
+            nextHeight;
+        }
 
         onUpdateWidth?.(
           resizing.blockId,
-          nextWidth
+          {
+            floatingX:
+              nextX,
+            floatingY:
+              nextY,
+            floatingWidth:
+              nextWidth,
+            ...(
+              direction.includes(
+                "n"
+              ) ||
+              direction.includes(
+                "s"
+              )
+                ? {
+                    floatingHeight:
+                      nextHeight,
+                  }
+                : {}
+            ),
+          }
         );
       };
 
@@ -245,6 +416,12 @@ export default function FloatingEditableBlock({
       () => {
         resizingRef.current =
           null;
+
+        document.body.style.cursor =
+          "";
+
+        document.body.style.userSelect =
+          "";
       };
 
     window.addEventListener(
@@ -267,10 +444,60 @@ export default function FloatingEditableBlock({
         "mouseup",
         handleMouseUp
       );
+
+      document.body.style.cursor =
+        "";
+      document.body.style.userSelect =
+        "";
     };
   }, [
     onUpdateWidth,
   ]);
+
+  const beginResize = (
+    event,
+    direction,
+    cursor
+  ) => {
+    event.stopPropagation();
+    event.preventDefault();
+
+    cancelDragCandidate();
+
+    const rootRect =
+      rootRef.current
+        ?.getBoundingClientRect();
+
+    resizingRef.current = {
+      blockId:
+        block.id,
+      direction,
+      startX:
+        event.clientX,
+      startY:
+        event.clientY,
+      startWidth:
+        block.floatingWidth ??
+        rootRect?.width ??
+        220,
+      startHeight:
+        block.floatingHeight ??
+        rootRect?.height ??
+        block.height ??
+        40,
+      startLeft:
+        block.floatingX ??
+        0,
+      startTop:
+        block.floatingY ??
+        0,
+    };
+
+    document.body.style.cursor =
+      cursor;
+    document.body.style.userSelect =
+      "none";
+  };
 
   const cancelDragCandidate = () => {
     const pending =
@@ -576,6 +803,7 @@ export default function FloatingEditableBlock({
 
   return (
     <div
+      ref={rootRef}
       data-block-root="true"
       data-block-id={
         block.id
@@ -733,9 +961,12 @@ export default function FloatingEditableBlock({
           220,
 
         minHeight:
-          block.floatingHeight ??
           block.height ??
           40,
+
+        height:
+          block.floatingHeight ??
+          "auto",
 
         border:
           usesLineFragments
@@ -896,7 +1127,10 @@ export default function FloatingEditableBlock({
                         position:
                           "absolute",
                         left: 7,
-                        top: -12,
+                        top:
+                          isTitleBlock
+                            ? -14
+                            : -12,
                         height: 16,
                         padding:
                           "0 6px",
@@ -1001,27 +1235,25 @@ export default function FloatingEditableBlock({
             2,
 
           top:
-            matchesInlineAppearance
-              ? -12
-              : -14,
+            isTitleBlock
+              ? -14
+              : -12,
 
           left:
-            matchesInlineAppearance
-              ? 7
-              : 0,
+            7,
 
           height:
             16,
 
           padding:
-            matchesInlineAppearance
-              ? "0 6px"
-              : "0 8px",
+            isTitleBlock
+              ? "0 8px"
+              : "0 6px",
 
           borderRadius:
-            matchesInlineAppearance
-              ? 5
-              : 6,
+            isTitleBlock
+              ? 6
+              : 5,
 
           background:
             block.color,
@@ -1381,63 +1613,44 @@ export default function FloatingEditableBlock({
         floating
       />
 
-      {/* 宽度调整手柄 */}
+      {/*
+       * 标准边界框缩放：命中区透明，只有鼠标进入边缘或角点时
+       * 通过系统光标提示方向，不再显示常驻彩色小方块。
+       */}
       {!block.hideResizeHandle &&
-        !block.hideFloatingResizeHandle && (
-          <div
-            data-floating-resize-handle="true"
-            onMouseDown={(
-              event
-            ) => {
-              event.stopPropagation();
-              event.preventDefault();
-
-              resizingRef.current =
-                {
-                  blockId:
-                    block.id,
-
-                  startX:
-                    event.clientX,
-
-                  startWidth:
-                    block.floatingWidth ??
-                    220,
-                };
-            }}
-            style={{
-              display:
-                usesLineFragments
-                  ? "none"
-                  : "block",
-              position:
-                "absolute",
-
-              right:
-                4,
-
-              bottom:
-                4,
-
-              width:
-                12,
-
-              height:
-                12,
-
-              borderRadius:
-                3,
-
-              background:
-                block.color,
-
-              cursor:
-                "ew-resize",
-
-              zIndex:
-                2,
-            }}
-          />
+        !block.hideFloatingResizeHandle &&
+        !usesLineFragments &&
+        FLOATING_RESIZE_HANDLES.map(
+          (handle) => (
+            <div
+              key={handle.direction}
+              data-floating-resize-handle="true"
+              data-resize-direction={
+                handle.direction
+              }
+              onMouseDown={(event) =>
+                beginResize(
+                  event,
+                  handle.direction,
+                  handle.cursor
+                )
+              }
+              style={{
+                position:
+                  "absolute",
+                zIndex:
+                  handle.direction.length >
+                  1
+                    ? 4
+                    : 3,
+                background:
+                  "transparent",
+                cursor:
+                  handle.cursor,
+                ...handle.style,
+              }}
+            />
+          )
         )}
     </div>
   );

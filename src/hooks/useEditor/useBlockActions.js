@@ -184,18 +184,42 @@ export function useBlockActions({
     useCallback(
       (
         blockId,
-        floatingWidth
+        floatingWidthOrBounds
       ) => {
         const targetId =
           String(blockId);
+
+        const bounds =
+          floatingWidthOrBounds &&
+          typeof floatingWidthOrBounds ===
+            "object"
+            ? floatingWidthOrBounds
+            : {
+                floatingWidth:
+                  floatingWidthOrBounds,
+              };
 
         const nextWidth =
           Math.max(
             80,
             Number(
-              floatingWidth
+              bounds.floatingWidth
             ) || BLOCK_WIDTH
           );
+
+        const nextHeight =
+          Number.isFinite(
+            Number(
+              bounds.floatingHeight
+            )
+          )
+            ? Math.max(
+                40,
+                Number(
+                  bounds.floatingHeight
+                )
+              )
+            : null;
 
         setSections(
           (previousSections) => {
@@ -225,20 +249,37 @@ export function useBlockActions({
                           return block;
                         }
 
-                        if (
-                          Number(
-                            block.floatingWidth
-                          ) ===
-                          nextWidth
-                        ) {
-                          return block;
-                        }
-
                         hasChanges =
                           true;
 
                         return {
                           ...block,
+
+                          ...(Number.isFinite(
+                            Number(
+                              bounds.floatingX
+                            )
+                          )
+                            ? {
+                                floatingX:
+                                  Number(
+                                    bounds.floatingX
+                                  ),
+                              }
+                            : {}),
+
+                          ...(Number.isFinite(
+                            Number(
+                              bounds.floatingY
+                            )
+                          )
+                            ? {
+                                floatingY:
+                                  Number(
+                                    bounds.floatingY
+                                  ),
+                              }
+                            : {}),
 
                           floatingWidth:
                             nextWidth,
@@ -246,14 +287,24 @@ export function useBlockActions({
                           width:
                             nextWidth,
 
-                          height:
-                            estimateBlockHeight(
-                              String(
-                                block.text ??
-                                  ""
-                              ),
-                              nextWidth
-                            ),
+                          ...(nextHeight !=
+                          null
+                            ? {
+                                floatingHeight:
+                                  nextHeight,
+                                height:
+                                  nextHeight,
+                              }
+                            : {
+                                height:
+                                  estimateBlockHeight(
+                                    String(
+                                      block.text ??
+                                        ""
+                                    ),
+                                    nextWidth
+                                  ),
+                              }),
                         };
                       }
                     );
