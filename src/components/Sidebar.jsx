@@ -18,7 +18,6 @@ import {
   SEMANTIC_BLOCK_MIME,
   WRITING_BLOCK_MIME,
   clearActiveTemplateDragData,
-  getTemplateFloatingWidth,
   setActiveTemplateDragData,
 } from "../utils/templateDrag.js";
 
@@ -911,7 +910,9 @@ function setTransparentNativeDragImage(
 /**
  * Chrome/macOS 会自行缩放原生 drag image，因此即便 Canvas 数值与
  * 落地模块相同，屏幕上仍会大一圈。这里隐藏原生影像，改用页面内 DOM
- * 跟随鼠标；它直接复用 FloatingEditableBlock 的尺寸、字体和视觉样式。
+ * 跟随鼠标。预览先使用白色画布 inline 模块的真实排版参数
+ * 进行一次 DOM 布局，再读取 offsetWidth/offsetHeight 作为最终尺寸。
+ * 这样宽高始终由文字包裹决定，不再继承标签栏或灰色 floating 模块的最小宽高。
  */
 function createTemplateDragPreview(
   event,
@@ -945,11 +946,8 @@ function createTemplateDragPreview(
         ""
     );
 
-  const bodyWidth =
-    getTemplateFloatingWidth(
-      labelText
-    );
-  const bodyHeight = 40;
+  const isTitleBlock =
+    item.type === "Title";
   const visualScale =
     Number.isFinite(Number(zoom)) && Number(zoom) > 0
       ? Number(zoom)
@@ -973,37 +971,44 @@ function createTemplateDragPreview(
           Math.max(1, sourceRect.height)
       )
     );
-  const hotspotX = sourcePointerRatioX * bodyWidth * visualScale;
-  const hotspotY = sourcePointerRatioY * bodyHeight * visualScale;
-
   const previewElement = document.createElement("div");
   previewElement.dataset.templateDragPreview = "true";
   previewElement.textContent = labelText;
   Object.assign(previewElement.style, {
     position: "fixed",
-    left: "0",
-    top: "0",
-    width: `${bodyWidth}px`,
-    minHeight: `${bodyHeight}px`,
-    padding: "8px 14px",
+    left: "-10000px",
+    top: "-10000px",
+    display: "inline-block",
+    width: "max-content",
+    minWidth: "0",
+    minHeight: "0",
+    maxWidth: "280px",
+    padding: isTitleBlock
+      ? "1px 12px 3px"
+      : "2px 8px",
     boxSizing: "border-box",
     border: `1px solid color-mix(in srgb, ${item.color || "#7c83fd"} 52%, white)`,
-    borderRadius: "10px",
+    borderRadius: "8px",
     background: item.fill || createSoftFillColor(item.color),
-    boxShadow: "0 8px 18px rgba(0,0,0,0.12)",
-    color: "#333",
+    boxShadow: "none",
+    color: "#202124",
     fontFamily: sourceStyle.fontFamily || "sans-serif",
-    fontSize: "14px",
-    fontWeight: "400",
-    lineHeight: "20px",
-    whiteSpace: "pre-wrap",
-    overflowWrap: "anywhere",
-    wordBreak: "break-word",
+    fontSize: isTitleBlock
+      ? "20px"
+      : "16px",
+    fontWeight: isTitleBlock
+      ? "700"
+      : "400",
+    lineHeight: isTitleBlock
+      ? "26px"
+      : "24px",
+    whiteSpace: "pre",
     pointerEvents: "none",
     userSelect: "none",
     zIndex: "2147483647",
     opacity: "1",
-    transform: `scale(${visualScale})`,
+    visibility: "hidden",
+    transform: "none",
     transformOrigin: "top left",
   });
 
@@ -1012,17 +1017,29 @@ function createTemplateDragPreview(
   Object.assign(badgeElement.style, {
     position: "absolute",
     left: "7px",
-    top: "-12px",
-    height: "16px",
+    top: isTitleBlock
+      ? "-14px"
+      : "-12px",
+    height: isTitleBlock
+      ? "18px"
+      : "16px",
     maxWidth: "calc(100% - 8px)",
-    padding: "0 6px",
+    padding: isTitleBlock
+      ? "0 8px"
+      : "0 6px",
     boxSizing: "border-box",
     borderRadius: "5px",
     background: item.color || "#7c83fd",
     color: "#fff",
-    fontSize: "9px",
-    fontWeight: "600",
-    lineHeight: "16px",
+    fontSize: isTitleBlock
+      ? "10px"
+      : "9px",
+    fontWeight: isTitleBlock
+      ? "700"
+      : "600",
+    lineHeight: isTitleBlock
+      ? "18px"
+      : "16px",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -1030,6 +1047,23 @@ function createTemplateDragPreview(
   });
   previewElement.appendChild(badgeElement);
   document.body.appendChild(previewElement);
+
+  // 浏览器完成文字排版后再取尺寸，确保预览框紧贴实际文字。
+  const bodyWidth = previewElement.offsetWidth;
+  const bodyHeight = previewElement.offsetHeight;
+  const hotspotX =
+    sourcePointerRatioX *
+    bodyWidth *
+    visualScale;
+  const hotspotY =
+    sourcePointerRatioY *
+    bodyHeight *
+    visualScale;
+
+  previewElement.style.transform =
+    `scale(${visualScale})`;
+  previewElement.style.visibility =
+    "visible";
 
   const update = (clientX, clientY) => {
     if (clientX <= 0 || clientY <= 0) return;

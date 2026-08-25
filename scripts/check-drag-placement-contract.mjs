@@ -136,13 +136,20 @@ const checks = [
       sidebar.includes("transparentCanvas.width = 1") &&
       sidebar.includes("createTemplateDragPreview") &&
       sidebar.includes('previewElement.dataset.templateDragPreview = "true"') &&
-      sidebar.includes('minHeight: `${bodyHeight}px`') &&
-      sidebar.includes('transform: `scale(${visualScale})`') &&
+      sidebar.includes('width: "max-content"') &&
+      sidebar.includes('minHeight: "0"') &&
+      sidebar.includes('? "1px 12px 3px"\n      : "2px 8px"') &&
+      sidebar.includes('? "20px"\n      : "16px"') &&
+      sidebar.includes('? "26px"\n      : "24px"') &&
+      sidebar.includes('borderRadius: "8px"') &&
+      sidebar.includes("const bodyWidth = previewElement.offsetWidth") &&
+      sidebar.includes("const bodyHeight = previewElement.offsetHeight") &&
+      sidebar.includes("previewElement.style.transform =\n    `scale(${visualScale})`") &&
       sidebar.includes('document.createElement("canvas")') &&
       sidebar.includes("dataTransfer.setDragImage(") &&
-      sidebar.includes("getTemplateFloatingWidth(\n      labelText") &&
-      sidebar.includes("sourcePointerRatioX * bodyWidth * visualScale") &&
-      sidebar.includes("sourcePointerRatioY * bodyHeight * visualScale") &&
+      !sidebar.includes("getTemplateFloatingWidth") &&
+      sidebar.includes("sourcePointerRatioX *\n    bodyWidth *\n    visualScale") &&
+      sidebar.includes("sourcePointerRatioY *\n    bodyHeight *\n    visualScale") &&
       sidebar.includes("templateDragPreviewRef.current?.update?.(") &&
       app.includes("<Sidebar\n            zoom={zoom}") &&
       sidebar.includes("onTemplateDragEnd?.()") &&
