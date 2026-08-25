@@ -750,6 +750,9 @@ export default function App() {
                 criterion: String(event.criterion || "").trim(),
               }),
             }));
+            // 服务端只在本项结果已经准备好时发送 start；这里用固定节拍
+            // 展示正在核对的模块，使首项与后续各项的闪烁时长一致。
+            await waitForReviewBeat(420);
             return;
           }
 
@@ -784,8 +787,7 @@ export default function App() {
                 ? [...state.results, issue]
                 : state.results,
             }));
-            // 让本项结果与仍在闪烁的相关模块短暂同屏，再进入下一组关系。
-            await waitForReviewBeat(360);
+            await waitForReviewBeat(120);
             return;
           }
 

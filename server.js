@@ -2548,7 +2548,6 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
       const seenRootIssues = new Set();
       const completedCriteria = [];
       const enhancements = [];
-      let nextCriterionIndex = 0;
       let diagnosticProtocolError = null;
 
       const emitCriterionStart = (index) => {
@@ -2822,10 +2821,10 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
           };
           completedCriteria.push(result);
           if (issue) enhancements.push(issue);
+          // 只有对应判断已经完整生成后才开始闪烁该组模块。
+          // 客户端会给所有检查项相同的短展示节拍，避免第一个模块替模型首轮推理“长时间假闪”。
+          emitCriterionStart(completedCriteria.length - 1);
           writeLine(res, { type: "criterion_result", ...result });
-
-          nextCriterionIndex = completedCriteria.length;
-          emitCriterionStart(nextCriterionIndex);
         } catch (error) {
           console.warn("跳过无法解析的 GRE 检查流行：", line, error.message);
         }
@@ -2840,9 +2839,6 @@ suggestion 不设字数限制，通常排版成 3 个以“• ”开头的完�
         reasoning: { effort: "low" },
         stream: true,
       });
-      // 请求真正建立后才开始闪烁第一组模块，避免把关系规划耗时错误地
-      // 表现成“标题检查耗时”。
-      emitCriterionStart(0);
       for await (const event of diagnosticStream) {
         if (event.type !== "response.output_text.delta") continue;
         diagnosticBuffer += String(event.delta || "");

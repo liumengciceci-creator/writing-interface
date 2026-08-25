@@ -95,9 +95,18 @@ const checks = [
     pass:
       app.includes('status: "checking"') &&
       app.includes('event.type === "criteria_ready"') &&
-      app.includes("await waitForReviewBeat(360)") &&
+      app.includes("await waitForReviewBeat(420)") &&
       reviewPanel.includes("paragraphGroups.map") &&
       reviewPanel.includes('t("review.checking")'),
+  },
+  {
+    name: "first relationship does not absorb model reasoning latency",
+    pass:
+      server.includes("只有对应判断已经完整生成后才开始闪烁该组模块") &&
+      server.indexOf("emitCriterionStart(completedCriteria.length - 1)") <
+        server.indexOf('writeLine(res, { type: "criterion_result", ...result })') &&
+      !server.includes("emitCriterionStart(0);\n      for await") &&
+      app.includes("使首项与后续各项的闪烁时长一致"),
   },
   {
     name: "relationship review appears immediately and starts from the title",
