@@ -525,9 +525,12 @@ export function useEditor() {
     generatingBlockIds,
     generatingBlinkOn,
     generationStatus,
+    generationFailure,
     webSearchEnabled,
     toggleWebSearch,
     generateFromSelectedBlocks,
+    retryFailedGeneration,
+    dismissGenerationFailure,
   } = useStreamingGenerate({
     sections,
     setSections,
@@ -1867,6 +1870,7 @@ export function useEditor() {
     generatingBlockIds,
     generatingBlinkOn,
     generationStatus,
+    generationFailure,
     webSearchEnabled,
     toggleWebSearch,
 
@@ -2016,6 +2020,8 @@ export function useEditor() {
      * AI 生成。
      */
     generateFromSelectedBlocks,
+    retryFailedGeneration,
+    dismissGenerationFailure,
   };
 }
 

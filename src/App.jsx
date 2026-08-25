@@ -10,6 +10,7 @@ import Toolbar from "./components/Toolbar.jsx";
 import PageCanvas from "./components/PageCanvas/PageCanvas.jsx";
 import ActiveReviewCurve from "./components/PageCanvas/ActiveReviewCurve.jsx";
 import ReviewIssuesPanel from "./components/ReviewIssuesPanel.jsx";
+import GenerationFailureDialog from "./components/GenerationFailureDialog.jsx";
 import LanguageMenu from "./components/LanguageMenu.jsx";
 import {
   applyReviewInstructionStream,
@@ -306,8 +307,11 @@ export default function App() {
     generatingBlockIds,
     generatingBlinkOn,
     generationStatus,
+    generationFailure,
     webSearchEnabled,
     toggleWebSearch,
+    retryFailedGeneration,
+    dismissGenerationFailure,
 
     /**
      * 调整长度状态。
@@ -1241,7 +1245,6 @@ export default function App() {
       setStatusText(t("review.inserting"));
       const applyGraphId = `apply-review-insert-${item.id}`;
       let streamedText = "";
-      let textStarted = false;
 
       setReviewState((state) => ({
         ...state,
@@ -1253,7 +1256,7 @@ export default function App() {
 
       const blinkTimer = window.setInterval(() => {
         setReviewState((state) =>
-          state.activeGraphId === applyGraphId && !textStarted
+          state.activeGraphId === applyGraphId
             ? { ...state, blinkOn: !state.blinkOn }
             : state
         );
@@ -1272,10 +1275,7 @@ export default function App() {
               throw new Error(event.error || t("review.insertFailed"));
             }
             if (event.type === "block_start") {
-              textStarted = true;
-              window.clearInterval(blinkTimer);
               handleChangeText(insertedBlockId, "");
-              setReviewState((state) => ({ ...state, blinkOn: false }));
               return;
             }
             if (event.type === "chunk") {
@@ -1384,7 +1384,6 @@ export default function App() {
     const applyGraphId = `apply-review-${item.id}`;
     let streamedText = "";
     let finalText = "";
-    let textStarted = false;
     let historyCaptured = false;
 
     const captureRevisionHistory = () => {
@@ -1405,7 +1404,7 @@ export default function App() {
 
     const blinkTimer = window.setInterval(() => {
       setReviewState((state) =>
-        state.activeGraphId === applyGraphId && !textStarted
+        state.activeGraphId === applyGraphId
           ? { ...state, blinkOn: !state.blinkOn }
           : state
       );
@@ -1424,8 +1423,6 @@ export default function App() {
         onEvent: async (event) => {
           if (event.type === "text_start") {
             captureRevisionHistory();
-            textStarted = true;
-            window.clearInterval(blinkTimer);
             if (replacementTemplate?.type) {
               handleUpdateBlockAppearance({
                 blockId: targetBlockId,
@@ -1436,7 +1433,6 @@ export default function App() {
                 recordHistory: false,
               });
             }
-            setReviewState((state) => ({ ...state, blinkOn: false }));
             return;
           }
 
@@ -2030,6 +2026,14 @@ export default function App() {
               clearReviewIssueFocus();
               setReviewPanelOpen(false);
             }}
+          />
+
+          <GenerationFailureDialog
+            open={Boolean(generationFailure)}
+            count={generationFailure?.targetIds?.length || 0}
+            isRetrying={isGenerating}
+            onRetry={retryFailedGeneration}
+            onClose={dismissGenerationFailure}
           />
 
           {/* 页面画布 */}

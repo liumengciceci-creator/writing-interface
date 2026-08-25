@@ -343,6 +343,7 @@ export function useStreamingGenerate({
   const [generatingBlockIds, setGeneratingBlockIds] = useState([]);
   const [generatingBlinkOn, setGeneratingBlinkOn] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("");
+  const [generationFailure, setGenerationFailure] = useState(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(() => {
     try {
       return window.localStorage.getItem(
@@ -637,7 +638,7 @@ export function useStreamingGenerate({
     setGenerationStatus("");
   }, [clearPendingFrame, stopBlinking]);
 
-  const generateFromSelectedBlocks = useCallback(async () => {
+  const generateFromSelectedBlocks = useCallback(async (requestedTargetIds = null) => {
     if (isGenerating) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -696,9 +697,12 @@ export function useStreamingGenerate({
           },
         };
       });
-    const targets = collectGenerationTargets(entries, selectedIds);
+    const selectionForRequest = Array.isArray(requestedTargetIds)
+      ? requestedTargetIds
+      : selectedIds;
+    const targets = collectGenerationTargets(entries, selectionForRequest);
     const uniqueSelectedIds = Array.from(
-      new Set((selectedIds || []).map(String))
+      new Set((selectionForRequest || []).map(String))
     );
     const resolvedTargetIds = targets.map((entry) =>
       String(entry.block.id)
@@ -742,6 +746,7 @@ export function useStreamingGenerate({
     }
 
     const targetIds = targets.map((entry) => String(entry.block.id));
+    setGenerationFailure(null);
     const researchActionId = createResearchActionId("generation");
     const generationStartedAt = performance.now();
     let firstTextAt = null;
@@ -1215,14 +1220,16 @@ export function useStreamingGenerate({
             height: estimateBlockHeight(originalText, block.width),
             isGenerated: originalBlock?.isGenerated,
             generationDirective: directiveByRealId.get(blockId) || "",
-            generationError: error?.message || "生成失败",
+            generationError: null,
           };
         })
       );
-      setSelectedIds?.(failedTargetIds);
-      setGenerationStatus(
-        `错误：${failedTargetIds.length || targets.length} 个模块生成失败，已保留用户输入并明确标记失败。${error?.message || "生成失败"}`
-      );
+      setGenerationStatus("");
+      setGenerationFailure({
+        message: error?.message || "生成失败",
+        targetIds,
+        failedTargetIds,
+      });
       logResearchEvent(
         "ai_generation_failed",
         {
@@ -1257,14 +1264,29 @@ export function useStreamingGenerate({
 	    webSearchEnabled,
 	  ]);
 
+  const dismissGenerationFailure = useCallback(() => {
+    setGenerationFailure(null);
+  }, []);
+
+  const retryFailedGeneration = useCallback(() => {
+    const retryTargetIds = generationFailure?.targetIds || [];
+    if (isGenerating || retryTargetIds.length === 0) return;
+
+    setGenerationFailure(null);
+    return generateFromSelectedBlocks(retryTargetIds);
+  }, [generateFromSelectedBlocks, generationFailure, isGenerating]);
+
   return {
     isGenerating,
     generatingBlockIds,
     generatingBlinkOn,
     generationStatus,
+    generationFailure,
     webSearchEnabled,
     toggleWebSearch,
     generateFromSelectedBlocks,
+    retryFailedGeneration,
+    dismissGenerationFailure,
     stopGenerating,
   };
 }

@@ -20,6 +20,10 @@ const reviewPanel = fs.readFileSync(
   path.join(root, "src/components/ReviewIssuesPanel.jsx"),
   "utf8"
 );
+const generationFailureDialog = fs.readFileSync(
+  path.join(root, "src/components/GenerationFailureDialog.jsx"),
+  "utf8"
+);
 const reviewApi = fs.readFileSync(
   path.join(root, "src/api/reviewBlockCompatibility.js"),
   "utf8"
@@ -67,11 +71,18 @@ const checks = [
       generationHook.includes("consideredIdentical"),
   },
   {
-    name: "failed generation restores the original block and stays retryable",
+    name: "failed generation restores content and retries the saved selection from one dialog",
     pass:
       generationHook.includes("originalBlockByRealId") &&
-      generationHook.includes("setSelectedIds?.(failedTargetIds)") &&
-      generationHook.includes("generationError: error?.message"),
+      generationHook.includes("setGenerationFailure({") &&
+      generationHook.includes("targetIds,") &&
+      generationHook.includes("generateFromSelectedBlocks(retryTargetIds)") &&
+      generationHook.includes("generationError: null") &&
+      !generationHook.includes("generationError: error?.message") &&
+      !semanticEditor.includes('data-generation-error="true"') &&
+      app.includes("<GenerationFailureDialog") &&
+      generationFailureDialog.includes('role="alertdialog"') &&
+      generationFailureDialog.includes('t("generation.retry")'),
   },
   {
     name: "generation remounts contentEditable DOM flattened by manual editing",
@@ -204,6 +215,16 @@ const checks = [
       app.includes("notifyReviewApplyStart();") &&
       reviewPanel.includes("onApplyStart:") &&
       reviewPanel.includes("closeIssue"),
+  },
+  {
+    name: "accepted suggestion keeps blinking until the whole revision finishes",
+    pass:
+      app.includes("state.activeGraphId === applyGraphId\n            ? { ...state, blinkOn: !state.blinkOn }") &&
+      !app.includes("state.activeGraphId === applyGraphId && !textStarted") &&
+      !app.includes("textStarted = true") &&
+      !app.includes('event.type === "text_start") {\n            captureRevisionHistory();\n            window.clearInterval(blinkTimer)') &&
+      !app.includes('event.type === "block_start") {\n              window.clearInterval(blinkTimer)') &&
+      app.includes("window.clearInterval(blinkTimer);\n      setStatusText(\"\")"),
   },
   {
     name: "first relationship does not absorb model reasoning latency",
