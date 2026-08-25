@@ -161,13 +161,13 @@ export default function Toolbar({
     /错误|失败|error|failed|failure/i.test(
       centralStatus
     );
-  const groupStyle = {
+  const unifiedToolbarStyle = {
     display: "flex",
     alignItems: "center",
     gap: 8,
     padding: "9px 10px",
     borderRadius: 12,
-    background: "#f8f8f8",
+    background: "#fff",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   };
 
@@ -192,11 +192,19 @@ export default function Toolbar({
         position: "relative",
       }}
     >
-      <div className="toolbar-cluster">
+      <div
+        className="toolbar-cluster"
+        style={{
+          ...unifiedToolbarStyle,
+          whiteSpace: "nowrap",
+        }}
+      >
         <div
           className="canvas-toolbar"
           style={{
-            ...groupStyle,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
             whiteSpace: "nowrap",
           }}
           aria-label={t("toolbar.canvasTools")}
@@ -307,11 +315,18 @@ export default function Toolbar({
         </div>
 
         <div
+          className="toolbar-action-divider"
+          style={dividerStyle}
+          aria-hidden="true"
+        />
+
+        <div
           className="action-toolbar"
           style={{
-            ...groupStyle,
-            border: "none",
-            background: "#f8f8f8",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            whiteSpace: "nowrap",
           }}
           aria-label={t("toolbar.mainActions")}
         >
