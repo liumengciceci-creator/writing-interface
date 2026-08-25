@@ -200,20 +200,18 @@ export default function QuickInstructionComposer({
       lastAnchorRectRef.current = nextRect;
       if (!previousRect || dragRef.current) return;
 
-      const deltaX = nextRect.right - previousRect.right;
-      const deltaY = nextRect.bottom - previousRect.bottom;
-      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+      // 只响应模块自身换行带来的高度变化。
+      // 文本逐字增长、模块横向伸长、画布滚动或其他模块引起的位置变化，
+      // 都不应拖着对话框移动。
+      const deltaHeight = nextRect.height - previousRect.height;
+      if (Math.abs(deltaHeight) < 0.5) return;
 
       setPosition((current) => {
         const panelHeight = panelRef.current?.offsetHeight || 118;
         return {
-          left: clamp(
-            current.left + deltaX,
-            12,
-            window.innerWidth - initialGeometry.width - 12
-          ),
+          left: current.left,
           top: clamp(
-            current.top + deltaY,
+            current.top + deltaHeight,
             12,
             window.innerHeight - panelHeight - 12
           ),
@@ -240,17 +238,12 @@ export default function QuickInstructionComposer({
       subtree: true,
     });
     window.addEventListener("resize", requestSync);
-    window.addEventListener("scroll", requestSync, {
-      capture: true,
-      passive: true,
-    });
 
     return () => {
       if (frameId) window.cancelAnimationFrame(frameId);
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       window.removeEventListener("resize", requestSync);
-      window.removeEventListener("scroll", requestSync, true);
     };
   }, [anchorElement, initialGeometry.width]);
 

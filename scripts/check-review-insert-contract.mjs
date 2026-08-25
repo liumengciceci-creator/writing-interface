@@ -30,6 +30,14 @@ const checks = [
     "revision advice must use readable bullet points without fabricating support",
   ],
   [
+    server.includes("必须先定位“缺口属于哪一侧”") &&
+      server.includes("不得为了省事直接把 sourceId 指向结论") &&
+      server.includes("sourceIsConclusion") &&
+      server.includes("ownershipCorrected") &&
+      server.includes("缺口位于前置论证，而不是结论措辞本身"),
+    "missing support before a conclusion must be assigned to analysis, reasoning, or evidence rather than the conclusion wording",
+  ],
+  [
     server.includes('"rewriteScope":"local、full或空字符串"') &&
       server.includes('action="revise", rewriteScope="full"：证据、理由或反论方向错误') &&
       app.includes("rewriteScope: item.rewriteScope") &&

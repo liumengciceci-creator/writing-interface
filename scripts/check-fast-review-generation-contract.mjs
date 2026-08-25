@@ -141,7 +141,9 @@ const checks = [
       quickInstructionComposer.includes("lastAnchorRectRef") &&
       quickInstructionComposer.includes("new ResizeObserver(requestSync)") &&
       quickInstructionComposer.includes("new MutationObserver(requestSync)") &&
-      quickInstructionComposer.includes("current.top + deltaY"),
+      quickInstructionComposer.includes("nextRect.height - previousRect.height") &&
+      quickInstructionComposer.includes("current.top + deltaHeight") &&
+      !quickInstructionComposer.includes('addEventListener("scroll", requestSync'),
   },
   {
     name: "overall review is concise and supports streamed emphasis",

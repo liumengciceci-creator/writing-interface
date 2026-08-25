@@ -2507,6 +2507,13 @@ summary 必须以 criterion 的分组前缀开头：标题检查使用“标题�
 - action="revise", rewriteScope="full"：证据、理由或反论方向错误，实际不能承担当前论证功能。接受后重写整个 sourceId 模块。
 - action="insert"：两个相邻模块之间缺少一个真正独立的论证功能，局部修改任何一个模块都无法清楚承担。接受后在两者之间新增模块。
 
+必须先定位“缺口属于哪一侧”，再选择 sourceId 和动作：
+- 某个结论或主张尚未被前文充分推出，不等于结论模块本身写错。若结论表达的是作者要建立的核心判断，而缺的是从现有材料到该判断的中间机制、证据解释或理论分析，应修改已有的原因／分析／推理模块；没有能承载该任务的模块时，在最后一个前置模块与结论之间新增“分析”“推理”“机制”或确有必要的“证据”模块。不得为了省事直接把 sourceId 指向结论。
+- 例如，前文只说明“错误信息会造成误判”，却没有说明误判为何会进一步削弱“证据意识与质疑能力”，这是前置论证缺少中间分析：优先加强已有原因／分析模块，或在结论前新增分析模块；不是改写结论措辞。
+- 只有结论遗漏了前文已经建立的重要分支、曲解了前文，或在没有合理补足路径的情况下引入了与全文目标不一致的新判断，才修改结论模块。
+- 已有证据方向相关但没有说明其证明作用时，缺口属于分析／推理，不属于结论；证据方向本身错误时才整块重构证据；只有外部可验证材料确实不可替代时才新增证据。
+- revise 的 sourceId 必须是真正需要改变内容的模块，targetId 是它需要解释、支持、回应或归纳的相关模块。insert 的 sourceId／targetId 必须分别是缺口两侧的相邻模块。
+
 新增模块采用开放类型：你可以复用现有标签，也可以按真实缺口新定义“理论、理论分析、机制、推理、前提、概念界定、假设、反例、综合、方法说明”等任何必要的短标签。不要受默认标签限制，也不要把所有缺口映射成原因或证据。若创建新标签，insertType 与 insertLabel 使用同一个简短、明确的显示名称；若已有标签语义完全一致，则复用已有 type 和 label，避免同义重复。insert 的 sourceId 必须是缺口前一个模块，targetId 必须是紧邻其后的模块。
 
 严格按计划顺序，每项只输出一行：
@@ -2532,20 +2539,100 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
         writeLine(res, { type: "criterion_start", ...criterion, index, total: plannedCriteria.length });
       };
 
-      const normalizeEnhancement = (enhancement, criterionItem) => {
-          const action = enhancement?.action === "insert" ? "insert" : "revise";
-          const rewriteScope = action === "revise"
+      const normalizeEnhancement = (enhancement, criterionItem, criterionSummary = "") => {
+          let action = enhancement?.action === "insert" ? "insert" : "revise";
+          let rewriteScope = action === "revise"
             ? enhancement?.rewriteScope === "full" ? "full" : "local"
             : "";
-          const sourceId = String(enhancement?.sourceId || "");
-          const targetId = String(enhancement?.targetId || "");
+          let sourceId = String(enhancement?.sourceId || "");
+          let targetId = String(enhancement?.targetId || "");
           if (!validIds.has(sourceId) || !validIds.has(targetId)) {
             return null;
           }
 
-          const insertType = String(enhancement?.insertType || enhancement?.insertLabel || "").trim();
-          const insertLabel = String(enhancement?.insertLabel || enhancement?.insertType || "").trim();
-          const supportNeeded = String(enhancement?.supportNeeded || "none").trim();
+          let insertType = String(enhancement?.insertType || enhancement?.insertLabel || "").trim();
+          let insertLabel = String(enhancement?.insertLabel || enhancement?.insertType || "").trim();
+          const supportNeeded = String(enhancement?.supportNeeded || "none").trim().toLowerCase();
+          let suggestion = String(enhancement?.suggestion || "")
+            .replace(/[ \t]+/g, " ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+
+          const sourceBlock = blocks.find((block) => block.id === sourceId);
+          const relatedBlocks = (criterionItem?.relatedIds || [])
+            .map((id) => blocks.find((block) => block.id === String(id)))
+            .filter(Boolean)
+            .sort((first, second) => first.order - second.order);
+          const sourceIsConclusion = /^(?:conclusion|结论)$/i.test(
+            String(sourceBlock?.type || "").trim()
+          );
+          const missingSupportLanguage = /尚未|不能|不足以|缺少|未说明|未解释|not\s+(?:yet\s+)?(?:establish|explain|show)|does\s+not\s+(?:establish|explain|show)|insufficient\s+to|missing\s+(?:reasoning|analysis|mechanism)/i.test(
+            `${criterionSummary} ${suggestion}`
+          );
+
+          // 模型偶尔会把“前置论证缺少支持”错误归到结论模块。
+          // 当它已经明确要求 reasoning/theory/example/empirical 支持时，
+          // 将动作重新归到支持侧，避免用户接受后只改写结论、掩盖真实缺口。
+          let ownershipCorrected = false;
+          if (
+            action === "revise" &&
+            sourceIsConclusion &&
+            supportNeeded !== "none" &&
+            missingSupportLanguage
+          ) {
+            const conclusionBlock = sourceBlock;
+            const supportTypePattern = supportNeeded === "empirical"
+              ? /evidence|data|empirical|证据|数据|实证/i
+              : supportNeeded === "theory"
+                ? /theory|理论/i
+                : supportNeeded === "example"
+                  ? /example|case|例子|案例|例证/i
+                  : /reason|analysis|mechanism|inference|explanation|原因|分析|机制|推理|解释/i;
+            const existingSupportBlock = [...relatedBlocks]
+              .reverse()
+              .find((block) => block.id !== conclusionBlock.id && supportTypePattern.test(block.type));
+
+            if (existingSupportBlock) {
+              sourceId = existingSupportBlock.id;
+              targetId = conclusionBlock.id;
+              rewriteScope = "local";
+              ownershipCorrected = true;
+            } else {
+              const conclusionIndex = blocks.findIndex((block) => block.id === conclusionBlock.id);
+              const precedingBlock = conclusionIndex > 0 ? blocks[conclusionIndex - 1] : null;
+              if (precedingBlock) {
+                action = "insert";
+                rewriteScope = "";
+                sourceId = precedingBlock.id;
+                targetId = conclusionBlock.id;
+                const suggestedType = supportNeeded === "empirical"
+                  ? { type: "Evidence", label: reviewUsesCjk ? "证据" : "Evidence" }
+                  : supportNeeded === "theory"
+                    ? { type: reviewUsesCjk ? "理论" : "Theory", label: reviewUsesCjk ? "理论" : "Theory" }
+                    : supportNeeded === "example"
+                      ? { type: reviewUsesCjk ? "例证" : "Example", label: reviewUsesCjk ? "例证" : "Example" }
+                      : { type: reviewUsesCjk ? "分析" : "Analysis", label: reviewUsesCjk ? "分析" : "Analysis" };
+                insertType = suggestedType.type;
+                insertLabel = suggestedType.label;
+                ownershipCorrected = true;
+              }
+            }
+
+            if (ownershipCorrected) {
+              const relationText = String(criterionSummary || "")
+                .replace(/^(?:标题|Title|第[^：:]{1,8}段|Paragraph\s+\d+)[：:]\s*/i, "")
+                .replace(/[。.!！?？\s]+$/u, "")
+                .trim();
+              const correctedSourceBlock = blocks.find((block) => block.id === sourceId);
+              const correctedSourceLabel = templates.find(
+                (template) => template.type === correctedSourceBlock?.type
+              )?.label || correctedSourceBlock?.type || (reviewUsesCjk ? "分析" : "analysis");
+              suggestion = reviewUsesCjk
+                ? `• ${relationText || "当前前置材料尚未充分建立通向结论的支持关系"}。\n• 缺口位于前置论证，而不是结论措辞本身；${action === "insert" ? `请在结论前新增“${insertLabel}”模块，专门补足从现有材料到该结论的中间论证。` : `请加强现有“${correctedSourceLabel}”模块，明确解释现有材料如何支持结论中的能力变化。`}\n• 保留结论作为需要被论证的判断；补足这一环节后，前置材料与结论之间的推导关系才会真正成立。`
+                : `• ${relationText || "The preceding material does not yet establish the conclusion"}.\n• The gap belongs to the supporting argument rather than the wording of the conclusion; ${action === "insert" ? `insert a ${insertLabel} module immediately before the conclusion to supply the missing inferential step.` : `strengthen the existing ${correctedSourceLabel} module so it explains how the existing material supports the claimed change.`}\n• Keep the conclusion as the claim to be established; repairing the support side will make the inference from the preceding material explicit.`;
+            }
+          }
+
           if (action === "insert") {
             const sourceIndex = blocks.findIndex((block) => block.id === sourceId);
             const targetIndex = blocks.findIndex((block) => block.id === targetId);
@@ -2577,10 +2664,7 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
             priority: Math.max(1, Math.min(5, Number(enhancement?.priority) || 3)),
             criterionKey: criterionItem?.key || "",
             criterion: criterionItem?.criterion || "",
-            suggestion: String(enhancement?.suggestion || "")
-              .replace(/[ \t]+/g, " ")
-              .replace(/\n{3,}/g, "\n\n")
-              .trim(),
+            suggestion,
           };
       };
 
@@ -2619,7 +2703,7 @@ suggestion 不设字数限制，必须排版成 2—4 个以“• ”开头的�
             : prefixedSummary;
 
           const issue = status === "issue"
-            ? normalizeEnhancement(parsed.issue, expected)
+            ? normalizeEnhancement(parsed.issue, expected, summary)
             : null;
           if (status === "issue" && !issue) {
             diagnosticProtocolError = new Error(
