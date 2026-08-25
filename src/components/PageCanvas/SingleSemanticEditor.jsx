@@ -2082,6 +2082,7 @@ const SingleSemanticEditor =
           {quickInstructionTarget ? (
             <QuickInstructionComposer
               anchorRect={quickInstructionTarget.anchorRect}
+              anchorElement={quickInstructionTarget.anchorElement}
               onClose={() => setQuickInstructionTarget(null)}
               onSubmit={(instructionText, instructionStyle) => {
                 const target = quickInstructionTarget;
@@ -2745,6 +2746,7 @@ const SingleSemanticEditor =
                         block,
                         blockId,
                         blockColor: color,
+                        anchorElement: event.currentTarget,
                         anchorRect: {
                           left: rect.left,
                           right: rect.right,

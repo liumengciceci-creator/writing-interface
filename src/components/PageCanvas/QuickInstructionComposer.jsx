@@ -83,6 +83,7 @@ function createInstructionId() {
 
 export default function QuickInstructionComposer({
   anchorRect,
+  anchorElement,
   onClose,
   onSubmit,
 }) {
@@ -94,6 +95,7 @@ export default function QuickInstructionComposer({
   const inputRef = useRef(null);
   const panelRef = useRef(null);
   const dragRef = useRef(null);
+  const lastAnchorRectRef = useRef(anchorRect || null);
   const { instructionLabel, instructionText, t } = useI18n();
 
   const initialGeometry = useMemo(() => {
@@ -178,6 +180,79 @@ export default function QuickInstructionComposer({
       window.removeEventListener("pointercancel", stopDragging);
     };
   }, [initialGeometry.width]);
+
+  useLayoutEffect(() => {
+    const currentRect = anchorElement?.isConnected
+      ? anchorElement.getBoundingClientRect()
+      : anchorRect;
+    if (currentRect) lastAnchorRectRef.current = currentRect;
+  }, [anchorElement, anchorRect]);
+
+  useEffect(() => {
+    if (!anchorElement) return undefined;
+    let frameId = 0;
+
+    const syncWithAnchor = () => {
+      frameId = 0;
+      if (!anchorElement.isConnected) return;
+      const nextRect = anchorElement.getBoundingClientRect();
+      const previousRect = lastAnchorRectRef.current;
+      lastAnchorRectRef.current = nextRect;
+      if (!previousRect || dragRef.current) return;
+
+      const deltaX = nextRect.right - previousRect.right;
+      const deltaY = nextRect.bottom - previousRect.bottom;
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+
+      setPosition((current) => {
+        const panelHeight = panelRef.current?.offsetHeight || 118;
+        return {
+          left: clamp(
+            current.left + deltaX,
+            12,
+            window.innerWidth - initialGeometry.width - 12
+          ),
+          top: clamp(
+            current.top + deltaY,
+            12,
+            window.innerHeight - panelHeight - 12
+          ),
+        };
+      });
+    };
+
+    const requestSync = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(syncWithAnchor);
+    };
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(requestSync)
+      : null;
+    const mutationObserver = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(requestSync)
+      : null;
+
+    resizeObserver?.observe(anchorElement);
+    mutationObserver?.observe(anchorElement, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    window.addEventListener("resize", requestSync);
+    window.addEventListener("scroll", requestSync, {
+      capture: true,
+      passive: true,
+    });
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener("resize", requestSync);
+      window.removeEventListener("scroll", requestSync, true);
+    };
+  }, [anchorElement, initialGeometry.width]);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;

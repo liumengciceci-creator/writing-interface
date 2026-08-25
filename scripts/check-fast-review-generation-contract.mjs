@@ -20,6 +20,10 @@ const reviewPanel = fs.readFileSync(
   path.join(root, "src/components/ReviewIssuesPanel.jsx"),
   "utf8"
 );
+const quickInstructionComposer = fs.readFileSync(
+  path.join(root, "src/components/PageCanvas/QuickInstructionComposer.jsx"),
+  "utf8"
+);
 const styles = fs.readFileSync(path.join(root, "src/index.css"), "utf8");
 
 const checks = [
@@ -107,9 +111,27 @@ const checks = [
     name: "review panel scrolls with the canvas and reserves a modest clear gap",
     pass:
       styles.includes("position: absolute") &&
-      styles.includes("padding-right: 88px") &&
+      styles.includes("padding-right: clamp(128px, 8vw, 160px)") &&
       styles.includes(".page-canvas-shell.review-panel-open") &&
       !styles.includes("var(--review-panel-width) +"),
+  },
+  {
+    name: "review panel can be repositioned with a grab handle",
+    pass:
+      reviewPanel.includes("panelDragRef") &&
+      reviewPanel.includes("beginPanelDrag") &&
+      reviewPanel.includes('cursor: panelDragging ? "grabbing" : "grab"') &&
+      reviewPanel.includes("translate3d(${panelOffset.x}px, ${panelOffset.y}px, 0)"),
+  },
+  {
+    name: "quick instruction dialog follows a growing module",
+    pass:
+      semanticEditor.includes("anchorElement: event.currentTarget") &&
+      semanticEditor.includes("anchorElement={quickInstructionTarget.anchorElement}") &&
+      quickInstructionComposer.includes("lastAnchorRectRef") &&
+      quickInstructionComposer.includes("new ResizeObserver(requestSync)") &&
+      quickInstructionComposer.includes("new MutationObserver(requestSync)") &&
+      quickInstructionComposer.includes("current.top + deltaY"),
   },
   {
     name: "overall review is concise and supports streamed emphasis",

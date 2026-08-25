@@ -19,6 +19,10 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function clamp(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 function renderSummaryWithHighlights(summary, highlights = []) {
   const rawText = String(summary || "").trim();
   if (!rawText) return null;
@@ -112,7 +116,11 @@ export default function ReviewIssuesPanel({
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   const [applyLoading, setApplyLoading] = useState(false);
   const [applyError, setApplyError] = useState("");
+  const [panelOffset, setPanelOffset] = useState({ x: 0, y: 0 });
+  const [panelDragging, setPanelDragging] = useState(false);
   const criteriaListRef = useRef(null);
+  const panelRef = useRef(null);
+  const panelDragRef = useRef(null);
 
   const closeIssue = useCallback(() => {
     setSelectedIssueId(null);
@@ -145,6 +153,76 @@ export default function ReviewIssuesPanel({
     list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [criteria.length]);
 
+  useEffect(() => {
+    if (open) return;
+    panelDragRef.current = null;
+    setPanelDragging(false);
+    setPanelOffset({ x: 0, y: 0 });
+  }, [open]);
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      const drag = panelDragRef.current;
+      if (!drag) return;
+
+      const baseLeft = drag.rect.left - drag.offset.x;
+      const baseTop = drag.rect.top - drag.offset.y;
+      const minimumX = 12 - baseLeft;
+      const maximumX = Math.max(
+        minimumX,
+        window.innerWidth - drag.rect.width - 12 - baseLeft
+      );
+      const minimumY = 12 - baseTop;
+      // 窗口较高时只要求标题栏留在视口内，正文仍可跟随画布滚动查看。
+      const maximumY = Math.max(
+        minimumY,
+        window.innerHeight - 44 - baseTop
+      );
+
+      setPanelOffset({
+        x: clamp(
+          drag.offset.x + event.clientX - drag.pointerX,
+          minimumX,
+          maximumX
+        ),
+        y: clamp(
+          drag.offset.y + event.clientY - drag.pointerY,
+          minimumY,
+          maximumY
+        ),
+      });
+    };
+
+    const stopDragging = () => {
+      if (!panelDragRef.current) return;
+      panelDragRef.current = null;
+      setPanelDragging(false);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, []);
+
+  const beginPanelDrag = (event) => {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    panelDragRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      offset: panelOffset,
+      rect,
+    };
+    setPanelDragging(true);
+  };
+
   if (!open) return null;
 
   const pendingResults = results.filter((item) => !item.decision);
@@ -173,6 +251,7 @@ export default function ReviewIssuesPanel({
 
   return (
     <aside
+      ref={panelRef}
       className="review-issues-panel"
       aria-label={t("review.issueNumbers")}
       style={{
@@ -184,6 +263,8 @@ export default function ReviewIssuesPanel({
         background: "transparent",
         boxSizing: "border-box",
         isolation: "isolate",
+        transform: `translate3d(${panelOffset.x}px, ${panelOffset.y}px, 0)`,
+        willChange: panelDragging ? "transform" : "auto",
       }}
     >
       <section
@@ -196,6 +277,7 @@ export default function ReviewIssuesPanel({
         }}
       >
         <header
+          onPointerDown={beginPanelDrag}
           style={{
             display: "flex",
             alignItems: "flex-start",
@@ -203,6 +285,8 @@ export default function ReviewIssuesPanel({
             gap: 10,
             padding: "14px 12px 11px 14px",
             borderBottom: "1px solid rgba(17,24,39,0.08)",
+            cursor: panelDragging ? "grabbing" : "grab",
+            userSelect: "none",
           }}
         >
           <div>

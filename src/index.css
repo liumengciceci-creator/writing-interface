@@ -109,7 +109,7 @@ body {
 }
 
 .page-canvas-shell.review-panel-open {
-  padding-right: 88px;
+  padding-right: clamp(128px, 8vw, 160px);
   transition: padding-right 180ms ease;
 }
 
