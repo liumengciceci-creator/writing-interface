@@ -1084,6 +1084,8 @@ const SingleSemanticEditor =
         handleBeforeInput,
         handleKeyDown,
         handleBlur,
+        commitBlock,
+        stopEditing,
       } = useInlineEditing({
         editorRef,
         blocks,
@@ -1098,6 +1100,42 @@ const SingleSemanticEditor =
           measureLineExtensionsRef.current?.();
         },
       });
+
+      /**
+       * 关闭快速指令框时，同时提交并结束当前文字编辑会话。
+       * 这样点击空白处、按 Escape 或关闭对话框时，模块高亮与
+       * 对话框会在同一次状态更新中一起消失。
+       */
+      const closeQuickInstructionSession =
+        useCallback(() => {
+          const targetBlockId =
+            normalizeId(
+              quickInstructionTarget
+                ?.blockId
+            );
+
+          stopEditing({
+            commit: true,
+          });
+
+          setQuickInstructionTarget(
+            null
+          );
+
+          setInstructionEffect(
+            (current) =>
+              targetBlockId &&
+              normalizeId(
+                current?.blockId
+              ) === targetBlockId
+                ? null
+                : current
+          );
+        }, [
+          quickInstructionTarget
+            ?.blockId,
+          stopEditing,
+        ]);
 
       const visualFocusBlockId =
         normalizeId(
@@ -2223,11 +2261,44 @@ const SingleSemanticEditor =
             <QuickInstructionComposer
               anchorRect={quickInstructionTarget.anchorRect}
               anchorElement={quickInstructionTarget.anchorElement}
-              onClose={() => setQuickInstructionTarget(null)}
+              onClose={closeQuickInstructionSession}
               onSubmit={(instructionText, instructionStyle) => {
                 const target = quickInstructionTarget;
-                const targetBlock =
+                const storedTargetBlock =
                   blockById.get(target.blockId) || target.block;
+                const targetElement =
+                  findBlockById(
+                    editorRef.current,
+                    target.blockId
+                  );
+
+                /**
+                 * 点击“发送”时，React state 可能尚未完成本轮 blur 提交。
+                 * 必须直接读取当前 contentEditable DOM，并把这份最新文字
+                 * 交给指令请求，避免双击时缓存的旧 block 覆盖手动编辑。
+                 */
+                const liveTargetText =
+                  normalizeText(
+                    targetElement
+                      ?.textContent ??
+                      storedTargetBlock
+                        ?.text ??
+                      ""
+                  );
+
+                const targetBlock = {
+                  ...storedTargetBlock,
+                  text: liveTargetText,
+                };
+
+                stopEditing({
+                  commit: true,
+                });
+
+                setQuickInstructionTarget(
+                  null
+                );
+
                 const instruction = {
                   id:
                     instructionStyle?.id ||
