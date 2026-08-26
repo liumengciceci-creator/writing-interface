@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "server": "node server.js",
     "check:length-adjustment": "node scripts/check-fast-length-adjustment.mjs",
-    "check:generated-left-floating": "node scripts/check-generated-left-floating.mjs"
+    "check:generated-left-floating": "node scripts/check-generated-left-floating.mjs",
+    "check:left-drag-debug": "node scripts/check-left-drag-debug.mjs"
   },
   "dependencies": {
     "ai": "^7.0.79",

@@ -1,4 +1,8 @@
 import {
+  leftDragDebug,
+} from "../../debug/leftDragDebug";
+
+import {
   useCallback,
 } from "react";
 
@@ -492,6 +496,42 @@ export function useBlockActions({
                         hasChanges =
                           true;
 
+                        leftDragDebug(
+                          "state:placement-update-before",
+                          {
+                            blockId:
+                              String(
+                                block.id
+                              ),
+                            isGenerated:
+                              Boolean(
+                                block.isGenerated
+                              ),
+                            current: {
+                              placement:
+                                block.placement ||
+                                "inline",
+                              floatingX:
+                                block.floatingX ??
+                                null,
+                              floatingY:
+                                block.floatingY ??
+                                null,
+                              floatingWidth:
+                                block.floatingWidth ??
+                                null,
+                              width:
+                                block.width ??
+                                null,
+                              height:
+                                block.height ??
+                                null,
+                            },
+                            requested:
+                              blockUpdates,
+                          }
+                        );
+
                         const nextBlock = {
                           ...block,
                           ...blockUpdates,
@@ -523,6 +563,47 @@ export function useBlockActions({
                           delete nextBlock.floatingWidth;
                           delete nextBlock.floatingHeight;
                         }
+
+                        leftDragDebug(
+                          "state:placement-update-after",
+                          {
+                            blockId:
+                              String(
+                                nextBlock.id
+                              ),
+                            isGenerated:
+                              Boolean(
+                                nextBlock.isGenerated
+                              ),
+                            next: {
+                              placement:
+                                nextBlock.placement ||
+                                "inline",
+                              floatingX:
+                                nextBlock.floatingX ??
+                                null,
+                              floatingY:
+                                nextBlock.floatingY ??
+                                null,
+                              floatingWidth:
+                                nextBlock.floatingWidth ??
+                                null,
+                              floatingHeight:
+                                nextBlock.floatingHeight ??
+                                null,
+                              width:
+                                nextBlock.width ??
+                                null,
+                              height:
+                                nextBlock.height ??
+                                null,
+                              forceLineBreakBefore:
+                                Boolean(
+                                  nextBlock.forceLineBreakBefore
+                                ),
+                            },
+                          }
+                        );
 
                         return nextBlock;
                       }

@@ -1,4 +1,8 @@
 import {
+  getLastLeftDragDebugBlockId,
+  leftDragDebug,
+} from "../../debug/leftDragDebug";
+import {
   useEffect,
   useRef,
   useState,
@@ -234,6 +238,78 @@ export default function FloatingEditableBlock({
   ] = useState(
     block.text || ""
   );
+
+  useEffect(() => {
+    const debugBlockId =
+      getLastLeftDragDebugBlockId();
+
+    if (
+      debugBlockId &&
+      String(block.id) ===
+        debugBlockId
+    ) {
+      const node =
+        editorRef.current;
+
+      const rect =
+        node?.getBoundingClientRect?.();
+
+      leftDragDebug(
+        "render:floating-component",
+        {
+          blockId:
+            String(block.id),
+          isGenerated:
+            Boolean(
+              block.isGenerated
+            ),
+          placement:
+            block.placement,
+          floatingX:
+            block.floatingX ??
+            null,
+          floatingY:
+            block.floatingY ??
+            null,
+          floatingWidth:
+            block.floatingWidth ??
+            null,
+          floatingHeight:
+            block.floatingHeight ??
+            null,
+          height:
+            block.height ??
+            null,
+          domRect:
+            rect
+              ? {
+                  left:
+                    rect.left,
+                  top:
+                    rect.top,
+                  right:
+                    rect.right,
+                  bottom:
+                    rect.bottom,
+                  width:
+                    rect.width,
+                  height:
+                    rect.height,
+                }
+              : null,
+        }
+      );
+    }
+  }, [
+    block.id,
+    block.placement,
+    block.floatingX,
+    block.floatingY,
+    block.floatingWidth,
+    block.floatingHeight,
+    block.height,
+    block.isGenerated,
+  ]);
 
   /**
    * block.id 变化时，

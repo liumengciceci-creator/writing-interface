@@ -18,6 +18,11 @@ import {
  */
 const COMPACT_FLOATING_POINTER_ANCHOR_X = 24;
 
+import {
+  getLastLeftDragDebugBlockId,
+  leftDragDebug,
+} from "../../debug/leftDragDebug";
+
 /**
  * 灰色区域统一使用现有 floating 卡片的紧凑宽度。
  * 长文本不会沿用白色画布中的整行宽度。
@@ -1470,12 +1475,85 @@ export function useFloatingBlocks({
           );
 
         if (!block) {
+          leftDragDebug(
+            "drop:block-missing",
+            {
+              blockId,
+              eventClientX:
+                event.clientX,
+              eventClientY:
+                event.clientY,
+              snapshotBlockId:
+                snapshotBlock?.id ??
+                null,
+            }
+          );
+
           clearDragPointer();
 
           return {
             type: "none",
           };
         }
+
+        leftDragDebug(
+          "drop:resolved-block",
+          {
+            blockId:
+              String(blockId),
+            isGenerated:
+              Boolean(
+                block.isGenerated
+              ),
+            placement:
+              block.placement ||
+              "inline",
+            textLength:
+              String(
+                block.text || ""
+              ).length,
+            forceLineBreakBefore:
+              Boolean(
+                block.forceLineBreakBefore
+              ),
+            eventClientX:
+              event.clientX,
+            eventClientY:
+              event.clientY,
+            pointerOffsetX:
+              pointerOffsetRef.current
+                .x,
+            pointerOffsetY:
+              pointerOffsetRef.current
+                .y,
+            storedGeometry: {
+              x:
+                block.x ??
+                null,
+              y:
+                block.y ??
+                null,
+              width:
+                block.width ??
+                null,
+              height:
+                block.height ??
+                null,
+              floatingX:
+                block.floatingX ??
+                null,
+              floatingY:
+                block.floatingY ??
+                null,
+              floatingWidth:
+                block.floatingWidth ??
+                null,
+              floatingHeight:
+                block.floatingHeight ??
+                null,
+            },
+          }
+        );
 
         const insidePage =
           isInsidePageArea(
@@ -1553,6 +1631,57 @@ export function useFloatingBlocks({
             block.floatingY !==
               nextY;
 
+          leftDragDebug(
+            "drop:outside-page-geometry",
+            {
+              blockId:
+                String(blockId),
+              isGenerated:
+                Boolean(
+                  block.isGenerated
+                ),
+              insidePage,
+              isFloating,
+              hasCopiedLineAppearance,
+              stageRect: {
+                left:
+                  stageRect.left,
+                top:
+                  stageRect.top,
+                right:
+                  stageRect.right,
+                bottom:
+                  stageRect.bottom,
+                width:
+                  stageRect.width,
+                height:
+                  stageRect.height,
+              },
+              eventClientX:
+                event.clientX,
+              eventClientY:
+                event.clientY,
+              nextX,
+              nextY,
+              rawFinalX,
+              finalX,
+              floatingWidth,
+              viewport: {
+                width:
+                  window.innerWidth,
+                height:
+                  window.innerHeight,
+              },
+              computedClientLeft:
+                stageRect.left +
+                finalX,
+              computedClientRight:
+                stageRect.left +
+                finalX +
+                floatingWidth,
+            }
+          );
+
           const groupSnapshots =
             dragGroupSnapshotRef.current;
 
@@ -1621,6 +1750,30 @@ export function useFloatingBlocks({
                 ),
             };
           }
+
+          leftDragDebug(
+            "drop:request-placement-update",
+            {
+              blockId:
+                String(blockId),
+              isGenerated:
+                Boolean(
+                  block.isGenerated
+                ),
+              placement:
+                "floating",
+              floatingX:
+                finalX,
+              floatingY:
+                nextY,
+              floatingWidth,
+              height:
+                hasCopiedLineAppearance
+                  ? 40
+                  : block.height ??
+                    null,
+            }
+          );
 
           updateBlockPlacement?.(
             blockId,
@@ -1763,6 +1916,58 @@ export function useFloatingBlocks({
             );
           }
         }
+      }
+
+      const debugBlockId =
+        getLastLeftDragDebugBlockId();
+
+      if (debugBlockId) {
+        const debugBlock =
+          result.find(
+            (item) =>
+              String(item.id) ===
+              debugBlockId
+          );
+
+        leftDragDebug(
+          "render:floating-block-list",
+          {
+            blockId:
+              debugBlockId,
+            found:
+              Boolean(
+                debugBlock
+              ),
+            floatingBlockIds:
+              result.map(
+                (item) =>
+                  String(item.id)
+              ),
+            debugBlock:
+              debugBlock
+                ? {
+                    placement:
+                      debugBlock.placement,
+                    isGenerated:
+                      Boolean(
+                        debugBlock.isGenerated
+                      ),
+                    floatingX:
+                      debugBlock.floatingX ??
+                      null,
+                    floatingY:
+                      debugBlock.floatingY ??
+                      null,
+                    floatingWidth:
+                      debugBlock.floatingWidth ??
+                      null,
+                    height:
+                      debugBlock.height ??
+                      null,
+                  }
+                : null,
+          }
+        );
       }
 
       return result;
