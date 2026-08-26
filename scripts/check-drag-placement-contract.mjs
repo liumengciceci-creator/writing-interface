@@ -178,17 +178,6 @@ const checks = [
       pageCanvas.includes("onDragEnd?.()"),
   },
   {
-    name: "toolbar clicks cannot reuse stale drag state as an external drop",
-    pass:
-      floating.includes("const hasActiveDragGesture =") &&
-      floating.includes("dragMovedRef.current") &&
-      pageCanvas.includes("new-mousedown-outside-stage") &&
-      pageCanvas.includes("mouseup-without-active-movement") &&
-      pageCanvas.includes("!hasActiveDragGesture?.(") &&
-      pageCanvas.includes("cancelled stale external drop") &&
-      pageCanvas.includes("committing external drop"),
-  },
-  {
     name: "floating drag preview keeps the type badge anchored",
     pass:
       pageCanvas.includes('const isTitleBlock =\n    block.type === "Title"') &&

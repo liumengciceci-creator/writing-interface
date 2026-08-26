@@ -640,7 +640,6 @@ export default function PageCanvas(
     beginDragTracking,
     updateDragPointer,
     clearDragPointer,
-    hasActiveDragGesture,
 
     draggingFloatingPreview,
     draggingBackToPagePreview,
@@ -1093,59 +1092,6 @@ export default function PageCanvas(
    * 这里在 Stage 外真正提交同一次放置，再结束拖拽。
    */
   useEffect(() => {
-    const cancelStaleDrag =
-      (reason, event, activeBlockId) => {
-        console.debug(
-          "[Drag Drop Debug] cancelled stale external drop",
-          {
-            reason,
-            blockId:
-              activeBlockId == null
-                ? null
-                : String(activeBlockId),
-            clientX:
-              event?.clientX ?? null,
-            clientY:
-              event?.clientY ?? null,
-            target:
-              event?.target?.tagName ||
-              null,
-          }
-        );
-
-        clearDragPointer();
-        nativeDraggingBlockIdRef.current =
-          null;
-        onDragEnd?.();
-      };
-
-    /**
-     * 新鼠标手势从 Stage 外开始时，必然不属于旧拖拽。
-     * 在 toolbar mouseup 之前清除残留 ID，防止模块被放到“审阅”按钮下。
-     */
-    const handleWindowMouseDown =
-      (event) => {
-        const activeBlockId =
-          nativeDraggingBlockIdRef.current ??
-          draggingBlockId;
-
-        if (
-          activeBlockId == null ||
-          !stageRef?.current ||
-          stageRef.current.contains(
-            event.target
-          )
-        ) {
-          return;
-        }
-
-        cancelStaleDrag(
-          "new-mousedown-outside-stage",
-          event,
-          activeBlockId
-        );
-      };
-
     const handleWindowMouseUp =
       (event) => {
         const activeBlockId =
@@ -1161,31 +1107,6 @@ export default function PageCanvas(
         ) {
           return;
         }
-
-        if (
-          !hasActiveDragGesture?.(
-            activeBlockId
-          )
-        ) {
-          cancelStaleDrag(
-            "mouseup-without-active-movement",
-            event,
-            activeBlockId
-          );
-          return;
-        }
-
-        console.debug(
-          "[Drag Drop Debug] committing external drop",
-          {
-            blockId:
-              String(activeBlockId),
-            clientX:
-              event.clientX,
-            clientY:
-              event.clientY,
-          }
-        );
 
         const result =
           handleFloatingDrop(
@@ -1212,23 +1133,11 @@ export default function PageCanvas(
       };
 
     window.addEventListener(
-      "mousedown",
-      handleWindowMouseDown,
-      true
-    );
-
-    window.addEventListener(
       "mouseup",
       handleWindowMouseUp
     );
 
     return () => {
-      window.removeEventListener(
-        "mousedown",
-        handleWindowMouseDown,
-        true
-      );
-
       window.removeEventListener(
         "mouseup",
         handleWindowMouseUp
@@ -1239,7 +1148,6 @@ export default function PageCanvas(
     stageRef,
     handleFloatingDrop,
     clearDragPointer,
-    hasActiveDragGesture,
     onClearSelection,
     onDragEnd,
   ]);
@@ -1438,7 +1346,7 @@ export default function PageCanvas(
           "flex-start",
 
         padding:
-          "var(--page-canvas-top-inset, 8px) 16px 20px",
+          "8px 16px 20px",
 
         boxSizing:
           "border-box",

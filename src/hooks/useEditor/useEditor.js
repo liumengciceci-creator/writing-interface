@@ -68,12 +68,6 @@ import {
   useBlockDuplicate,
 } from "./useBlockDuplicate";
 
-import {
-  getInlineParagraphBlockIndices,
-  isEditableInlineBlock,
-  restoreCompletedParagraphBlocks,
-} from "./paragraphBlocks";
-
 const INITIAL_SECTIONS = [
   {
     id: 1,
@@ -537,7 +531,6 @@ export function useEditor() {
     generateFromSelectedBlocks,
     retryFailedGeneration,
     dismissGenerationFailure,
-    stopGenerating,
   } = useStreamingGenerate({
     sections,
     setSections,
@@ -764,7 +757,9 @@ export function useEditor() {
               section.blocks ||
               []
             ).filter(
-              isEditableInlineBlock
+              (block) =>
+                !block
+                  ?.isCompletedParagraph
             ).length,
           0
         );
@@ -795,7 +790,7 @@ export function useEditor() {
           const blockIndex =
             section.blocks.findIndex(
               (block) =>
-                isEditableInlineBlock(block) &&
+                !block?.isCompletedParagraph &&
                 String(block.id) === preferredId
             );
 
@@ -818,7 +813,8 @@ export function useEditor() {
             section?.mode === "editing" &&
             Array.isArray(section.blocks)
               ? section.blocks.findLastIndex(
-                  isEditableInlineBlock
+                  (block) =>
+                    !block?.isCompletedParagraph
                 )
               : -1;
 
@@ -835,13 +831,33 @@ export function useEditor() {
       }
 
       const sourceBlocks = targetSection.blocks;
-      const paragraphIndices = getInlineParagraphBlockIndices(
-        sourceBlocks,
-        targetBlockIndex
-      );
-      const paragraphBlocks = paragraphIndices.map(
-        (index) => sourceBlocks[index]
-      );
+      let paragraphStart = targetBlockIndex;
+
+      while (
+        paragraphStart > 0 &&
+        !sourceBlocks[paragraphStart]?.forceLineBreakBefore &&
+        !sourceBlocks[paragraphStart - 1]?.isCompletedParagraph
+      ) {
+        paragraphStart -= 1;
+      }
+
+      let paragraphEnd = targetBlockIndex + 1;
+
+      while (
+        paragraphEnd < sourceBlocks.length &&
+        !sourceBlocks[paragraphEnd]?.forceLineBreakBefore &&
+        !sourceBlocks[paragraphEnd]?.isCompletedParagraph
+      ) {
+        paragraphEnd += 1;
+      }
+
+      const paragraphBlocks =
+        sourceBlocks
+          .slice(paragraphStart, paragraphEnd)
+          .filter(
+            (block) =>
+              !block?.isCompletedParagraph
+          );
 
       return (
         paragraphBlocks.length > 0 &&
@@ -905,7 +921,8 @@ export function useEditor() {
                 const blockIndex =
                   section.blocks.findIndex(
                     (block) =>
-                      isEditableInlineBlock(block) &&
+                      !block
+                        ?.isCompletedParagraph &&
                       String(
                         block.id
                       ) === preferredId
@@ -951,7 +968,9 @@ export function useEditor() {
 
               const blockIndex =
                 section.blocks.findLastIndex(
-                  isEditableInlineBlock
+                  (block) =>
+                    !block
+                      ?.isCompletedParagraph
                 );
 
               if (blockIndex < 0) {
@@ -981,17 +1000,42 @@ export function useEditor() {
           const sourceBlocks =
             targetSection.blocks;
 
-          const paragraphIndices =
-            getInlineParagraphBlockIndices(
-              sourceBlocks,
-              targetBlockIndex
-            );
+          let paragraphStart =
+            targetBlockIndex;
+
+          while (
+            paragraphStart > 0 &&
+            !sourceBlocks[
+              paragraphStart
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphStart - 1
+            ]?.isCompletedParagraph
+          ) {
+            paragraphStart -= 1;
+          }
+
+          let paragraphEnd =
+            targetBlockIndex + 1;
+
+          while (
+            paragraphEnd <
+              sourceBlocks.length &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.isCompletedParagraph
+          ) {
+            paragraphEnd += 1;
+          }
 
           const paragraphBlocks =
             cloneBlocks(
-              paragraphIndices.map(
-                (blockIndex) =>
-                  sourceBlocks[blockIndex]
+              sourceBlocks.slice(
+                paragraphStart,
+                paragraphEnd
               )
             );
 
@@ -1129,41 +1173,26 @@ export function useEditor() {
               previousSections
             );
 
-          const paragraphIndexSet =
-            new Set(
-              paragraphIndices
-            );
-
-          const firstParagraphIndex =
-            paragraphIndices[0];
-
           nextSections[
             targetSectionIndex
           ] = {
             ...nextSections[
               targetSectionIndex
             ],
-            blocks:
-              cloneBlocks(
-                sourceBlocks
-              ).flatMap(
-                (block, blockIndex) => {
-                  if (
-                    blockIndex ===
-                    firstParagraphIndex
-                  ) {
-                    return [
-                      completedParagraph,
-                    ];
-                  }
-
-                  return paragraphIndexSet.has(
-                    blockIndex
-                  )
-                    ? []
-                    : [block];
-                }
+            blocks: [
+              ...cloneBlocks(
+                sourceBlocks.slice(
+                  0,
+                  paragraphStart
+                )
               ),
+              completedParagraph,
+              ...cloneBlocks(
+                sourceBlocks.slice(
+                  paragraphEnd
+                )
+              ),
+            ],
           };
 
           pushHistorySnapshot(
@@ -1237,7 +1266,8 @@ export function useEditor() {
                 const blockIndex =
                   section.blocks.findIndex(
                     (block) =>
-                      isEditableInlineBlock(block) &&
+                      !block
+                        ?.isCompletedParagraph &&
                       String(block.id) ===
                         preferredId
                   );
@@ -1278,7 +1308,9 @@ export function useEditor() {
                   section.blocks
                 )
                   ? section.blocks.findLastIndex(
-                      isEditableInlineBlock
+                      (block) =>
+                        !block
+                          ?.isCompletedParagraph
                     )
                   : -1;
 
@@ -1304,24 +1336,42 @@ export function useEditor() {
               targetSectionIndex
             ].blocks;
 
-          const paragraphIndices =
-            getInlineParagraphBlockIndices(
-              sourceBlocks,
-              targetBlockIndex
-            );
+          let paragraphStart =
+            targetBlockIndex;
 
-          if (
-            paragraphIndices.length ===
-            0
+          while (
+            paragraphStart > 0 &&
+            !sourceBlocks[
+              paragraphStart
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphStart - 1
+            ]?.isCompletedParagraph
           ) {
-            return previousSections;
+            paragraphStart -= 1;
+          }
+
+          let paragraphEnd =
+            targetBlockIndex + 1;
+
+          while (
+            paragraphEnd <
+              sourceBlocks.length &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.forceLineBreakBefore &&
+            !sourceBlocks[
+              paragraphEnd
+            ]?.isCompletedParagraph
+          ) {
+            paragraphEnd += 1;
           }
 
           const shouldHide =
-            paragraphIndices
-              .map(
-                (blockIndex) =>
-                  sourceBlocks[blockIndex]
+            sourceBlocks
+              .slice(
+                paragraphStart,
+                paragraphEnd
               )
               .some(
                 (block) =>
@@ -1342,9 +1392,9 @@ export function useEditor() {
               targetSectionIndex
             ].blocks.map(
               (block, blockIndex) =>
-                paragraphIndices.includes(
-                  blockIndex
-                )
+                blockIndex >=
+                    paragraphStart &&
+                blockIndex < paragraphEnd
                   ? {
                       ...block,
                       isModuleHidden:
@@ -1423,7 +1473,7 @@ export function useEditor() {
                     ];
 
                   let restoredBlocks =
-                    restoreCompletedParagraphBlocks(
+                    cloneBlocks(
                       completedBlock
                         .completedBlocks ||
                         []
@@ -1610,21 +1660,33 @@ export function useEditor() {
     );
 
   /**
-   * 为审阅派生一份完整模块快照。
-   *
-   * 这里必须保持只读：点击“审阅”不能 setSections，也不能创建历史记录。
-   * 旧实现会把派生快照重新写回画布；一旦快照中含旧 placement、段落起点
-   * 或 floating 坐标，通常排在首位的模块就会在审阅开始时发生漂移。
+   * 审阅前一次性恢复文档中的所有完成段落/完成 section。
+   * 返回恢复后的快照，让调用方无需等待下一次 React 渲染即可开始审阅。
    */
   const handleRestoreAllCompletedForReview =
     useCallback(() => {
+      let restoredAny = false;
+
       const restoredSections =
         cloneSections(sections).map((section) => {
-          if (!Array.isArray(section.blocks)) {
-            return section;
+          const restoredSection =
+            section.mode === "completed"
+              ? {
+                  ...section,
+                  mode: "editing",
+                  completedText: undefined,
+                }
+              : section;
+
+          if (section.mode === "completed") {
+            restoredAny = true;
           }
 
-          const restoredBlocks = section.blocks.flatMap((block) => {
+          if (!Array.isArray(restoredSection.blocks)) {
+            return restoredSection;
+          }
+
+          const restoredBlocks = restoredSection.blocks.flatMap((block) => {
             if (!block?.isCompletedParagraph) {
               return [{
                 ...block,
@@ -1632,9 +1694,7 @@ export function useEditor() {
               }];
             }
 
-            let sourceBlocks = restoreCompletedParagraphBlocks(
-              block.completedBlocks || []
-            );
+            let sourceBlocks = cloneBlocks(block.completedBlocks || []);
             if (!sourceBlocks.length) {
               return [];
             }
@@ -1645,6 +1705,7 @@ export function useEditor() {
               sourceBlocks = distributeCompletedText(completedText, sourceBlocks);
             }
 
+            restoredAny = true;
             return sourceBlocks.map((sourceBlock) => ({
               ...sourceBlock,
               isModuleHidden: false,
@@ -1652,14 +1713,29 @@ export function useEditor() {
           });
 
           return {
-            ...section,
+            ...restoredSection,
             blocks: restoredBlocks,
           };
         });
 
-      return restoredSections;
+      const normalized = normalizeSections(
+        restoredSections,
+        createEditingSectionFn
+      );
+
+      if (restoredAny) {
+        pushHistorySnapshot(sections);
+        setSections(normalized);
+        clearInteractionState();
+      }
+
+      return normalized;
     }, [
+      clearInteractionState,
+      createEditingSectionFn,
+      pushHistorySnapshot,
       sections,
+      setSections,
     ]);
 
   /**
@@ -1950,7 +2026,6 @@ export function useEditor() {
     generateFromSelectedBlocks,
     retryFailedGeneration,
     dismissGenerationFailure,
-    stopGenerating,
   };
 }
 

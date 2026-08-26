@@ -340,79 +340,31 @@ export default function Toolbar({
             event.preventDefault();
           }}
           onClick={onGenerate}
-          title={
-            isGenerating
-              ? t("toolbar.pauseGenerateTitle")
-              : t("toolbar.generateTitle")
-          }
+          title={t("toolbar.generateTitle")}
           style={{
             ...toolbarWideButton,
-            border: toolbarWideButton.border,
             opacity: 1,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            color: isGenerating ? "#4b5563" : "#111827",
-            background: isGenerating ? "#f3f4f6" : toolbarWideButton.background,
           }}
         >
-          {isGenerating && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 1,
-                background: "currentColor",
-                flex: "0 0 auto",
-              }}
-            />
-          )}
-          {isGenerating
-            ? t("toolbar.pauseGenerate")
-            : t("toolbar.generate")}
+          {t("toolbar.generate")}
         </button>
 
         <button
           type="button"
           onClick={onReview}
           title={
-            isReviewing
-              ? t("toolbar.pauseReviewTitle")
-              : selectedIds.length === 1
-                ? t("toolbar.reviewNeedTwo")
-                : selectedIds.length >= 2
-                  ? t("toolbar.reviewSelected")
-                  : t("toolbar.reviewAll")
+            selectedIds.length === 1
+              ? t("toolbar.reviewNeedTwo")
+              : selectedIds.length >= 2
+                ? t("toolbar.reviewSelected")
+                : t("toolbar.reviewAll")
           }
           style={{
             ...toolbarWideButton,
-            border: toolbarWideButton.border,
             opacity: 1,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            color: isReviewing ? "#4b5563" : "#111827",
-            background: isReviewing ? "#f3f4f6" : toolbarWideButton.background,
           }}
         >
-          {isReviewing && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 1,
-                background: "currentColor",
-                flex: "0 0 auto",
-              }}
-            />
-          )}
-          {isReviewing
-            ? t("toolbar.pauseReview")
-            : t("toolbar.review")}
+          {t("toolbar.review")}
         </button>
 
         <button

@@ -313,9 +313,6 @@ function appendDeltaMapToBlocks(sections, deltaMap) {
       text: nextText,
       height: estimateBlockHeight(nextText, block.width),
       isGenerated: true,
-      // “完成”会暂时隐藏模块外观。生成已经重新激活该模块，
-      // 所有流式分片都必须保持可见，不能等点击审阅才恢复。
-      isModuleHidden: false,
     };
   });
 }
@@ -520,7 +517,6 @@ export function useStreamingGenerate({
               text: expectedText,
               height: estimateBlockHeight(expectedText, block.width),
               isGenerated: true,
-              isModuleHidden: false,
               generationDirective: "",
               generationError: null,
             };
@@ -627,10 +623,9 @@ export function useStreamingGenerate({
     cancelledRef.current = true;
     controllerRef.current?.abort();
     controllerRef.current = null;
-    // 暂停时先提交已经收到但尚未来得及绘制的最后一批字符，
-    // 保证用户看到的部分结果与实际收到的流完全一致。
-    flushPendingDeltas();
     stopBlinking();
+    clearPendingFrame();
+    pendingDeltaMapRef.current = new Map();
     generationCommitGuardRef.current = false;
     expectedGeneratedTextRef.current = new Map();
     repairedGeneratedTextIdsRef.current = new Set();
@@ -641,7 +636,7 @@ export function useStreamingGenerate({
     setIsGenerating(false);
     setGeneratingBlockIds([]);
     setGenerationStatus("");
-  }, [flushPendingDeltas, stopBlinking]);
+  }, [clearPendingFrame, stopBlinking]);
 
   const generateFromSelectedBlocks = useCallback(async (requestedTargetIds = null) => {
     if (isGenerating) return;
@@ -879,9 +874,6 @@ export function useStreamingGenerate({
 
         return {
           ...block,
-          // 生成目标可能残留“完成段落”的隐藏标记。强制重挂载前先清除，
-          // 否则正文仍在 state 中，但边框和标签会像模块消失一样不可见。
-          isModuleHidden: false,
           // 手动编辑、换行或浏览器原生撤销可能会移除 contentEditable
           // 内部的正文标记。每次开始生成时强制重挂载该模块的 DOM，
           // 确保后续流式文字写入真实的正文节点，而不是留在旧文本节点上。
@@ -1006,7 +998,6 @@ export function useStreamingGenerate({
                     text: delta,
                     height: estimateBlockHeight(delta, block.width),
                     isGenerated: true,
-                    isModuleHidden: false,
                     generationError: null,
                   };
                 })
@@ -1117,7 +1108,6 @@ export function useStreamingGenerate({
             text: cleanedText,
             height: estimateBlockHeight(cleanedText, block.width),
             isGenerated: true,
-            isModuleHidden: false,
             generationDirective: "",
             generationError: null,
           };
@@ -1213,7 +1203,6 @@ export function useStreamingGenerate({
               text: validText,
               height: estimateBlockHeight(validText, block.width),
               isGenerated: true,
-              isModuleHidden: false,
               generationDirective: "",
               generationError: null,
             };
@@ -1230,7 +1219,6 @@ export function useStreamingGenerate({
               : [],
             height: estimateBlockHeight(originalText, block.width),
             isGenerated: originalBlock?.isGenerated,
-            isModuleHidden: false,
             generationDirective: directiveByRealId.get(blockId) || "",
             generationError: null,
           };

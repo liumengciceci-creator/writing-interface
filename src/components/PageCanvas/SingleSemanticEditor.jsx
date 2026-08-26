@@ -2781,10 +2781,10 @@ const SingleSemanticEditor =
                           display:
                             "block",
                           width: "100%",
-                          height: 16,
-                          minHeight: 16,
+                          height: 10,
+                          minHeight: 10,
                           lineHeight:
-                            "16px",
+                            "10px",
                           pointerEvents:
                             "none",
                           userSelect:

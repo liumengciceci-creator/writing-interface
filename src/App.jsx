@@ -38,10 +38,6 @@ import {
   serializeResearchDocument,
   useResearchDocumentLogger,
 } from "./research/useResearchDocumentLogger.js";
-import {
-  captureReviewLayoutSnapshot,
-  logReviewLayoutSnapshot,
-} from "./debug/reviewLayoutDebug.js";
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
@@ -244,8 +240,6 @@ export default function App() {
     getResearchSessionInfo
   );
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
-  const reviewLayoutDebugBaselineRef = useRef(null);
-  const reviewAbortControllerRef = useRef(null);
   const [isApplyingReviewSuggestion, setIsApplyingReviewSuggestion] =
     useState(false);
   const [reviewApplyPulse, setReviewApplyPulse] = useState(() => ({
@@ -323,7 +317,6 @@ export default function App() {
     toggleWebSearch,
     retryFailedGeneration,
     dismissGenerationFailure,
-    stopGenerating,
 
     /**
      * 调整长度状态。
@@ -469,32 +462,6 @@ export default function App() {
     [sections]
   );
 
-  useEffect(() => () => {
-    reviewAbortControllerRef.current?.abort();
-    reviewAbortControllerRef.current = null;
-  }, []);
-
-  const stopReview = () => {
-    const activeController = reviewAbortControllerRef.current;
-    if (!activeController) return;
-
-    activeController.abort();
-    reviewAbortControllerRef.current = null;
-    setReviewState((state) => ({
-      ...state,
-      running: false,
-      phase:
-        state.overallSummary || state.criteria.length > 0
-          ? state.phase
-          : "idle",
-      activeIds: [],
-      activeGraphId: null,
-      activeIssue: null,
-      blinkOn: false,
-      status: t("app.reviewPaused"),
-    }));
-  };
-
   const showBusyActionReason = () => {
     if (isGenerating) {
       showTemporaryStatus(t("app.busyGenerating"), 2600);
@@ -525,12 +492,6 @@ export default function App() {
   };
 
   const handleToolbarGenerate = () => {
-    if (isGenerating) {
-      stopGenerating();
-      showTemporaryStatus(t("app.generationPaused"), 3200);
-      return;
-    }
-
     if (showBusyActionReason()) return;
 
     if (selectedIds.length === 0) {
@@ -548,12 +509,6 @@ export default function App() {
   };
 
   const handleToolbarReview = () => {
-    if (reviewState.running) {
-      stopReview();
-      showTemporaryStatus(t("app.reviewPaused"), 3200);
-      return;
-    }
-
     if (showBusyActionReason()) return;
 
     if (reviewableBlockCount < 2) {
@@ -647,16 +602,6 @@ export default function App() {
   const handleReview = async () => {
     if (reviewState.running) return;
 
-    const reviewLayoutBaseline = captureReviewLayoutSnapshot({
-      label: "01-before-review",
-      sections,
-      stage: stageRef.current,
-      page: pageRef.current,
-      content: contentRef.current,
-    });
-    reviewLayoutDebugBaselineRef.current = reviewLayoutBaseline;
-    logReviewLayoutSnapshot(reviewLayoutBaseline);
-
     const selectedBeforeRestore = selectedIds.map(String);
     const reviewSections = handleRestoreAllCompletedForReview();
     const allReviewableBlocks = getReviewableBlocksFromSections(reviewSections);
@@ -671,10 +616,6 @@ export default function App() {
         : allReviewableBlocks;
 
     if (blocks.length < 2) return;
-
-    reviewAbortControllerRef.current?.abort();
-    const reviewController = new AbortController();
-    reviewAbortControllerRef.current = reviewController;
 
     const reviewActionId = createResearchActionId("review");
     const reviewStartedAt = performance.now();
@@ -858,11 +799,7 @@ export default function App() {
         blocks,
         templates: reviewTemplates,
         interfaceLanguage: language,
-        signal: reviewController.signal,
         onEvent: async (event) => {
-          // abort 后 reader 可能已经交付了一条排队事件；不得让它继续改 UI。
-          if (reviewController.signal.aborted) return;
-
           if (event.type === "summary_delta") {
             const summaryDelta = String(event.delta || "");
             streamedOverallSummary += summaryDelta;
@@ -1190,31 +1127,6 @@ export default function App() {
         { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
       );
     } catch (error) {
-      if (
-        error?.name === "AbortError" ||
-        reviewController.signal.aborted
-      ) {
-        setReviewState((state) => ({
-          ...state,
-          running: false,
-          phase:
-            state.overallSummary || state.criteria.length > 0
-              ? state.phase
-              : "idle",
-          activeIds: [],
-          activeGraphId: null,
-          activeIssue: null,
-          blinkOn: false,
-          status: t("app.reviewPaused"),
-        }));
-        logResearchEvent(
-          "review_paused",
-          { duration_ms: Math.round(performance.now() - reviewStartedAt) },
-          { actionId: reviewActionId, targetBlockIds: blocks.map((block) => block.id) }
-        );
-        return;
-      }
-
       console.error("整体审阅失败：", error);
       setReviewState((state) => ({
         ...state,
@@ -1237,56 +1149,8 @@ export default function App() {
       );
     } finally {
       window.clearInterval(blinkTimer);
-      if (reviewAbortControllerRef.current === reviewController) {
-        reviewAbortControllerRef.current = null;
-      }
     }
   };
-
-  /**
-   * 面板显示、阶段切换和新段落结果到达后，在浏览器完成两帧布局后采样。
-   * 控制台搜索 “Review Layout Debug” 即可获得相对审阅前的坐标变化。
-   */
-  useEffect(() => {
-    if (!reviewPanelOpen && !reviewState.running) return undefined;
-
-    let secondFrameId = null;
-    const firstFrameId = window.requestAnimationFrame(() => {
-      secondFrameId = window.requestAnimationFrame(() => {
-        const snapshot = captureReviewLayoutSnapshot({
-          label: [
-            "02-review-layout",
-            reviewState.phase,
-            `criteria-${reviewState.criteria.length}`,
-            `results-${reviewState.results.length}`,
-          ].join("/"),
-          sections,
-          stage: stageRef.current,
-          page: pageRef.current,
-          content: contentRef.current,
-          baseline: reviewLayoutDebugBaselineRef.current,
-        });
-        logReviewLayoutSnapshot(snapshot);
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(firstFrameId);
-      if (secondFrameId != null) {
-        window.cancelAnimationFrame(secondFrameId);
-      }
-    };
-  }, [
-    reviewPanelOpen,
-    reviewState.running,
-    reviewState.phase,
-    reviewState.criteria.length,
-    reviewState.results.length,
-    sections,
-    stageRef,
-    pageRef,
-    contentRef,
-  ]);
 
   const clearReviewIssueFocus = () => {
     setReviewState((state) => ({
@@ -2160,6 +2024,22 @@ export default function App() {
 />
           </div>
 
+          <ReviewIssuesPanel
+            open={reviewPanelOpen}
+            results={reviewState.results}
+            criteria={reviewState.criteria}
+            phase={reviewState.phase}
+            overallSummary={reviewState.overallSummary}
+            summaryHighlights={reviewState.summaryHighlights}
+            onFocusIssue={handleFocusReviewIssue}
+            onAccept={handleReviewAccept}
+            onReject={handleReviewReject}
+            onClose={() => {
+              clearReviewIssueFocus();
+              setReviewPanelOpen(false);
+            }}
+          />
+
           <GenerationFailureDialog
             open={Boolean(generationFailure)}
             count={generationFailure?.targetIds?.length || 0}
@@ -2205,22 +2085,6 @@ export default function App() {
                 "relative",
             }}
           >
-            <ReviewIssuesPanel
-              open={reviewPanelOpen}
-              results={reviewState.results}
-              criteria={reviewState.criteria}
-              phase={reviewState.phase}
-              overallSummary={reviewState.overallSummary}
-              summaryHighlights={reviewState.summaryHighlights}
-              onFocusIssue={handleFocusReviewIssue}
-              onAccept={handleReviewAccept}
-              onReject={handleReviewReject}
-              onClose={() => {
-                clearReviewIssueFocus();
-                setReviewPanelOpen(false);
-              }}
-            />
-
             <PageCanvas
               zoom={
                 zoom

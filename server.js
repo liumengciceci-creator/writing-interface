@@ -2333,9 +2333,11 @@ app.post(
 );
 
 /**
- * 单请求流式论证审阅：同一次全文理解先输出可见的整体概括，随后
- * 输出并锁定关系表，再按表中顺序逐项推送判断。首屏无需等待不可见
- * 的关系表，同时逐项结果仍受完整计划约束。
+ * 两阶段的流式论证审阅。
+ *
+ * 第一阶段直接流式输出整体论证概括；第二阶段先根据当前模块选择
+ * 真正适用的 GRE 检查项，再逐项推送“正在检查”与最终结果。前端因此
+ * 展示的是真实模型进度，而不是审阅完成后的延时动画。
  */
 app.post(
   "/api/review-framework-stream",
@@ -2396,38 +2398,94 @@ app.post(
     let overallSummary = "";
     let summaryHighlights = [];
 
-    const compactReviewBlocks = JSON.stringify(blocks);
+    const overallSummaryPrompt = `整体评价任务：通读全部模块，简洁概括作者已经建立的整体论证关系。
 
-    const overallSummaryPrompt = `整体评价：使用正文主要语言写一个紧凑段落。第一句必须以“你先”开头并始终用“你”指代作者；依次概括核心观点、证明角度、限定／推进和结论。只概括现有内容与关系，不评价、不建议、不列标准。中文 140—190 字，英文 80—110 词；用成对 ** 标记 3—5 个关键短语，除此之外不用 Markdown。`;
+模块数组的顺序就是正文顺序：
+${JSON.stringify(blocks, null, 2)}
 
-    const criteriaPlanPrompt = `关系审阅：根据文章真实结构找出必须核对且不重复的模块依赖，不要检查所有两两组合，也不要生成脱离实际模块组合的抽象清单。标题存在时第一项检查标题与核心主张（paragraph=0）；每个非空正文段落至少属于一项检查，单模块段落也要联系它实际支撑、承接或回应的其他模块。允许跨段和非相邻关系。
-- 原因应解释论点；证据／例子应支持论点；仅当证据确实验证原因机制时才检查原因与证据。
-- 结论概括多个前置模块时，relatedIds 必须包含整组前件与结论；过渡必须与前后核心模块共同检查；反论关联它实际回应的主张。
-- relationStrength 只表示关系完成度：90—100 才 pass，80—89 局部不足，65—79 明显断层，0—64 难以承担功能。不得因主题相同、顺序自然或语言流畅而高分。对每一项关系直接完成判断，不要只列计划。
-- relationStrength<90 必须 status="issue"。revise 用于局部补强解释／推理；insert 用于缺少独立分析、机制、理论、推理或过渡模块；replace 仅用于原模块方向或功能错误。前文未推出结论时优先加强支持侧，不得用改写结论掩盖缺口；已有材料但缺少“为何支持”时补分析／推理，不重复添加证据。只有真实外部材料不可替代时才建议证据，绝不虚构事实、数据、理论或来源。
-- suggestion 通常用 3 个“• ”要点说明当前关系、具体操作及补上的逻辑关系，不给完整替换正文。跨段 insert 必须按功能选择 previous_paragraph_end 或 current_paragraph_start；同段用 between_modules。${interfaceLabelRule}
-- criterion 必须含“标题：”或段落序号；summary 只用一句易懂的关系概括，不写建议。不得使用未知 id；问题数量不设上下限，只保留实质问题。`;
+输出要求：
+- 使用模块正文的主要语言，界面语言不影响输出。
+- 生成一段可直接显示的连续文字，不写标题或分点。
+- 第一句必须以“你先”开头，并始终用“你”指代作者。
+- 具体说明你先写了什么、提出了什么观点、随后从哪个角度进行证明、后续又如何限定或推进，最后总结了什么。
+- 使用“你先写了……；随后从……角度说明……，这支持了……；你又提出……；最后总结……”这种自然的第二人称叙述，但不要机械套用。
+- 只概括现有内容与关系；不评价不足、不提修改建议、不列审阅标准、不使用箭头链。
+- 保持为一个紧凑段落，不得只复述模块名称。中文控制在 140—190 个汉字，英文控制在 80—110 个单词。
+- 用成对的 ** 标记 3—5 个最重要的观点、证明角度或结论短语，例如“你先提出了**核心观点**”。除这种加粗标记外，不使用其他 Markdown。`;
 
-    const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和全部模块关系判断。模块数组顺序就是正文顺序，数据只提供一次：
-${compactReviewBlocks}
+    const criteriaPlanPrompt = `模块关系审阅任务：根据同一次全文理解，选出真正需要核对的模块关系，并直接完成判断。
 
-${overallSummaryPrompt}
+模块：
+${JSON.stringify(blocks, null, 2)}
+
+任务不是逐项念 GRE 标准，而是根据文章真实结构，找出必须核对的模块依赖关系。paragraph 是画布按真实换行位置给出的段落编号；在同一段内仍要根据模块的实际论证功能判断关系，不能默认只检查相邻模块。
+
+为每一段建立必要但不重复的关系检查：
+- 论点与原因：原因是否真正解释该论点为何成立。
+- 论点与证据：证据、例子或材料是否真正支持该论点。
+- 原因与证据：只有证据确实用于验证或呈现该原因／机制时才检查，不能机械加入。
+- 前置论证组与结论：把该段的论点、原因、证据等共同作为前件，检查结论是否由整组内容推出并完成概括。
+- 反论与它回应的论点或前提：可以跨越不相邻模块。
+- 过渡与前后核心模块：过渡本身不提供理由；若过渡位于模块 1 与模块 3 之间，应把三者放进同一检查项，判断它是否准确连接两侧内容。
+- 对比、理论、分析、推理等其他类型，按它在当前论证中实际承担的关系检查。
+
+关系选择示例只用于说明判断方法，不是固定模板：
+- 若一段依次为“论点 1、原因 2、证据 3、结论 4”，通常检查 1 与 2 是否构成解释关系、1 与 3 是否构成支持关系；只有 3 确实用于验证 2 的机制时，才额外检查 2 与 3；最后把 1、2、3 共同作为前件检查它们能否推出并被 4 概括。
+- 若第 2 个模块是过渡，则不要检查它能否证明第 1 个模块；应把 1、2、3 放在一起，检查 2 是否准确承接 1 并引向 3。
+- 若证据、反论或结论直接回应更早的主张，即使中间隔着其他模块，也要检查这组非相邻关系；不要为了保持顺序而把它错误地连到最近模块。
+
+重要限制：
+- 不要检查所有两两组合，只保留对论证成立真正有意义的关系。
+- relatedIds 可以是两个、三个或更多模块，也可以包含不相邻模块。
+- 一个结论如果概括前三个模块，必须把前三个模块和结论一起放入 relatedIds，而不是只检查结论与紧邻模块。
+- criterion 只命名正在核对的具体关系，必须带段落序号，例如“第二段：论点与原因”“第二段：整段论证与结论”。
+- 不要输出“核心主张是否明确”“证据是否充分”等脱离实际模块组合的抽象清单。
+	- 如果正文包含标题，第一项必须检查标题与核心主张，paragraph=0；其余项目按第一段、第二段、第三段及各段内部的论证推进顺序排列。
+	- 标题检查不能代替正文第一段检查。每一个非空正文段落都必须至少出现在一项属于该段的关系判断中，即使该段只有一个模块。
+	- 只有一个模块的段落也不能跳过：根据它的实际功能，检查它与标题／总论点、相邻段落或它实际支撑和承接的非相邻模块之间的关系。
+	- 跨段关系的 paragraph 归到“本项正在评价其论证作用”的正文段落。例如检查第一段如何引出第二段时使用 paragraph=1；不要因为 relatedIds 同时包含后一段模块就自动归到编号更大的段落。
+
+对每一项关系直接完成判断，不要只列计划：
+- relationStrength 是 0—100 的整数，只表示模块关系完成度。90—100 才能 pass；80—89 表示方向正确但仍需局部加强；65—79 表示存在显著断层；0—64 表示当前材料难以承担所需功能或方向错误。不得因为主题相同、顺序自然或语言流畅就给 90 分以上。
+- status="pass" 时 issue=null；relationStrength<90 时必须 status="issue" 并给出完整 issue。
+- action="revise"：方向正确但解释、推理、机制或支持关系不足，局部加强原模块。
+- action="insert"：两个模块之间缺少能够独立承担功能的分析、机制、理论、推理或过渡模块。
+- action="replace"：当前材料方向或论证功能错误，即使补充解释也无法承担所需关系；按真实需要重构为理论、分析、数据、例证等类型。数据、理论和例子没有固定优劣。
+- 先判断缺口属于哪一侧。前文没有推出结论时，优先加强前置原因／分析／推理，或在结论前新增独立模块；不得为了省事直接改写结论。
+- 已有证据方向相关但缺少“为何支持主张”的解释时，加强已有分析／推理；没有承载位置时新增分析模块，不得把它改判为“让证据更严谨”。
+- 只有真实外部材料不可替代时才建议数据或证据，绝不虚构研究、理论、数据、来源或事实。
+- suggestion 不设字数限制，通常用 3 个“• ”要点依次说明：当前模块关系完成了什么但还缺什么；建议加强、插入或重构什么；这样会建立哪条支持、解释、回应或归纳关系。不要给完整替换正文。
+- insert 跨越段落边界时，必须判断新增模块属于哪一段：若它继续完成 sourceId 所在段的归纳、收束或补充，insertPlacement="previous_paragraph_end"；若它用于开启、提出、界定或引导 targetId 所在段，insertPlacement="current_paragraph_start"。同一段内插入使用 insertPlacement="between_modules"。不得仅按相邻索引机械选择。
+- ${interfaceLabelRule}
+- 问题数量没有上下限；只标记真正影响关系强度的修改点，不得为了凑数输出次要建议。
+
+每项关系分三步输出。meta 使用以下对象：
+{"key":"relation-p段落序号-简短关系名","criterion":"第几段：具体模块关系","paragraph":0或段落序号,"relatedIds":["本项需要共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue"}
+
+issue 在 pass 时输出 null；在 issue 时使用以下对象：
+{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需加强或替换的模块id，或缺口前一模块id","targetId":"相关模块id，或缺口后一模块id","insertType":"新增时的类型，否则空字符串","insertLabel":"新增时的显示标签，否则空字符串","insertPlacement":"新增时为between_modules、previous_paragraph_end或current_paragraph_start，否则空字符串","replaceType":"替换后的类型，否则空字符串","replaceLabel":"替换后的显示标签，否则空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"分点的可执行修改指令"}
+
+不得包含未知 id，不得重复同一关系。summary 必须以“标题：”或“第几段：”开头，只写一个完整短句，不写建议、不列分点、不加符号。所有文字使用模块正文的主要语言。`;
+
+    const firstPassPrompt = `你是一名严谨的多语言论证写作编辑。只通读一次全文，同时完成整体评价和全部模块关系判断。
 
 ${criteriaPlanPrompt}
 
-meta 格式：
-{"key":"relation-p段落序号-简短关系名","criterion":"标题或第几段：具体关系","paragraph":0或段落序号,"relatedIds":["共同核对的全部模块id"],"relationStrength":0到100的整数,"status":"pass或issue"}
-issue：pass 时为 null；issue 时为：
-{"action":"revise、insert或replace","rewriteScope":"revise时为local，否则空字符串","sourceId":"需处理或缺口前一模块id","targetId":"相关或缺口后一模块id","insertType":"新增类型或空字符串","insertLabel":"新增标签或空字符串","insertPlacement":"between_modules、previous_paragraph_end、current_paragraph_start或空字符串","replaceType":"替换类型或空字符串","replaceLabel":"替换标签或空字符串","supportNeeded":"reasoning/example/theory/empirical/none","rootIssueKey":"稳定短标识","priority":1到5,"category":"具体问题类别","suggestion":"可执行修改指令"}
+${overallSummaryPrompt}
 
-严格按此顺序输出，不要输出代码块、解释或其他文字：
-1. 先基于同一次全文理解，在内部确定整体关系与唯一检查集合，然后立即输出 <overall_summary>整体评价正文</overall_summary>。
-2. 接着输出 <relation_map>[按标题、第一段、第二段及段内推进顺序排列的全部 meta]</relation_map>。这是本次审阅唯一一次关系识别；关闭后不得增删、重排或重新分析检查项。
-3. 严格按 relation_map 顺序逐项输出；criterion_meta 必须原样复制对应 meta：
-<criterion_meta>{单项 meta}</criterion_meta>
-<criterion_summary>一句关系结论</criterion_summary>
+严格遵守以下输出协议：
+1. 在任何可见正文之前，只识别一次需要检查的关系，并输出：
+<relation_map>[所有单项 meta JSON 组成的数组]</relation_map>
+这里的 meta 必须使用下方第 3 步规定的完整 meta 对象，按标题、第一段、第二段、第三段排序。它是本次审阅唯一一次关系识别；关闭标签后不得重新选择、增删、重排或重新分析需要检查哪些模块。
+2. 随即输出 <overall_summary>，标签内部只放整体评价正文；随后立即关闭 </overall_summary>。
+3. 整体评价关闭后，必须立刻按 relation_map 的既定顺序逐项输出关系，不得停下来重新识别。每项开头的 meta 必须原样复制 relation_map 中对应对象，然后严格依次输出：
+<criterion_meta>{单项 meta JSON}</criterion_meta>
+<criterion_summary>一句简洁关系结论</criterion_summary>
 <criterion_issue>{issue JSON 或 null}</criterion_issue>
-4. 一项结束立即输出下一项，全部结束输出 <review_complete></review_complete>。整体评价、relation_map 与逐项结果必须来自同一次全文理解。`;
+4. 一项结束后立刻开始下一项；全部结束后输出 <review_complete></review_complete>。
+5. 除 relation_map 明确要求的数组外，不输出其他数组外壳、代码块、解释、前言或任何其他内容。
+
+relation_map、整体评价与逐项结果必须基于同一次全文理解。逐项阶段只展开已经确定的判断，不能在输出整体评价后再次识别全文。`;
 
     const reviewUsesCjk = blocks.some((block) => /[\u3400-\u9fff]/.test(block.text));
     const titleBlock = blocks.find((block) => block.type.toLowerCase() === "title");
@@ -2449,8 +2507,6 @@ issue：pass 时为 null；issue 时为：
       let summaryClosed = false;
       const summaryOpenTag = "<overall_summary>";
       const summaryCloseTag = "</overall_summary>";
-      const relationMapOpenTag = "<relation_map>";
-      const relationMapCloseTag = "</relation_map>";
       const criterionMetaOpenTag = "<criterion_meta>";
       const criterionMetaCloseTag = "</criterion_meta>";
       const criterionSummaryOpenTag = "<criterion_summary>";
@@ -2462,8 +2518,6 @@ issue：pass 时为 null；issue 时为：
       let activeCriterionSummary = "";
       let criterionSummaryStarted = false;
       let criterionSummaryClosed = false;
-      let relationMapClosed = false;
-      let plannedRelationMap = [];
       const streamedCriterionKeys = new Set();
 
       const emitSummaryText = (value) => {
@@ -2491,23 +2545,18 @@ issue：pass 时为 null；issue 时为：
         });
       };
 
-      const normalizeCriterionMeta = (
-        value,
-        index,
-        seenKeys
-      ) => {
+	      const normalizeStreamedMeta = (value) => {
         const relatedIds = Array.from(new Set(
           (Array.isArray(value?.relatedIds) ? value.relatedIds : [])
             .map(String)
             .filter((id) => validIds.has(id))
         ));
         const includesTitle = Boolean(titleBlock && relatedIds.includes(titleBlock.id));
-        const isTitleCriterion = includesTitle && index === 0;
-        const key = isTitleCriterion
+        const key = includesTitle
           ? "relation-title-core"
-          : String(value?.key || `custom-${index + 1}`).trim();
+          : String(value?.key || `custom-${streamedCriterionItems.length + 1}`).trim();
         const criterion = String(value?.criterion || "").replace(/\s+/g, " ").trim();
-        if (!key || !criterion || !relatedIds.length || seenKeys.has(key)) {
+        if (!key || !criterion || !relatedIds.length || streamedCriterionKeys.has(key)) {
           return null;
         }
 	        const relatedParagraphs = relatedIds
@@ -2515,7 +2564,7 @@ issue：pass 时为 null；issue 时为：
 	          .map(Number)
 	          .filter((paragraph) => Number.isFinite(paragraph) && paragraph > 0);
 	        const requestedParagraph = Math.max(1, Math.round(Number(value?.paragraph) || 1));
-	        const paragraph = isTitleCriterion
+	        const paragraph = includesTitle
 	          ? 0
 	          : relatedParagraphs.includes(requestedParagraph)
 	            ? requestedParagraph
@@ -2529,7 +2578,7 @@ issue：pass 时为 null；issue 时为：
             ? Math.round(parsedStrength)
             : requestedStatus === "issue" ? 75 : 90
         ));
-        seenKeys.add(key);
+        streamedCriterionKeys.add(key);
         return {
           key,
           criterion,
@@ -2540,54 +2589,8 @@ issue：pass 时为 null；issue 时为：
         };
       };
 
-      const processRelationMapBuffer = () => {
-        if (!summaryClosed || relationMapClosed) return;
-        const mapStart = firstPassBuffer.indexOf(relationMapOpenTag);
-        if (mapStart < 0) return;
-        const mapEnd = firstPassBuffer.indexOf(
-          relationMapCloseTag,
-          mapStart + relationMapOpenTag.length
-        );
-        if (mapEnd < 0) return;
-
-        const mapText = firstPassBuffer.slice(
-          mapStart + relationMapOpenTag.length,
-          mapEnd
-        ).trim();
-        const parsedMap = JSON.parse(cleanModelJsonText(mapText));
-        if (!Array.isArray(parsedMap) || !parsedMap.length) {
-          throw new Error("整体审阅没有返回有效关系表");
-        }
-
-        const relationMapKeys = new Set();
-        plannedRelationMap = parsedMap.map((item, index) =>
-          normalizeCriterionMeta(item, index, relationMapKeys)
-        );
-        if (plannedRelationMap.some((item) => !item)) {
-          throw new Error("整体审阅关系表包含无效或重复检查项");
-        }
-
-        relationMapClosed = true;
-        firstPassBuffer = firstPassBuffer.slice(
-          mapEnd + relationMapCloseTag.length
-        );
-        writeLine(res, {
-          type: "criteria_ready",
-          total: plannedRelationMap.length,
-        });
-      };
-
-      const sameCriterionMeta = (first, second) =>
-        first?.key === second?.key &&
-        first?.criterion === second?.criterion &&
-        first?.paragraph === second?.paragraph &&
-        first?.relationStrength === second?.relationStrength &&
-        first?.status === second?.status &&
-        JSON.stringify(first?.relatedIds || []) ===
-          JSON.stringify(second?.relatedIds || []);
-
       const processCriterionBuffer = () => {
-        while (summaryClosed && relationMapClosed) {
+        while (summaryClosed) {
           if (!activeCriterionMeta) {
             const metaStart = firstPassBuffer.indexOf(criterionMetaOpenTag);
             if (metaStart < 0) return;
@@ -2601,23 +2604,9 @@ issue：pass 时为 null；issue 时为：
               metaEnd
             ).trim();
             firstPassBuffer = firstPassBuffer.slice(metaEnd + criterionMetaCloseTag.length);
-            const streamedMeta = normalizeCriterionMeta(
-              JSON.parse(cleanModelJsonText(metaText)),
-              streamedCriterionItems.length,
-              streamedCriterionKeys
+            activeCriterionMeta = normalizeStreamedMeta(
+              JSON.parse(cleanModelJsonText(metaText))
             );
-            const expectedMeta =
-              plannedRelationMap[streamedCriterionItems.length];
-            if (
-              !streamedMeta ||
-              !expectedMeta ||
-              !sameCriterionMeta(streamedMeta, expectedMeta)
-            ) {
-              throw new Error(
-                "逐项审阅未严格复用已锁定的关系表"
-              );
-            }
-            activeCriterionMeta = expectedMeta;
             activeCriterionSummary = "";
             criterionSummaryStarted = false;
             criterionSummaryClosed = false;
@@ -2626,7 +2615,7 @@ issue：pass 时为 null；issue 时为：
               type: "criterion_start",
               ...activeCriterionMeta,
               index: streamedCriterionItems.length,
-              total: plannedRelationMap.length,
+              total: streamedCriterionItems.length + 1,
             });
           }
 
@@ -2728,22 +2717,12 @@ issue：pass 时为 null；issue 时为：
           }
         }
 
-        if (summaryClosed) {
-          processRelationMapBuffer();
-          processCriterionBuffer();
-        }
+        if (summaryClosed) processCriterionBuffer();
       }
 
       if (!summaryStarted) throw new Error("整体审阅没有返回整体评价");
       if (!summaryClosed) throw new Error("整体审阅没有完整结束整体评价");
-      processRelationMapBuffer();
-      if (!relationMapClosed) throw new Error("整体审阅没有完整结束关系表");
       processCriterionBuffer();
-      if (streamedCriterionItems.length !== plannedRelationMap.length) {
-        throw new Error(
-          `整体审阅关系结果不完整：仅完成 ${streamedCriterionItems.length}/${plannedRelationMap.length} 项`
-        );
-      }
       parsedPlan = { criteria: streamedCriterionItems };
       if (!streamedCriterionItems.length) throw new Error("整体审阅没有返回模块关系判断");
 
@@ -2767,8 +2746,7 @@ issue：pass 时为 null；issue 时为：
               .map(String)
               .includes(titleBlock.id)
           );
-          const isTitleCriterion = includesTitle && index === 0;
-          const key = isTitleCriterion
+          const key = includesTitle
             ? "relation-title-core"
             : String(item?.key || `custom-${index + 1}`).trim();
           const criterion = String(item?.criterion || "").replace(/\s+/g, " ").trim();
@@ -2784,7 +2762,7 @@ issue：pass 时为 null；issue 时为：
 	            .map(Number)
 	            .filter((value) => Number.isFinite(value) && value > 0);
 	          const requestedParagraph = Math.max(1, Math.round(Number(item?.paragraph) || 1));
-	          const paragraph = isTitleCriterion
+	          const paragraph = includesTitle
 	            ? 0
 	            : relatedParagraphs.includes(requestedParagraph)
 	              ? requestedParagraph
@@ -2809,6 +2787,8 @@ issue：pass 时为 null；issue 时为：
       }
       const plannedCriteria = plannedItems.map(({ planOrder, rawResult, ...item }) => item);
       const plannedCriterionResults = plannedItems.map((item) => item.rawResult);
+
+      writeLine(res, { type: "criteria_ready", total: plannedCriteria.length });
 
       if (!plannedCriteria.length) {
         writeLine(res, {
