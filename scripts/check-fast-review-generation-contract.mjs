@@ -28,6 +28,10 @@ const reviewApi = fs.readFileSync(
   path.join(root, "src/api/reviewBlockCompatibility.js"),
   "utf8"
 );
+
+const firstPassPromptStart = server.indexOf("const firstPassPrompt");
+const firstPassPromptEnd = server.indexOf("const reviewUsesCjk", firstPassPromptStart);
+const firstPassPromptSource = server.slice(firstPassPromptStart, firstPassPromptEnd);
 const quickInstructionComposer = fs.readFileSync(
   path.join(root, "src/components/PageCanvas/QuickInstructionComposer.jsx"),
   "utf8"
@@ -107,12 +111,14 @@ const checks = [
       server.includes("const firstPassPrompt") &&
       server.includes("const firstPassStream = await openai.responses.create") &&
       server.includes("<relation_map>") &&
-      server.includes("它是本次审阅唯一一次关系识别") &&
+      server.includes("这是本次审阅唯一一次关系识别") &&
       server.includes('const criterionMetaOpenTag = "<criterion_meta>"') &&
       server.includes('const criterionSummaryOpenTag = "<criterion_summary>"') &&
       server.includes('const summaryOpenTag = "<overall_summary>"') &&
       server.includes("只通读一次全文，同时完成整体评价和全部模块关系判断") &&
       server.includes("对每一项关系直接完成判断，不要只列计划") &&
+      server.includes("processRelationMapBuffer") &&
+      server.includes("sameCriterionMeta") &&
       server.includes("plannedCriterionResults.forEach") &&
       !server.includes("diagnosticStream") &&
       !server.includes("criteriaPlanPromise") &&
@@ -176,17 +182,17 @@ const checks = [
   {
     name: "second-phase review checks real module dependencies by paragraph",
     pass:
-      server.includes("模块关系审阅任务") &&
-      server.includes("论点与原因") &&
-      server.includes("论点与证据") &&
-      server.includes("前置论证组与结论") &&
-      server.includes("过渡与前后核心模块"),
+      server.includes("关系审阅：根据文章真实结构") &&
+      server.includes("原因应解释论点") &&
+      server.includes("证据／例子应支持论点") &&
+      server.includes("结论概括多个前置模块") &&
+      server.includes("过渡必须与前后核心模块共同检查"),
   },
 	{
 	  name: "single-module first paragraph cannot be swallowed by title or later paragraphs",
 	  pass:
-	    server.includes("标题检查不能代替正文第一段检查") &&
-	    server.includes("即使该段只有一个模块") &&
+	    server.includes("每个非空正文段落至少属于一项检查") &&
+	    server.includes("单模块段落也要联系它实际支撑") &&
 	    server.includes("relatedParagraphs.includes(requestedParagraph)") &&
 	    server.includes("Math.min(...relatedParagraphs)") &&
 	    !server.includes("? Math.max(...relatedParagraphs)"),
@@ -240,14 +246,17 @@ const checks = [
         server.indexOf("emitCriterionSummaryText(firstPassBuffer.slice(0, safeLength))") &&
       server.indexOf("emitCriterionSummaryText(firstPassBuffer.slice(0, safeLength))") <
         server.indexOf('type: "criterion_result",\n            ...rawResult') &&
-      server.includes("整体评价关闭后，必须立刻按 relation_map 的既定顺序逐项输出关系") &&
+      server.includes("严格按 relation_map 顺序逐项输出") &&
+      server.includes("逐项审阅未严格复用已锁定的关系表") &&
       app.includes("meta 一到就开始闪烁"),
   },
   {
     name: "relationship review appears immediately and starts from the title",
     pass:
-      server.indexOf('type: "summary_done"') < server.indexOf('type: "criteria_ready"') &&
-      server.includes('key = includesTitle') &&
+      firstPassPromptSource.indexOf("<overall_summary>") <
+        firstPassPromptSource.indexOf("<relation_map>") &&
+      server.includes("const isTitleCriterion = includesTitle && index === 0") &&
+      server.includes('key = isTitleCriterion') &&
       server.includes('"relation-title-core"') &&
       server.includes("first.paragraph - second.paragraph") &&
       server.includes('type: "criteria_ready"') &&
@@ -304,8 +313,19 @@ const checks = [
     name: "overall review is concise and supports streamed emphasis",
     pass:
       server.includes("summaryCharacterLimit") &&
-      server.includes("用成对的 ** 标记 3—5 个最重要") &&
+      server.includes("用成对 ** 标记 3—5 个关键短语") &&
       reviewPanel.includes("markdownHighlights"),
+  },
+  {
+    name: "review input is compact, non-duplicated, and streams visible content first",
+    pass:
+      server.includes("const compactReviewBlocks = JSON.stringify(blocks)") &&
+      (firstPassPromptSource.match(/\$\{compactReviewBlocks\}/g) || []).length === 1 &&
+      !firstPassPromptSource.includes("JSON.stringify(blocks, null, 2)") &&
+      firstPassPromptSource.indexOf("<overall_summary>") <
+        firstPassPromptSource.indexOf("<relation_map>") &&
+      server.includes("relationMapClosed = true") &&
+      server.includes("plannedRelationMap.length"),
   },
 ];
 

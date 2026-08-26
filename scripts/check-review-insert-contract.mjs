@@ -33,7 +33,8 @@ const checks = [
     "temporarily skipped review points must remain available for later reopening",
   ],
   [
-    server.includes("你先写了……；随后从……角度说明") &&
+    server.includes('第一句必须以“你先”开头') &&
+      server.includes("依次概括核心观点、证明角度") &&
       server.includes("只概括现有内容与关系") &&
       server.includes('type: "summary_delta"'),
     "overall review must remain a concise, genuinely streamed narrative",
@@ -101,9 +102,9 @@ const checks = [
     "review issues must use compact solid top-to-bottom numbered markers",
   ],
   [
-    server.includes("找出必须核对的模块依赖关系") &&
+    server.includes("找出必须核对且不重复的模块依赖") &&
       server.includes("不要检查所有两两组合") &&
-      server.includes("若第 2 个模块是过渡") &&
+      server.includes("过渡必须与前后核心模块共同检查") &&
       app.includes('event.type === "criterion_start"') &&
       app.includes('event.type === "criterion_result"') &&
       reviewPanel.includes("paragraphGroups.map"),
@@ -130,8 +131,8 @@ const checks = [
     "accepting an insert review must create and generate a real block",
   ],
   [
-    server.includes('insertPlacement="previous_paragraph_end"') &&
-      server.includes('insertPlacement="current_paragraph_start"') &&
+    server.includes("previous_paragraph_end") &&
+      server.includes("current_paragraph_start") &&
       server.includes('insertPlacement = "between_modules"') &&
       app.includes("item.insertPlacement ===") &&
       app.includes('"current_paragraph_start"'),
