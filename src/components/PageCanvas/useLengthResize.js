@@ -850,12 +850,16 @@ export default function useLengthResize({
         targetVisualWidth -
         originalVisualWidth;
 
+      /**
+       * 这里只保留“长度变化本身”需要占据的流式宽度。
+       * 模块之间的固定安全距离绝不能混进这些可换行的 0.5px chunk，
+       * 否则浏览器可能在 gap 中间换行，造成视觉上忽大忽小。
+       */
       const spacerWidth =
         Math.max(
           0,
           flowDelta
-        ) +
-        LENGTH_PREVIEW_END_GAP;
+        );
 
       const shrinkWidth =
         Math.max(

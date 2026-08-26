@@ -40,6 +40,21 @@ function LengthFlowSpacer({
   );
 
   /**
+   * 模块之间唯一、统一的固定安全距离。
+   *
+   * 它与上面的流式 spacer 分开渲染，不能再拆成 0.5px chunk。
+   * 这样无论拉长、缩短、跨行还是短尾换行，模块边界之间都只认
+   * 同一个 endGap。
+   */
+  const endGap = Math.max(
+    0,
+    Number(
+      lengthResizePreview
+        ?.endGap
+    ) || 0
+  );
+
+  /**
    * 编辑器可用宽度。
    *
    * useLengthResize 已经把 editorRight
@@ -121,7 +136,10 @@ function LengthFlowSpacer({
     spacerWidth,
   ]);
 
-  if (chunks.length === 0) {
+  if (
+    chunks.length === 0 &&
+    endGap <= 0
+  ) {
     return null;
   }
 
@@ -209,6 +227,32 @@ function LengthFlowSpacer({
           />
         )
       )}
+
+      {endGap > 0 ? (
+        <span
+          aria-hidden="true"
+          data-length-fixed-end-gap="true"
+          contentEditable={false}
+          style={{
+            display: "inline-block",
+            boxSizing: "border-box",
+            width: endGap,
+            minWidth: endGap,
+            maxWidth: endGap,
+            height: 1,
+            margin: 0,
+            padding: 0,
+            border: 0,
+            fontSize: 0,
+            lineHeight: 0,
+            verticalAlign: "baseline",
+            overflow: "hidden",
+            pointerEvents: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+        />
+      ) : null}
     </span>
   );
 }
