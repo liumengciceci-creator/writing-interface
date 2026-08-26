@@ -100,89 +100,7 @@ export function useBlockActions({
                     return section;
                   }
 
-                  const outgoingParagraphHeadIds =
-                    new Set(
-                      section.blocks
-                        .filter((block) => {
-                          const blockUpdates =
-                            updatesById.get(
-                              String(block.id)
-                            );
-
-                          return (
-                            block.placement !== "floating" &&
-                            Boolean(
-                              block.forceLineBreakBefore
-                            ) &&
-                            blockUpdates?.placement ===
-                              "floating"
-                          );
-                        })
-                        .map((block) =>
-                          String(block.id)
-                        )
-                    );
-
-                  const followerIdsThatMustKeepParagraphStart =
-                    new Set();
-
-                  if (
-                    outgoingParagraphHeadIds.size > 0
-                  ) {
-                    section.blocks.forEach(
-                      (block, index) => {
-                        if (
-                          !outgoingParagraphHeadIds.has(
-                            String(block.id)
-                          )
-                        ) {
-                          return;
-                        }
-
-                        for (
-                          let followerIndex =
-                            index + 1;
-                          followerIndex <
-                          section.blocks.length;
-                          followerIndex += 1
-                        ) {
-                          const follower =
-                            section.blocks[
-                              followerIndex
-                            ];
-
-                          const followerUpdates =
-                            updatesById.get(
-                              String(
-                                follower.id
-                              )
-                            );
-
-                          const willBeFloating =
-                            followerUpdates?.placement ===
-                              "floating" ||
-                            (
-                              !followerUpdates &&
-                              follower.placement ===
-                                "floating"
-                            );
-
-                          if (willBeFloating) {
-                            continue;
-                          }
-
-                          followerIdsThatMustKeepParagraphStart.add(
-                            String(
-                              follower.id
-                            )
-                          );
-                          break;
-                        }
-                      }
-                    );
-                  }
-
-                  let nextBlocks =
+                  const nextBlocks =
                     section.blocks.map(
                       (block) => {
                         if (
@@ -479,6 +397,68 @@ export function useBlockActions({
                     )
                   ) {
                     return section;
+                  }
+
+                  const outgoingParagraphHeadIds =
+                    new Set(
+                      section.blocks
+                        .filter((block) => {
+                          const blockUpdates =
+                            updatesById.get(
+                              String(block.id)
+                            );
+
+                          return (
+                            block.placement !== "floating" &&
+                            Boolean(block.forceLineBreakBefore) &&
+                            blockUpdates?.placement === "floating"
+                          );
+                        })
+                        .map((block) => String(block.id))
+                    );
+
+                  const followerIdsThatMustKeepParagraphStart =
+                    new Set();
+
+                  if (outgoingParagraphHeadIds.size > 0) {
+                    section.blocks.forEach((block, index) => {
+                      if (
+                        !outgoingParagraphHeadIds.has(
+                          String(block.id)
+                        )
+                      ) {
+                        return;
+                      }
+
+                      for (
+                        let followerIndex = index + 1;
+                        followerIndex < section.blocks.length;
+                        followerIndex += 1
+                      ) {
+                        const follower =
+                          section.blocks[followerIndex];
+                        const followerUpdates =
+                          updatesById.get(
+                            String(follower.id)
+                          );
+
+                        const willBeFloating =
+                          followerUpdates?.placement === "floating" ||
+                          (
+                            !followerUpdates &&
+                            follower.placement === "floating"
+                          );
+
+                        if (willBeFloating) {
+                          continue;
+                        }
+
+                        followerIdsThatMustKeepParagraphStart.add(
+                          String(follower.id)
+                        );
+                        break;
+                      }
+                    });
                   }
 
                   const nextBlocks =
