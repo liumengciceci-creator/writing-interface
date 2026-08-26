@@ -1462,17 +1462,49 @@ export function useFloatingBlocks({
         const snapshotBlock =
           dragBlockSnapshotRef.current;
 
+        const matchingSnapshotBlock =
+          snapshotBlock &&
+          String(
+            snapshotBlock.id
+          ) ===
+            String(blockId)
+            ? snapshotBlock
+            : null;
+
+        /**
+         * 文本、类型、生成状态等业务字段使用最新 React state；
+         * 但拖拽几何必须保留 pointer down 那一刻的 snapshot。
+         *
+         * AI 扩写后的 inline 模块在拖拽结束时，最新 state 不包含
+         * floatingLineFragments。若完全以 stateBlock 覆盖 snapshot，
+         * 就会错误退回到长文本内部 pointerOffset 的计算路径，
+         * 产生类似 floatingX=-466.5 的屏幕外坐标。
+         */
         const block =
-          stateBlock ||
-          (
-            snapshotBlock &&
-            String(
-              snapshotBlock.id
-            ) ===
-              String(blockId)
-              ? snapshotBlock
-              : null
-          );
+          stateBlock
+            ? {
+                ...stateBlock,
+                ...(matchingSnapshotBlock
+                  ? {
+                      floatingMatchesInlineAppearance:
+                        matchingSnapshotBlock
+                          .floatingMatchesInlineAppearance,
+                      floatingLineFragments:
+                        Array.isArray(
+                          matchingSnapshotBlock
+                            .floatingLineFragments
+                        )
+                          ? matchingSnapshotBlock
+                              .floatingLineFragments
+                          : stateBlock
+                              .floatingLineFragments,
+                      __dragStartPlacement:
+                        matchingSnapshotBlock
+                          .placement,
+                    }
+                  : {}),
+              }
+            : matchingSnapshotBlock;
 
         if (!block) {
           leftDragDebug(
@@ -1595,12 +1627,24 @@ export function useFloatingBlocks({
             pointerOffsetRef.current
               .y;
 
-          const hasCopiedLineAppearance =
+          const dragStartLineFragments =
             Array.isArray(
+              matchingSnapshotBlock
+                ?.floatingLineFragments
+            )
+              ? matchingSnapshotBlock
+                  .floatingLineFragments
+              : [];
+
+          const hasCopiedLineAppearance =
+            dragStartLineFragments.length > 0 ||
+            (
+              Array.isArray(
+                block.floatingLineFragments
+              ) &&
               block.floatingLineFragments
-            ) &&
-            block.floatingLineFragments
-              .length > 0;
+                .length > 0
+            );
 
           const floatingWidth =
             hasCopiedLineAppearance
@@ -1643,6 +1687,14 @@ export function useFloatingBlocks({
               insidePage,
               isFloating,
               hasCopiedLineAppearance,
+              dragStartPlacement:
+                matchingSnapshotBlock
+                  ?.placement ??
+                null,
+              dragStartFragmentCount:
+                dragStartLineFragments.length,
+              usedCompactAnchor:
+                hasCopiedLineAppearance,
               stageRect: {
                 left:
                   stageRect.left,
