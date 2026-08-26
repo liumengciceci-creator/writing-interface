@@ -145,7 +145,14 @@ export default function QuickInstructionComposer({
 
   useEffect(() => {
     const handlePointerDown = (event) => {
-      if (!panelRef.current?.contains(event.target)) onClose?.();
+      const target = event.target;
+      const isInsidePanel = panelRef.current?.contains(target);
+      const isInsideAnchor =
+        anchorElement?.isConnected && anchorElement.contains(target);
+
+      // 双击模块进入编辑模式后，模块本身与指令框属于同一个编辑会话。
+      // 用户回到模块继续输入文字时不能把指令框当作“外部点击”关闭。
+      if (!isInsidePanel && !isInsideAnchor) onClose?.();
     };
     const handleKeyDown = (event) => {
       if (event.key === "Escape") onClose?.();
@@ -156,7 +163,7 @@ export default function QuickInstructionComposer({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [anchorElement, onClose]);
 
   useEffect(() => {
     const handlePointerMove = (event) => {

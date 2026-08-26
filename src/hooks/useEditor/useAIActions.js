@@ -25,6 +25,10 @@ import {
   normalizeSections,
 } from "./sectionHelpers";
 import {
+  getGenerationSnapshotText,
+} from "./generationSnapshot";
+
+import {
   createResearchActionId,
   logResearchEvent,
 } from "../../research/researchLogger.js";
@@ -313,9 +317,17 @@ export function useAIActions({
           throw error;
         }
 
+        /**
+         * 指令修改必须以画布上“此刻可见”的文字为准。
+         * 用户可能在 contentEditable 中刚完成手动修改，而 React state
+         * 尚未来得及完成一次渲染；此时直接读 block.text 会重新使用旧文字。
+         */
+        const textSnapshot =
+          getGenerationSnapshotText(block);
+
         const currentText =
           String(
-            block.text || ""
+            textSnapshot.text || ""
           ).trim();
 
         if (!currentText) {

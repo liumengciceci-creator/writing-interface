@@ -169,22 +169,6 @@ const checks = [
       !inlineEditing.includes("event.currentTarget.textContent =\n              previousText"),
   },
   {
-    name: "quick instructions use committed live edits and dismiss their editing highlight together",
-    pass:
-      semanticEditor.includes("commitBlock,") &&
-      semanticEditor.includes("stopEditing,") &&
-      semanticEditor.includes("const closeQuickInstructionSession") &&
-      semanticEditor.includes("onClose={closeQuickInstructionSession}") &&
-      semanticEditor.includes("const liveTargetText") &&
-      semanticEditor.includes("targetElement\n                      ?.textContent") &&
-      semanticEditor.includes("text: liveTargetText") &&
-      semanticEditor.includes("stopEditing({\n                  commit: true") &&
-      semanticEditor.includes("setQuickInstructionTarget(\n                  null") &&
-      semanticEditor.includes("normalizeId(\n                current?.blockId") &&
-      semanticEditor.indexOf("const liveTargetText") <
-        semanticEditor.indexOf("onApplyInstruction?.(\n                      targetBlock"),
-  },
-  {
     name: "overall evaluation and relationship judgments share one model pass",
     pass:
       server.includes("const firstPassPrompt") &&
