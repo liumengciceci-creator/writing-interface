@@ -1063,11 +1063,25 @@ export default function FloatingEditableBlock({
           220,
 
         minHeight:
-          block.height ??
-          40,
+          Math.max(
+            40,
+            Number(
+              block.height
+            ) || 0,
+            Number(
+              block.floatingHeight
+            ) || 0
+          ),
 
+        /**
+         * floatingHeight 只表示用户希望保留的最小尺寸，
+         * 不能作为硬高度锁死外框。
+         *
+         * 否则 AI 扩写、重新生成或手动编辑后，正文可以继续增长，
+         * 但边框停在旧 floatingHeight，造成文字溢出框外。
+         * 始终使用 auto，让真实内容决定最终高度。
+         */
         height:
-          block.floatingHeight ??
           "auto",
 
         border:

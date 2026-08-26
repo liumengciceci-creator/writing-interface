@@ -17,7 +17,8 @@
     "check:length-adjustment": "node scripts/check-fast-length-adjustment.mjs",
     "check:generated-left-floating": "node scripts/check-generated-left-floating.mjs",
     "check:left-drag-debug": "node scripts/check-left-drag-debug.mjs",
-    "check:generated-left-drag-snapshot": "node scripts/check-generated-left-drag-snapshot.mjs"
+    "check:generated-left-drag-snapshot": "node scripts/check-generated-left-drag-snapshot.mjs",
+    "check:floating-auto-height": "node scripts/check-floating-content-auto-height.mjs"
   },
   "dependencies": {
     "ai": "^7.0.79",
