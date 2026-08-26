@@ -345,9 +345,9 @@ export default function Toolbar({
               ? t("toolbar.pauseGenerateTitle")
               : t("toolbar.generateTitle")
           }
-          aria-pressed={isGenerating}
           style={{
             ...toolbarWideButton,
+            border: toolbarWideButton.border,
             opacity: 1,
             display: "inline-flex",
             alignItems: "center",
@@ -355,7 +355,6 @@ export default function Toolbar({
             gap: 6,
             color: isGenerating ? "#4b5563" : "#111827",
             background: isGenerating ? "#f3f4f6" : toolbarWideButton.background,
-            borderColor: isGenerating ? "#d1d5db" : undefined,
           }}
         >
           {isGenerating && (
@@ -387,9 +386,9 @@ export default function Toolbar({
                   ? t("toolbar.reviewSelected")
                   : t("toolbar.reviewAll")
           }
-          aria-pressed={isReviewing}
           style={{
             ...toolbarWideButton,
+            border: toolbarWideButton.border,
             opacity: 1,
             display: "inline-flex",
             alignItems: "center",
@@ -397,7 +396,6 @@ export default function Toolbar({
             gap: 6,
             color: isReviewing ? "#4b5563" : "#111827",
             background: isReviewing ? "#f3f4f6" : toolbarWideButton.background,
-            borderColor: isReviewing ? "#d1d5db" : undefined,
           }}
         >
           {isReviewing && (

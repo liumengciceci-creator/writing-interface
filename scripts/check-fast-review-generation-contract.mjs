@@ -110,6 +110,11 @@ const checks = [
       toolbar.includes('background: isReviewing ? "#f3f4f6"') &&
       toolbar.includes('background: "currentColor"') &&
       toolbar.includes("width: 8") &&
+      (toolbar.match(/border: toolbarWideButton\.border/g) || []).length === 2 &&
+      !toolbar.includes("aria-pressed={isGenerating}") &&
+      !toolbar.includes("aria-pressed={isReviewing}") &&
+      !toolbar.includes("borderColor: isGenerating") &&
+      !toolbar.includes("borderColor: isReviewing") &&
       !toolbar.includes("#b93832") &&
       !toolbar.includes("#fff1f0"),
   },
