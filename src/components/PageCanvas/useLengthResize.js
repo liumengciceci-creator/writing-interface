@@ -1402,6 +1402,82 @@ export default function useLengthResize({
   }, []);
 
   /**
+   * 缩放草稿只是一次临时预览。
+   *
+   * 用户松开鼠标后，如果点击正文编辑器里的空白处，
+   * 应立即放弃这次预览并恢复到缩放前的自然排版。
+   * 点击模块本身、缩放手柄或状态提示不取消，避免误伤继续操作。
+   */
+  useEffect(() => {
+    if (
+      !lengthResizeDraft ||
+      lengthResizeDraft.submitting ||
+      isLengthResizeDragging
+    ) {
+      return undefined;
+    }
+
+    const handleBlankPointerDown =
+      (event) => {
+        const target =
+          event.target instanceof Element
+            ? event.target
+            : null;
+
+        if (!target) {
+          return;
+        }
+
+        if (
+          target.closest(
+            "[data-length-resize-control='true'], [data-length-resize-status='true'], [data-semantic-block-id]"
+          )
+        ) {
+          return;
+        }
+
+        const editor =
+          target.closest(
+            "[data-single-semantic-editor='true']"
+          );
+
+        if (!editor) {
+          return;
+        }
+
+        lengthResizeDragRef.current =
+          null;
+        lengthResizeDraftRef.current =
+          null;
+
+        setIsLengthResizeDragging(
+          false
+        );
+
+        setLengthResizeDraft(
+          null
+        );
+      };
+
+    document.addEventListener(
+      "pointerdown",
+      handleBlankPointerDown,
+      true
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handleBlankPointerDown,
+        true
+      );
+    };
+  }, [
+    isLengthResizeDragging,
+    lengthResizeDraft,
+  ]);
+
+  /**
    * 拉伸完成后：
    *
    * Enter：提交 AI 调整

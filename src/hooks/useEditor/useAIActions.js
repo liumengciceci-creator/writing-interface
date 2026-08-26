@@ -187,7 +187,8 @@ export function useAIActions({
     useCallback(
       async (
         result,
-        signal
+        signal,
+        { recordHistory = true } = {}
       ) => {
         const characters =
           Array.from(
@@ -249,6 +250,7 @@ export function useAIActions({
             },
             {
               recordHistory:
+                recordHistory &&
                 isFirstChunk,
               markGenerated:
                 visibleEnd ===
@@ -466,9 +468,26 @@ export function useAIActions({
                 controller.signal,
             });
 
+          /**
+           * 长度缩放本身必须作为一个独立的可撤销动作。
+           *
+           * 不再等第一段流式文字写回时“顺便”记录历史，
+           * 而是在确认 AI 已成功返回、正式改写画布之前，
+           * 明确保存一次缩放前的完整 sections 快照。
+           * 这样工具栏撤销 / ⌘Z 一定能回到缩放前状态。
+           */
+          setSections((previousSections) => {
+            pushHistorySnapshot(
+              previousSections
+            );
+
+            return previousSections;
+          });
+
           await revealGeneratedText(
             result,
-            controller.signal
+            controller.signal,
+            { recordHistory: false }
           );
 
           showTemporaryStatus(
@@ -542,6 +561,8 @@ export function useAIActions({
       [
         getBlockById,
         revealGeneratedText,
+        setSections,
+        pushHistorySnapshot,
         showTemporaryStatus,
         setStatusText,
         clearStatusTimer,
