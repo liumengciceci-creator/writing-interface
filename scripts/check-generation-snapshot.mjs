@@ -127,9 +127,9 @@ assert.ok(
   "后续流式分片不得重新带回完成态隐藏标记"
 );
 assert.ok(
-  editorSource.includes("if (block?.isModuleHidden === true)") &&
-    editorSource.includes("restoredAny = true"),
-  "审阅恢复也必须把单纯的隐藏状态视为真实状态变更"
+  editorSource.includes("点击“审阅”不能 setSections") &&
+    editorSource.includes("return restoredSections;"),
+  "审阅必须只派生请求快照，不能把恢复结果写回画布"
 );
 assert.ok(
   editorSource.includes("restoreCompletedParagraphBlocks(") &&

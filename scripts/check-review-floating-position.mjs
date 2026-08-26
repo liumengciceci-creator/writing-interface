@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   getInlineParagraphBlockIndices,
@@ -63,6 +64,37 @@ assert.deepEqual(
     floatingY: undefined,
   },
   "审阅恢复旧完成快照时必须清除旧 floating 坐标，防止模块跳到上方"
+);
+
+const editorSource = readFileSync(
+  new URL("../src/hooks/useEditor/useEditor.js", import.meta.url),
+  "utf8"
+);
+const reviewHandlerStart = editorSource.indexOf(
+  "const handleRestoreAllCompletedForReview"
+);
+const reviewHandlerEnd = editorSource.indexOf(
+  "/**\n   * 更新 completed section",
+  reviewHandlerStart
+);
+const reviewHandlerSource = editorSource.slice(
+  reviewHandlerStart,
+  reviewHandlerEnd
+);
+
+assert.ok(
+  reviewHandlerStart >= 0 && reviewHandlerEnd > reviewHandlerStart,
+  "必须能定位审阅快照函数"
+);
+assert.equal(
+  reviewHandlerSource.includes("setSections("),
+  false,
+  "点击审阅不得写回 sections，否则首个模块可能被旧快照位置覆盖"
+);
+assert.equal(
+  reviewHandlerSource.includes("pushHistorySnapshot("),
+  false,
+  "只读审阅不得创建编辑历史"
 );
 
 console.log("review floating position regression checks passed");

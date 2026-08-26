@@ -1609,38 +1609,22 @@ export function useEditor() {
     );
 
   /**
-   * 审阅前一次性恢复文档中的所有完成段落/完成 section。
-   * 返回恢复后的快照，让调用方无需等待下一次 React 渲染即可开始审阅。
+   * 为审阅派生一份完整模块快照。
+   *
+   * 这里必须保持只读：点击“审阅”不能 setSections，也不能创建历史记录。
+   * 旧实现会把派生快照重新写回画布；一旦快照中含旧 placement、段落起点
+   * 或 floating 坐标，通常排在首位的模块就会在审阅开始时发生漂移。
    */
   const handleRestoreAllCompletedForReview =
     useCallback(() => {
-      let restoredAny = false;
-
       const restoredSections =
         cloneSections(sections).map((section) => {
-          const restoredSection =
-            section.mode === "completed"
-              ? {
-                  ...section,
-                  mode: "editing",
-                  completedText: undefined,
-                }
-              : section;
-
-          if (section.mode === "completed") {
-            restoredAny = true;
+          if (!Array.isArray(section.blocks)) {
+            return section;
           }
 
-          if (!Array.isArray(restoredSection.blocks)) {
-            return restoredSection;
-          }
-
-          const restoredBlocks = restoredSection.blocks.flatMap((block) => {
+          const restoredBlocks = section.blocks.flatMap((block) => {
             if (!block?.isCompletedParagraph) {
-              if (block?.isModuleHidden === true) {
-                restoredAny = true;
-              }
-
               return [{
                 ...block,
                 isModuleHidden: false,
@@ -1660,7 +1644,6 @@ export function useEditor() {
               sourceBlocks = distributeCompletedText(completedText, sourceBlocks);
             }
 
-            restoredAny = true;
             return sourceBlocks.map((sourceBlock) => ({
               ...sourceBlock,
               isModuleHidden: false,
@@ -1668,29 +1651,14 @@ export function useEditor() {
           });
 
           return {
-            ...restoredSection,
+            ...section,
             blocks: restoredBlocks,
           };
         });
 
-      const normalized = normalizeSections(
-        restoredSections,
-        createEditingSectionFn
-      );
-
-      if (restoredAny) {
-        pushHistorySnapshot(sections);
-        setSections(normalized);
-        clearInteractionState();
-      }
-
-      return normalized;
+      return restoredSections;
     }, [
-      clearInteractionState,
-      createEditingSectionFn,
-      pushHistorySnapshot,
       sections,
-      setSections,
     ]);
 
   /**
