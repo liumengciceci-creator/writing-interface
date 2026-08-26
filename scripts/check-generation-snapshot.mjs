@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   getGenerationSnapshotText,
@@ -105,6 +106,30 @@ assert.equal(
   }).text,
   "仅状态文字",
   "找不到画布节点时应安全回退到 React 状态"
+);
+
+const generationSource = readFileSync(
+  new URL("../src/hooks/useEditor/useStreamingGenerate.js", import.meta.url),
+  "utf8"
+);
+const editorSource = readFileSync(
+  new URL("../src/hooks/useEditor/useEditor.js", import.meta.url),
+  "utf8"
+);
+
+assert.ok(
+  (generationSource.match(/isModuleHidden: false/g) || []).length >= 7,
+  "生成开始、流式写入、最终提交和失败回退都必须解除模块隐藏状态"
+);
+assert.ok(
+  generationSource.includes("function appendDeltaMapToBlocks") &&
+    generationSource.includes("所有流式分片都必须保持可见"),
+  "后续流式分片不得重新带回完成态隐藏标记"
+);
+assert.ok(
+  editorSource.includes("if (block?.isModuleHidden === true)") &&
+    editorSource.includes("restoredAny = true"),
+  "审阅恢复也必须把单纯的隐藏状态视为真实状态变更"
 );
 
 console.log("generation snapshot regression checks passed");

@@ -1688,6 +1688,10 @@ export function useEditor() {
 
           const restoredBlocks = restoredSection.blocks.flatMap((block) => {
             if (!block?.isCompletedParagraph) {
+              if (block?.isModuleHidden === true) {
+                restoredAny = true;
+              }
+
               return [{
                 ...block,
                 isModuleHidden: false,
