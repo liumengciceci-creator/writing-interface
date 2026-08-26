@@ -28,80 +28,210 @@ export async function adjustBlockLength({
   targetLength,
   lengthUnit,
   signal,
+  onDelta,
+  onTextStart,
 }) {
   if (blockId == null) {
     throw new Error("缺少 blockId");
   }
 
-  const normalizedText = String(text || "").trim();
+  const normalizedText =
+    String(text || "").trim();
 
   if (!normalizedText) {
-    throw new Error("当前模块没有可调整的文本");
-  }
-
-  const normalizedValue = Math.max(
-    -100,
-    Math.min(100, Number(value) || 0)
-  );
-
-  const response = await fetch(DEFAULT_API_URL, {
-    method: "POST",
-
-    headers: {
-      "Content-Type": "application/json",
-    },
-
-    signal,
-
-    body: JSON.stringify({
-      blockId,
-      text: normalizedText,
-      type: type || "Unknown",
-      value: normalizedValue,
-      targetLength:
-        Number.isFinite(
-          Number(targetLength)
-        )
-          ? Math.max(
-              1,
-              Math.round(
-                Number(targetLength)
-              )
-            )
-          : undefined,
-      lengthUnit:
-        lengthUnit === "words"
-          ? "words"
-          : "characters",
-    }),
-  });
-
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("服务器返回的数据格式不正确");
-  }
-
-  if (!response.ok) {
     throw new Error(
-      data?.error ||
-        data?.message ||
-        `调整长度失败：${response.status}`
+      "当前模块没有可调整的文本"
     );
   }
 
-  const resultText = String(
-    data?.text ?? data?.result?.text ?? ""
-  ).trim();
+  const normalizedValue =
+    Math.max(
+      -100,
+      Math.min(100, Number(value) || 0)
+    );
+
+  const response =
+    await fetch(DEFAULT_API_URL, {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      signal,
+
+      body: JSON.stringify({
+        blockId,
+        text: normalizedText,
+        type: type || "Unknown",
+        value: normalizedValue,
+        targetLength:
+          Number.isFinite(
+            Number(targetLength)
+          )
+            ? Math.max(
+                1,
+                Math.round(
+                  Number(targetLength)
+                )
+              )
+            : undefined,
+        lengthUnit:
+          lengthUnit === "words"
+            ? "words"
+            : "characters",
+      }),
+    });
+
+  if (!response.ok) {
+    let message =
+      `调整长度失败：${response.status}`;
+
+    try {
+      const data =
+        await response.json();
+
+      message =
+        data?.error ||
+        data?.message ||
+        message;
+    } catch {
+      // 保留 HTTP 状态错误。
+    }
+
+    throw new Error(message);
+  }
+
+  if (!response.body) {
+    throw new Error(
+      "服务器没有返回流式结果"
+    );
+  }
+
+  const reader =
+    response.body.getReader();
+
+  const decoder =
+    new TextDecoder();
+
+  let buffer = "";
+  let resultText = "";
+  let textStarted = false;
+
+  const processLine = (line) => {
+    const trimmed =
+      String(line || "").trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    let event;
+
+    try {
+      event =
+        JSON.parse(trimmed);
+    } catch {
+      throw new Error(
+        "服务器返回的数据格式不正确"
+      );
+    }
+
+    if (event.type === "error") {
+      throw new Error(
+        event.message ||
+        "调整长度失败"
+      );
+    }
+
+    if (event.type === "delta") {
+      const delta =
+        String(
+          event.delta || ""
+        );
+
+      if (!delta) {
+        return;
+      }
+
+      if (!textStarted) {
+        textStarted = true;
+        onTextStart?.();
+      }
+
+      resultText += delta;
+      onDelta?.(
+        delta,
+        resultText
+      );
+
+      return;
+    }
+
+    if (event.type === "done") {
+      const finalText =
+        String(
+          event.text || resultText
+        ).trim();
+
+      if (finalText) {
+        resultText = finalText;
+      }
+    }
+  };
+
+  try {
+    while (true) {
+      const {
+        value: chunk,
+        done,
+      } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer +=
+        decoder.decode(
+          chunk,
+          {
+            stream: true,
+          }
+        );
+
+      const lines =
+        buffer.split("\n");
+
+      buffer =
+        lines.pop() || "";
+
+      lines.forEach(
+        processLine
+      );
+    }
+
+    buffer +=
+      decoder.decode();
+
+    if (buffer.trim()) {
+      processLine(buffer);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  resultText =
+    resultText.trim();
 
   if (!resultText) {
-    throw new Error("AI 没有返回有效文本");
+    throw new Error(
+      "AI 没有返回有效文本"
+    );
   }
 
   return {
-    blockId: data?.blockId ?? blockId,
+    blockId,
     text: resultText,
   };
 }

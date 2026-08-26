@@ -33,6 +33,10 @@ const WRITING_MODEL =
   process.env.OPENAI_WRITING_MODEL ||
   "gpt-5.6";
 
+const LENGTH_ADJUST_MODEL =
+  process.env.OPENAI_LENGTH_MODEL ||
+  "gpt-5.6-terra";
+
 const WEB_SEARCH_CONTEXT_SIZE =
   process.env.OPENAI_WEB_SEARCH_CONTEXT_SIZE ||
   "medium";
@@ -1015,18 +1019,9 @@ function buildAdjustLengthPrompt({
     Math.min(100, Number(value) || 0)
   );
 
-  let lengthInstruction = "";
-
   const normalizedTargetLength =
-    Number.isFinite(
-      Number(targetLength)
-    )
-      ? Math.max(
-          1,
-          Math.round(
-            Number(targetLength)
-          )
-        )
+    Number.isFinite(Number(targetLength))
+      ? Math.max(1, Math.round(Number(targetLength)))
       : null;
 
   const normalizedLengthUnit =
@@ -1034,112 +1029,51 @@ function buildAdjustLengthPrompt({
       ? "words"
       : "Chinese characters";
 
-  if (
-    normalizedTargetLength != null
-  ) {
-    const originalLength =
-      countWritingLength(
-        text,
-        lengthUnit
-      );
+  const originalLength =
+    countWritingLength(text, lengthUnit);
 
+  let lengthInstruction = "";
+
+  if (normalizedTargetLength != null) {
     const difference =
-      normalizedTargetLength -
-      originalLength;
+      normalizedTargetLength - originalLength;
 
     const smallChange =
       Math.abs(difference) <=
-      Math.max(
-        3,
-        Math.ceil(
-          originalLength * 0.12
-        )
-      );
+      Math.max(3, Math.ceil(originalLength * 0.12));
 
-    lengthInstruction = `
-Rewrite the block to approximately ${normalizedTargetLength} ${normalizedLengthUnit}.
+    lengthInstruction = difference > 0
+      ? `Expand from about ${originalLength} to about ${normalizedTargetLength} ${normalizedLengthUnit}. Add only useful clarification, reasoning, or necessary detail.`
+      : difference < 0
+        ? `Compress from about ${originalLength} to about ${normalizedTargetLength} ${normalizedLengthUnit}. Remove repetition and secondary wording before removing substantive reasoning.`
+        : `Keep the text at about ${normalizedTargetLength} ${normalizedLengthUnit}; only improve wording where needed.`;
 
-The current length is approximately ${originalLength} ${normalizedLengthUnit}.
-
-${
-  difference > 0
-    ? `Add approximately ${difference} ${normalizedLengthUnit}.`
-    : difference < 0
-    ? `Remove approximately ${Math.abs(
-        difference
-      )} ${normalizedLengthUnit}.`
-    : "Keep the current length and only improve wording where necessary."
-}
-
-${
-  smallChange
-    ? "This is a small length adjustment. Make only local additions or deletions and preserve the original sentence structure as much as possible. Do not rewrite the whole block unnecessarily."
-    : "Make the amount of expansion or compression visibly match the requested target while preserving the block's meaning and rhetorical role."
-}
-
-The target is a writing-length constraint, not a request to add filler. Stop when the target is reached.
-`.trim();
+    if (smallChange) {
+      lengthInstruction +=
+        " This is a small adjustment: preserve the sentence structure and make only local additions or deletions.";
+    }
   } else if (normalizedValue < 0) {
-    const shortenPercentage = Math.abs(
-      normalizedValue
-    );
-
-    lengthInstruction = `
-Shorten the text by approximately ${shortenPercentage}%.
-
-Remove repetition, secondary details, and unnecessary wording.
-
-Preserve:
-- the core meaning;
-- the rhetorical function;
-- essential evidence or reasoning;
-- the original language.
-`.trim();
+    lengthInstruction =
+      `Shorten by about ${Math.abs(normalizedValue)}%. Remove repetition and nonessential detail while keeping the substantive reasoning.`;
   } else if (normalizedValue > 0) {
-    lengthInstruction = `
-Expand the text by approximately ${normalizedValue}%.
-
-Add useful clarification, explanation, logical detail, or elaboration.
-
-Do not:
-- introduce an unrelated topic;
-- change the original claim;
-- add unsupported factual information;
-- repeat the same idea unnecessarily.
-`.trim();
+    lengthInstruction =
+      `Expand by about ${normalizedValue}%. Add useful explanation or logical detail without adding unsupported facts.`;
   } else {
-    lengthInstruction = `
-Keep the text approximately the same length.
-
-Only improve clarity, fluency, and academic expression where necessary.
-`.trim();
+    lengthInstruction =
+      "Keep approximately the same length and only improve clarity where necessary.";
   }
 
   return `
-You are an academic writing assistant for a modular writing interface.
+Rewrite this single academic-writing block.
 
-The user wants to adjust the length of one writing block.
-
-BLOCK TYPE:
-${type || "Unknown"}
-
-ORIGINAL TEXT:
+Block role: ${type || "Unknown"}
+Original:
 ${text}
 
-LENGTH INSTRUCTION:
+Length task:
 ${lengthInstruction}
 
-Requirements:
-1. Keep the same language as the original text.
-2. Preserve the original meaning.
-3. Preserve the rhetorical role of the block type.
-4. Maintain an appropriate academic writing style.
-5. Do not introduce unrelated content.
-6. Do not output explanations.
-7. Do not output quotation marks around the result.
-8. Do not output markdown.
-9. Output only the revised text.
-10. When a target length is supplied, follow it closely. A difference of one unit is acceptable for very short text; otherwise stay within about 8% of the target.
+Keep the original language, meaning, rhetorical role, and academic tone. Do not introduce unrelated claims, fabricated facts, sources, or filler. When a target length is given, stay close to it (about 8% tolerance; one unit is acceptable for very short text). Output only the revised block text, with no explanation, quotation marks, labels, or Markdown.
 `.trim();
 }
 
@@ -1892,216 +1826,162 @@ app.post(
 app.post(
   "/api/adjust-length",
   async (req, res) => {
-    try {
-      console.log(
-        "🔥 /api/adjust-length 被调用了"
+    const {
+      blockId,
+      text,
+      type,
+      value,
+      targetLength,
+      lengthUnit,
+    } = req.body || {};
+
+    if (blockId == null) {
+      return res.status(400).json({
+        error: "缺少 blockId",
+      });
+    }
+
+    const normalizedText =
+      String(text || "").trim();
+
+    if (!normalizedText) {
+      return res.status(400).json({
+        error: "当前模块没有可调整的文本",
+      });
+    }
+
+    const normalizedValue =
+      Math.max(
+        -100,
+        Math.min(100, Number(value) || 0)
       );
 
-      const {
+    const normalizedTargetLength =
+      Number.isFinite(Number(targetLength))
+        ? Math.max(1, Math.round(Number(targetLength)))
+        : null;
+
+    const normalizedLengthUnit =
+      lengthUnit === "words"
+        ? "words"
+        : "characters";
+
+    const prompt =
+      buildAdjustLengthPrompt({
+        text: normalizedText,
+        type: type || "Unknown",
+        value: normalizedValue,
+        targetLength: normalizedTargetLength,
+        lengthUnit: normalizedLengthUnit,
+      });
+
+    console.log(
+      "调整长度请求参数：",
+      {
         blockId,
-        text,
-        type,
-        value,
-        targetLength,
-        lengthUnit,
-      } = req.body || {};
-
-      if (blockId == null) {
-        return res
-          .status(400)
-          .json({
-            error: "缺少 blockId",
-          });
+        model: LENGTH_ADJUST_MODEL,
+        type: type || "Unknown",
+        value: normalizedValue,
+        targetLength: normalizedTargetLength,
+        lengthUnit: normalizedLengthUnit,
+        originalLength:
+          countWritingLength(
+            normalizedText,
+            normalizedLengthUnit
+          ),
       }
+    );
 
-      const normalizedText =
-        String(text || "").trim();
+    res.setHeader(
+      "Content-Type",
+      "application/x-ndjson; charset=utf-8"
+    );
+    res.setHeader(
+      "Cache-Control",
+      "no-cache, no-transform"
+    );
+    res.setHeader(
+      "Connection",
+      "keep-alive"
+    );
+    res.setHeader(
+      "X-Accel-Buffering",
+      "no"
+    );
+    res.flushHeaders?.();
 
-      if (!normalizedText) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "当前模块没有可调整的文本",
-          });
-      }
+    writeLine(res, {
+      type: "ready",
+      blockId,
+    });
 
-      const normalizedValue =
-        Math.max(
-          -100,
-          Math.min(
-            100,
-            Number(value) || 0
-          )
-        );
+    let resultText = "";
 
-      const prompt =
-        buildAdjustLengthPrompt({
-          text: normalizedText,
-          type:
-            type || "Unknown",
-          value: normalizedValue,
-          targetLength,
-          lengthUnit,
+    try {
+      const stream =
+        await openai.responses.create({
+          model:
+            LENGTH_ADJUST_MODEL,
+
+          reasoning: {
+            effort: "low",
+          },
+
+          input:
+            prompt,
+
+          stream: true,
         });
 
-      console.log(
-        "调整长度请求参数：",
-        {
-          blockId,
-          type:
-            type || "Unknown",
-          value: normalizedValue,
-          targetLength:
-            Number.isFinite(
-              Number(targetLength)
-            )
-              ? Math.max(
-                  1,
-                  Math.round(
-                    Number(targetLength)
-                  )
-                )
-              : null,
-          lengthUnit:
-            lengthUnit === "words"
-              ? "words"
-              : "characters",
-          originalLength:
-            countWritingLength(
-              normalizedText,
-              lengthUnit
-            ),
+      for await (const event of stream) {
+        if (
+          event.type !==
+          "response.output_text.delta"
+        ) {
+          continue;
         }
-      );
 
-      const normalizedTargetLength =
-        Number.isFinite(
-          Number(targetLength)
-        )
-          ? Math.max(
-              1,
-              Math.round(
-                Number(targetLength)
-              )
-            )
-          : null;
+        if (!canWriteResponse(res)) {
+          return;
+        }
 
-      const normalizedLengthUnit =
-        lengthUnit === "words"
-          ? "words"
-          : "characters";
+        const delta =
+          String(
+            event.delta || ""
+          );
 
-      const originalWritingLength =
+        if (!delta) {
+          continue;
+        }
+
+        resultText +=
+          delta;
+
+        writeLine(res, {
+          type: "delta",
+          blockId,
+          delta,
+        });
+      }
+
+      resultText =
+        resultText.trim();
+
+      if (!resultText) {
+        throw new Error(
+          "AI 没有返回有效文本"
+        );
+      }
+
+      const resultWritingLength =
         countWritingLength(
-          normalizedText,
+          resultText,
           normalizedLengthUnit
         );
-
-      let resultText = "";
-      let resultWritingLength = 0;
-      let attemptPrompt = prompt;
-
-      /**
-       * 单次请求模式：
-       * 长度调整只调用一次模型，不再为了字数误差自动发起第二次请求。
-       *
-       * 其余逻辑保持不变：
-       * - Prompt 不变
-       * - 长度计算不变
-       * - 返回格式不变
-       * - 前端调用方式不变
-       */
-      for (
-        let attempt = 1;
-        attempt <= 1;
-        attempt += 1
-      ) {
-        /**
-         * 长度调整属于明确的文本改写任务，不需要较高推理强度。
-         *
-         * 这里只降低推理强度，不改变：
-         * - 最多两次生成与自动纠正逻辑
-         * - 目标长度误差范围
-         * - 扩写或缩写方向检查
-         * - Prompt 内容
-         * - 返回数据结构
-         *
-         * 因此不会改变现有功能，只减少模型在该任务上的推理等待。
-         */
-        const response =
-          await openai.responses.create({
-            model: WRITING_MODEL,
-
-            reasoning: {
-              effort: "low",
-            },
-
-            input:
-              attemptPrompt,
-          });
-
-        resultText = String(
-          response.output_text || ""
-        ).trim();
-
-        resultWritingLength =
-          countWritingLength(
-            resultText,
-            normalizedLengthUnit
-          );
-
-        if (
-          normalizedTargetLength == null ||
-          !resultText
-        ) {
-          break;
-        }
-
-        const tolerance =
-          Math.max(
-            1,
-            Math.ceil(
-              normalizedTargetLength *
-                0.08
-            )
-          );
-
-        const directionCorrect =
-          normalizedTargetLength >
-          originalWritingLength
-            ? resultWritingLength >
-              originalWritingLength
-            : normalizedTargetLength <
-              originalWritingLength
-            ? resultWritingLength <
-              originalWritingLength
-            : true;
-
-        const closeEnough =
-          Math.abs(
-            resultWritingLength -
-              normalizedTargetLength
-          ) <= tolerance;
-
-        if (
-          directionCorrect &&
-          closeEnough
-        ) {
-          break;
-        }
-
-        attemptPrompt = `${prompt}
-
-CORRECTION REQUIRED:
-The previous result contained approximately ${resultWritingLength} ${normalizedLengthUnit}, but the requested target is ${normalizedTargetLength}.
-Adjust the wording again. The result must move in the requested direction and stay close to the target. Output only the revised text.`;
-      }
 
       console.log(
         "调整长度后的文本：",
         {
-          text: resultText,
           resultLength:
             resultWritingLength,
           targetLength:
@@ -2111,41 +1991,39 @@ Adjust the wording again. The result must move in the requested direction and st
         }
       );
 
-      if (!resultText) {
-        return res
-          .status(500)
-          .json({
-            error:
-              "AI 没有返回有效文本",
-          });
-      }
+      if (canWriteResponse(res)) {
+        writeLine(res, {
+          type: "done",
+          blockId,
+          text: resultText,
+          resultLength:
+            resultWritingLength,
+          targetLength:
+            normalizedTargetLength,
+        });
 
-      return res.json({
-        blockId,
-        text: resultText,
-      });
+        res.end();
+      }
     } catch (error) {
       console.error(
         "❌ adjust-length error:",
         error
       );
 
-      return res
-        .status(
-          error.statusCode || 500
-        )
-        .json({
-          error:
+      if (!res.writableEnded) {
+        writeLine(res, {
+          type: "error",
+          message:
             error.message ||
             "调整长度失败",
-
-          details:
-            error.details ||
-            error.message,
         });
+
+        res.end();
+      }
     }
   }
 );
+
 /**
  * 双模块操作接口。
  *

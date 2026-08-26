@@ -446,6 +446,9 @@ export function useAIActions({
         );
 
         try {
+          let historyRecorded =
+            false;
+
           const result =
             await adjustBlockLength({
               blockId: block.id,
@@ -466,28 +469,67 @@ export function useAIActions({
 
               signal:
                 controller.signal,
+
+              onTextStart: () => {
+                /**
+                 * 真正收到模型正文的第一个 delta 后才记录一次历史，
+                 * 既保证撤销回到调整前，又避免请求失败时产生空历史。
+                 */
+                if (
+                  historyRecorded
+                ) {
+                  return;
+                }
+
+                historyRecorded =
+                  true;
+
+                setSections(
+                  (
+                    previousSections
+                  ) => {
+                    pushHistorySnapshot(
+                      previousSections
+                    );
+
+                    return previousSections;
+                  }
+                );
+              },
+
+              onDelta: (
+                _delta,
+                accumulatedText
+              ) => {
+                applyGeneratedText(
+                  {
+                    blockId:
+                      block.id,
+                    text:
+                      accumulatedText,
+                  },
+                  {
+                    recordHistory:
+                      false,
+                    markGenerated:
+                      false,
+                  }
+                );
+              },
             });
 
           /**
-           * 长度缩放本身必须作为一个独立的可撤销动作。
-           *
-           * 不再等第一段流式文字写回时“顺便”记录历史，
-           * 而是在确认 AI 已成功返回、正式改写画布之前，
-           * 明确保存一次缩放前的完整 sections 快照。
-           * 这样工具栏撤销 / ⌘Z 一定能回到缩放前状态。
+           * done 事件携带最终标准化文本。最后一次写回确保 trim 后文本
+           * 与服务器最终结果完全一致，不再追加人为 24ms 动画。
            */
-          setSections((previousSections) => {
-            pushHistorySnapshot(
-              previousSections
-            );
-
-            return previousSections;
-          });
-
-          await revealGeneratedText(
+          applyGeneratedText(
             result,
-            controller.signal,
-            { recordHistory: false }
+            {
+              recordHistory:
+                false,
+              markGenerated:
+                true,
+            }
           );
 
           showTemporaryStatus(
@@ -560,7 +602,7 @@ export function useAIActions({
       },
       [
         getBlockById,
-        revealGeneratedText,
+        applyGeneratedText,
         setSections,
         pushHistorySnapshot,
         showTemporaryStatus,

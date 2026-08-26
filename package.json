@@ -13,7 +13,8 @@
     "logs:export": "node scripts/export-research-logs.mjs",
     "check:i18n-scope": "node scripts/check-i18n-scope.mjs",
     "preview": "vite preview",
-    "server": "node server.js"
+    "server": "node server.js",
+    "check:length-adjustment": "node scripts/check-fast-length-adjustment.mjs"
   },
   "dependencies": {
     "ai": "^7.0.79",
