@@ -131,5 +131,10 @@ assert.ok(
     editorSource.includes("restoredAny = true"),
   "审阅恢复也必须把单纯的隐藏状态视为真实状态变更"
 );
+assert.ok(
+  editorSource.includes("restoreCompletedParagraphBlocks(") &&
+    editorSource.includes("getInlineParagraphBlockIndices("),
+  "完成段落和审阅恢复必须隔离 floating 模块与旧浮动坐标"
+);
 
 console.log("generation snapshot regression checks passed");
