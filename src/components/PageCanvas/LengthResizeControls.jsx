@@ -1,5 +1,7 @@
 import {
   memo,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -46,6 +48,38 @@ function LengthResizeControls({
     hoveredBlockId,
     setHoveredBlockId,
   ] = useState(null);
+
+  /**
+   * 记录上一帧是否正在拖动。
+   *
+   * pointerdown 时为了保证拖出原感应区仍能看到圆点，
+   * 会主动把当前 block 写入 hoveredBlockId。
+   * 如果 pointerup 后不清掉，这个人工 hover 会一直残留，
+   * 导致圆点看起来“卡住不消失”。
+   */
+  const wasDraggingRef =
+    useRef(false);
+
+  useEffect(() => {
+    const wasDragging =
+      wasDraggingRef.current;
+
+    if (
+      wasDragging &&
+      !isLengthResizeDragging
+    ) {
+      /**
+       * 定位完成（pointerup / pointercancel）后立即隐藏圆点。
+       * 草稿仍然可以继续保留给 Enter / Escape，
+       * 但草稿本身不再强制圆点常驻。
+       * 之后只有鼠标重新进入末端感应区才会再次显示。
+       */
+      setHoveredBlockId(null);
+    }
+
+    wasDraggingRef.current =
+      isLengthResizeDragging;
+  }, [isLengthResizeDragging]);
 
   /**
    * AI 正在生成或正在执行长度调整时，
@@ -119,15 +153,21 @@ function LengthResizeControls({
             ) === blockId;
 
           /**
-           * 小圆点显示条件：
+           * 小圆点只在两种情况下显示：
            *
-           * 1. 鼠标靠近手柄区域；
-           * 2. 当前模块正在被拖动；
-           * 3. 当前模块已有长度草稿。
+           * 1. 鼠标正在末端感应区内；
+           * 2. 当前模块正被按住拖动。
+           *
+           * 注意：仅仅存在 lengthResizeDraft 不再让圆点常驻。
+           * 松手完成定位后草稿会继续保留给 Enter / Escape，
+           * 但圆点必须立即隐藏，直到鼠标重新 hover 到末端。
            */
           const showHandleDot =
             isHovered ||
-            isCurrentDraft;
+            (
+              isCurrentDraft &&
+              isLengthResizeDragging
+            );
 
           /**
            * 长度提示只在按住鼠标拖动时显示。

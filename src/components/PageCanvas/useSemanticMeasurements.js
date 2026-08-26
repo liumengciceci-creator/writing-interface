@@ -268,10 +268,21 @@ function collectLineExtensions(
             /**
              * 用户主动要求该模块另起一行。
              */
+            /**
+             * “强制另起一行”只发生在模块的第一个视觉片段之前。
+             *
+             * 一个带 forceLineBreakBefore 的模块如果自身自动换行，
+             * 第二行 / 第三行仍然只是浏览器自动换行，不能继续继承
+             * forceLineBreakBefore。旧逻辑把 element 的标记复制给每个
+             * fragment，导致末行只剩 1–2 个字符（例如“险。”）时，
+             * 上一行被误判为“人工换行前一行”，从而不再补齐到右边界，
+             * 长度拉伸的行尾安全距离也会表现异常。
+             */
             forceLineBreakBefore:
+              fragmentIndex === 0 &&
               element.dataset
                 .forceLineBreakBefore ===
-              "true",
+                "true",
 
             left,
             right,

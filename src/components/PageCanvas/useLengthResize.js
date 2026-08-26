@@ -7,7 +7,14 @@ import {
 } from "react";
 
 /** 拉伸预览末端与下一个模块之间的固定视觉距离。 */
-const LENGTH_PREVIEW_END_GAP = 8;
+/**
+ * 拉伸预览末端与后续模块之间的固定安全距离。
+ *
+ * 旧值 8px 只够容纳 8px 圆点本身。圆点以末端为中心绘制，
+ * 再叠加语义模块的描边 / padding 后，在换行临界位置会压住下一个模块。
+ * 14px 给圆点右半径和后续模块边框都留出明确空间。
+ */
+const LENGTH_PREVIEW_END_GAP = 14;
 
 import {
   getWritingLengthInfo,
