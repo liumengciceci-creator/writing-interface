@@ -3146,10 +3146,13 @@ const SingleSemanticEditor =
                           ? "inline-block"
                           : "inline",
 
+                      /**
+                       * 长度预览也继续使用普通模块同一套 6px 右间距。
+                       * spacer 已经位于模块内部，margin-right 会自然落在
+                       * 整个预览末端，不再需要单独的 gap 元素。
+                       */
                       margin:
-                        activeLengthPreview
-                          ? "0 0 6px 0"
-                          : "0 6px 6px 0",
+                        "0 6px 6px 0",
 
                       padding:
                         isTitleBlock
@@ -3253,17 +3256,15 @@ const SingleSemanticEditor =
                           sources={block.sources}
                         />
                       )}
-                    </span>
 
-                    <LengthFlowSpacer
-                      lengthResizePreview={
-                        normalizeId(
-                          lengthResizePreview?.blockId
-                        ) === blockId
-                          ? lengthResizePreview
-                          : null
-                      }
-                    />
+                      {activeLengthPreview ? (
+                        <LengthFlowSpacer
+                          lengthResizePreview={
+                            activeLengthPreview
+                          }
+                        />
+                      ) : null}
+                    </span>
                   </Fragment>
                 );
               }

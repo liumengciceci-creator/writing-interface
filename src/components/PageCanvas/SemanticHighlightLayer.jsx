@@ -253,8 +253,7 @@ function SemanticHighlightLayer({
 
 
                 opacity={
-                  dragging ||
-                  previewingLength
+                  dragging
                     ? 0
                     :
                     hasFocusedEditingBlock &&
@@ -380,95 +379,13 @@ function SemanticHighlightLayer({
 
 
 
-      {
-        lengthResizePreview
-          ?.rectangles
-          ?.map(
-            (
-              rectangle,
-              index
-            ) => (
-
-              <rect
-                key={
-                  `length-preview-${lengthResizePreview.blockId}-${index}`
-                }
-
-                x={
-                  rectangle.left
-                }
-
-                y={
-                  rectangle.top
-                }
-
-                width={
-                  rectangle.width
-                }
-
-                height={
-                  rectangle.height
-                }
-
-                rx="8"
-                ry="8"
-
-
-                fill={
-                  showingLengthPreviewPulse
-                    ?
-                    `${
-                      lengthResizePreview.block?.color ||
-                      "#7c83fd"
-                    }22`
-                    :
-                    (
-                      lengthResizePreview.block?.fill ||
-                      "rgba(124,131,253,0.08)"
-                    )
-                }
-
-
-                stroke={
-                  `color-mix(in srgb, ${
-                    lengthResizePreview.block?.color ||
-                    "#7c83fd"
-                  } 52%, white)`
-                }
-
-
-                strokeWidth="1"
-
-
-                pointerEvents="none"
-
-
-                style={{
-                  filter: "none",
-
-                  /**
-                   * 保留长度生成时的闪烁，但只改变填充层透明度。
-                   * 描边始终保持 1px，不再靠阴影制造闪烁。
-                   */
-                  opacity:
-                    showingLengthPreviewPulse
-                      ? 0.52
-                      : 1,
-
-
-                  transition:
-                    isLengthPreviewSubmitting
-                      ?
-                      "fill 160ms ease, opacity 160ms ease"
-                      :
-                      "none",
-                }}
-              />
-
-            )
-          )
-      }
-
+      {/*
+        长度拉伸期间不再绘制一套独立的“估算 SVG 框”。
+        invisible spacer 已经位于真实 semantic block 内部，
+        lineExtensions 会直接测量浏览器最终排版后的 getClientRects()。
+        因而上面的普通 rect 就同时是长度预览框，文字和边框共享
+        完全相同的布局来源，不会再出现不同帧错位。
+      */}
 
     </svg>
   );

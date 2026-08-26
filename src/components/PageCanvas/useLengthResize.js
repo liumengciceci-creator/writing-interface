@@ -908,14 +908,27 @@ export default function useLengthResize({
 
         rectangles,
 
+        /**
+         * spacer 已经位于真实模块内部。lineExtensions 在 layout effect
+         * 中会重新测量扩展后的 DOM，因此手柄优先跟随真实模块末端，
+         * 不再跟随另一套估算 SVG 矩形。
+         */
         handleX:
-          lastRectangle.left +
-          lastRectangle.width,
+          Number.isFinite(handle.anchorX)
+            ? handle.anchorX
+            : (
+                lastRectangle.left +
+                lastRectangle.width
+              ),
 
         handleY:
-          lastRectangle.top +
-          lastRectangle.height /
-            2,
+          Number.isFinite(handle.anchorY)
+            ? handle.anchorY
+            : (
+                lastRectangle.top +
+                lastRectangle.height /
+                  2
+              ),
       };
     }, [
       lengthResizeDraft,
