@@ -12,6 +12,7 @@ const LENGTH_PREVIEW_END_GAP = 8;
 import {
   getWritingLengthInfo,
   normalizeId,
+  shouldShowInlineLengthResizeHandle,
 } from "./semanticEditorUtils";
 
 /**
@@ -270,12 +271,9 @@ export default function useLengthResize({
           );
 
         if (
-          !block ||
-          block.isCompletedParagraph ||
-          block.hideResizeHandle === true ||
-          !String(
-            block.text || ""
-          ).trim()
+          !shouldShowInlineLengthResizeHandle(
+            block
+          )
         ) {
           continue;
         }

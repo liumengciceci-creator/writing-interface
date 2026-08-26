@@ -1,5 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  shouldShowInlineLengthResizeHandle,
+} from "../src/components/PageCanvas/semanticEditorUtils.js";
 
 const root = process.cwd();
 const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
@@ -135,6 +138,17 @@ const checks = [
       lengthResize.includes("blockById.keys()") &&
       !lengthResize.includes("selectedIdSet") &&
       !lengthResize.includes("block.hideFloatingResizeHandle === true") &&
+      lengthResize.includes("shouldShowInlineLengthResizeHandle") &&
+      shouldShowInlineLengthResizeHandle({
+        text: "AI generated duplicated module",
+        isGenerated: true,
+        hideResizeHandle: true,
+      }) === true &&
+      shouldShowInlineLengthResizeHandle({
+        text: "Ungenerated duplicated module",
+        isGenerated: false,
+        hideResizeHandle: true,
+      }) === false &&
       lengthResize.includes("!blockById?.has(") &&
       !semanticEditor.includes("lineExtensions,\n        selectedIdSet,\n        blockById"),
   },

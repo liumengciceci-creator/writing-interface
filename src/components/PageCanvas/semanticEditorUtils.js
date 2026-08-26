@@ -69,6 +69,30 @@ export function getWritingLengthInfo(
   };
 }
 
+/**
+ * 判断画布内的模块是否应提供句尾长度调整手柄。
+ *
+ * 复制模块在尚未生成内容时可以沿用旧的隐藏规则；一旦 AI 已经
+ * 生成内容，旧的 hideResizeHandle 不能继续让该模块缺少句尾圆点。
+ * 浮动模块的边框缩放由 FloatingEditableBlock 单独控制。
+ */
+export function shouldShowInlineLengthResizeHandle(
+  block
+) {
+  if (
+    !block ||
+    block.isCompletedParagraph === true ||
+    !String(block.text || "").trim()
+  ) {
+    return false;
+  }
+
+  return (
+    block.hideResizeHandle !== true ||
+    block.isGenerated === true
+  );
+}
+
 export function getTypeLabel(type) {
   return (
     BLOCK_TYPE_LABELS[type] ||
