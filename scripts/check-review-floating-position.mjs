@@ -110,7 +110,8 @@ assert.ok(
     !cssSource.includes("position: fixed;") &&
     cssSource.includes("top: var(--page-canvas-top-inset);") &&
     cssSource.includes("--page-canvas-top-inset: 8px;") &&
-    cssSource.includes("overflow-y: auto;") &&
+    cssSource.includes("max-height: none;") &&
+    cssSource.includes("overflow: visible;") &&
     cssSource.includes(".editor-main") &&
     appSource.includes('className={`page-canvas-shell') &&
     appSource.indexOf("<ReviewIssuesPanel") >

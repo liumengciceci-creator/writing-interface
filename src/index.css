@@ -139,9 +139,13 @@ body {
   right: 20px;
   bottom: auto;
   width: var(--review-panel-width);
-  max-height: calc(100dvh - 154px);
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  /*
+   * 不再给整个审阅面板设置视口高度上限。此前 max-height + overflowY:auto
+   * 会把靠下的“添加/重构模块”建议卡裁在一条灰色边界里；现在让面板
+   * 跟随页面本身增长，由 #root 的纵向滚动统一负责查看后续内容。
+   */
+  max-height: none;
+  overflow: visible;
 }
 
 .editor-main.review-panel-stacked
@@ -155,7 +159,8 @@ body {
   right: 20px;
   bottom: auto;
   width: var(--review-panel-width);
-  max-height: calc(100dvh - 154px);
+  max-height: none;
+  overflow: visible;
   margin: 0;
 }
 
@@ -174,7 +179,8 @@ body {
     right: 12px;
     bottom: auto;
     width: min(340px, calc(100vw - 24px));
-    max-height: calc(100dvh - 146px);
+    max-height: none;
+    overflow: visible;
     margin: 0;
   }
 }

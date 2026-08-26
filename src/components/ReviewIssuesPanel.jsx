@@ -269,11 +269,12 @@ export default function ReviewIssuesPanel({
         zIndex: 2000,
         height: "auto",
         minHeight: 0,
-        overflowY: "auto",
-        overflowX: "hidden",
-        // 覆盖式滚动条和滚动容器会裁切贴边卡片的阴影；
-        // 右侧及底部保留安全区，保证审阅内容右下角完整可见。
-        padding: "0 12px 32px 2px",
+        // 整个审阅面板不再建立第二条纵向滚动轴。否则建议卡会在
+        // aside 的 max-height 边界处被裁掉，看起来像被灰色区域遮住。
+        // 纵向滚动统一交给页面根容器；面板自身只负责完整展开。
+        overflowY: "visible",
+        overflowX: "visible",
+        padding: "0 14px 48px 2px",
         background: "transparent",
         boxSizing: "border-box",
         scrollbarGutter: "stable",
