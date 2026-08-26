@@ -1173,6 +1173,39 @@ const SingleSemanticEditor =
         onAdjustLength,
       });
 
+      /**
+       * 长度拖拽会连续改变占位宽度和浏览器换行。
+       * 同步测量一次，并在浏览器完成本帧排版后再校准一次，
+       * 防止文字已换行但边框仍使用上一帧位置。
+       */
+      useLayoutEffect(() => {
+        if (!lengthResizeDraft) {
+          return undefined;
+        }
+
+        measureLineExtensions();
+
+        const frameId =
+          window.requestAnimationFrame(
+            () => {
+              measureLineExtensions();
+            }
+          );
+
+        return () => {
+          window.cancelAnimationFrame(
+            frameId
+          );
+        };
+      }, [
+        lengthResizeDraft?.blockId,
+        lengthResizeDraft?.targetLength,
+        lengthResizeDraft?.previewLength,
+        lengthResizeDraft?.placeholderWidth,
+        isLengthResizeDragging,
+        measureLineExtensions,
+      ]);
+
 
       useEffect(() => {
         if (

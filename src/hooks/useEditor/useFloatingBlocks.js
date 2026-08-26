@@ -1532,7 +1532,7 @@ export function useFloatingBlocks({
                 block.width ??
                 180;
 
-          const finalX =
+          const rawFinalX =
             hasCopiedLineAppearance
               ? event.clientX -
                 stageRect.left -
@@ -1542,6 +1542,17 @@ export function useFloatingBlocks({
                   floatingWidth - 20
                 )
               : nextX;
+
+          /**
+           * 左侧工作区可能位于 Stage DOM 之外。
+           * 直接保存负 floatingX 会让模块实际存在、但落到不可见区域。
+           * 所有模块统一限制在 Stage 可见左边界内。
+           */
+          const finalX =
+            Math.max(
+              8,
+              rawFinalX
+            );
 
           const moved =
             block.floatingX !==
