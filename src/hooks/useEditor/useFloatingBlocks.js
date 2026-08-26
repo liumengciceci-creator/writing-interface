@@ -1548,11 +1548,7 @@ export function useFloatingBlocks({
            * 直接保存负 floatingX 会让模块实际存在、但落到不可见区域。
            * 所有模块统一限制在 Stage 可见左边界内。
            */
-          const finalX =
-            Math.max(
-              8,
-              rawFinalX
-            );
+          const finalX = rawFinalX;
 
           const moved =
             block.floatingX !==
