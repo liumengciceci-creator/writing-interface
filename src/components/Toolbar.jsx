@@ -340,31 +340,59 @@ export default function Toolbar({
             event.preventDefault();
           }}
           onClick={onGenerate}
-          title={t("toolbar.generateTitle")}
+          title={
+            isGenerating
+              ? t("toolbar.pauseGenerateTitle")
+              : t("toolbar.generateTitle")
+          }
+          aria-pressed={isGenerating}
           style={{
             ...toolbarWideButton,
             opacity: 1,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            color: isGenerating ? "#b93832" : "#111827",
+            background: isGenerating ? "#fff1f0" : toolbarWideButton.background,
+            borderColor: isGenerating ? "rgba(217,83,79,0.42)" : undefined,
           }}
         >
-          {t("toolbar.generate")}
+          {isGenerating && <span aria-hidden="true">Ⅱ</span>}
+          {isGenerating
+            ? t("toolbar.pauseGenerate")
+            : t("toolbar.generate")}
         </button>
 
         <button
           type="button"
           onClick={onReview}
           title={
-            selectedIds.length === 1
-              ? t("toolbar.reviewNeedTwo")
-              : selectedIds.length >= 2
-                ? t("toolbar.reviewSelected")
-                : t("toolbar.reviewAll")
+            isReviewing
+              ? t("toolbar.pauseReviewTitle")
+              : selectedIds.length === 1
+                ? t("toolbar.reviewNeedTwo")
+                : selectedIds.length >= 2
+                  ? t("toolbar.reviewSelected")
+                  : t("toolbar.reviewAll")
           }
+          aria-pressed={isReviewing}
           style={{
             ...toolbarWideButton,
             opacity: 1,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            color: isReviewing ? "#b93832" : "#111827",
+            background: isReviewing ? "#fff1f0" : toolbarWideButton.background,
+            borderColor: isReviewing ? "rgba(217,83,79,0.42)" : undefined,
           }}
         >
-          {t("toolbar.review")}
+          {isReviewing && <span aria-hidden="true">Ⅱ</span>}
+          {isReviewing
+            ? t("toolbar.pauseReview")
+            : t("toolbar.review")}
         </button>
 
         <button

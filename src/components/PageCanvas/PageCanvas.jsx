@@ -1438,7 +1438,7 @@ export default function PageCanvas(
           "flex-start",
 
         padding:
-          "8px 16px 20px",
+          "var(--page-canvas-top-inset, 8px) 16px 20px",
 
         boxSizing:
           "border-box",

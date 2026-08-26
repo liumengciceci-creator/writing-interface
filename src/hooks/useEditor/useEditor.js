@@ -537,6 +537,7 @@ export function useEditor() {
     generateFromSelectedBlocks,
     retryFailedGeneration,
     dismissGenerationFailure,
+    stopGenerating,
   } = useStreamingGenerate({
     sections,
     setSections,
@@ -1949,6 +1950,7 @@ export function useEditor() {
     generateFromSelectedBlocks,
     retryFailedGeneration,
     dismissGenerationFailure,
+    stopGenerating,
   };
 }
 

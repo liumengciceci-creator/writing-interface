@@ -92,6 +92,22 @@ const checks = [
       generationFailureDialog.includes('t("generation.retry")'),
   },
   {
+    name: "generation and review buttons pause the real network streams",
+    pass:
+      generationHook.includes("const stopGenerating = useCallback") &&
+      generationHook.includes("controllerRef.current?.abort()") &&
+      generationHook.includes("flushPendingDeltas();") &&
+      app.includes("if (isGenerating) {") &&
+      app.includes("stopGenerating();") &&
+      app.includes("const stopReview = () =>") &&
+      app.includes("activeController.abort();") &&
+      app.includes("signal: reviewController.signal") &&
+      app.includes('error?.name === "AbortError"') &&
+      reviewApi.includes("signal,") &&
+      toolbar.includes('t("toolbar.pauseGenerate")') &&
+      toolbar.includes('t("toolbar.pauseReview")'),
+  },
+  {
     name: "generation remounts contentEditable DOM flattened by manual editing",
     pass:
       generationHook.includes("generationRenderRevision") &&
@@ -282,6 +298,16 @@ const checks = [
       styles.includes("calc(50% - var(--workspace-center-offset))") &&
       styles.includes(".page-canvas-shell.review-panel-open") &&
       !styles.includes("var(--review-panel-width) +"),
+  },
+  {
+    name: "review panel top shares the exact canvas inset and scroll container",
+    pass:
+      styles.includes("--page-canvas-top-inset: 8px") &&
+      styles.includes("top: var(--page-canvas-top-inset)") &&
+      app.indexOf("<ReviewIssuesPanel") > app.indexOf('className={`page-canvas-shell') &&
+      app.indexOf("<ReviewIssuesPanel") < app.indexOf("<PageCanvas") &&
+      semanticEditor.includes("height: 16") &&
+      semanticEditor.includes('"16px"'),
   },
   {
     name: "label palette starts at a compact width",

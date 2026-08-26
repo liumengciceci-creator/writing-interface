@@ -108,10 +108,15 @@ assert.ok(
   cssSource.includes(".review-issues-panel {") &&
     cssSource.includes("position: absolute;") &&
     !cssSource.includes("position: fixed;") &&
+    cssSource.includes("top: var(--page-canvas-top-inset);") &&
+    cssSource.includes("--page-canvas-top-inset: 8px;") &&
     cssSource.includes("overflow-y: auto;") &&
     cssSource.includes(".editor-main") &&
-    appSource.includes('position:\n              "relative"'),
-  "审阅面板必须脱离 flex 文档流，但要定位在 editor-main 内并随画布共用根滚动轴"
+    appSource.includes('className={`page-canvas-shell') &&
+    appSource.indexOf("<ReviewIssuesPanel") >
+      appSource.indexOf('className={`page-canvas-shell') &&
+    appSource.indexOf("<ReviewIssuesPanel") < appSource.indexOf("<PageCanvas"),
+  "审阅面板必须脱离 flex 文档流，并在画布外壳内共用顶部基准与根滚动轴"
 );
 assert.ok(
   appSource.includes("Review Layout Debug") &&

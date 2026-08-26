@@ -627,9 +627,10 @@ export function useStreamingGenerate({
     cancelledRef.current = true;
     controllerRef.current?.abort();
     controllerRef.current = null;
+    // 暂停时先提交已经收到但尚未来得及绘制的最后一批字符，
+    // 保证用户看到的部分结果与实际收到的流完全一致。
+    flushPendingDeltas();
     stopBlinking();
-    clearPendingFrame();
-    pendingDeltaMapRef.current = new Map();
     generationCommitGuardRef.current = false;
     expectedGeneratedTextRef.current = new Map();
     repairedGeneratedTextIdsRef.current = new Set();
@@ -640,7 +641,7 @@ export function useStreamingGenerate({
     setIsGenerating(false);
     setGeneratingBlockIds([]);
     setGenerationStatus("");
-  }, [clearPendingFrame, stopBlinking]);
+  }, [flushPendingDeltas, stopBlinking]);
 
   const generateFromSelectedBlocks = useCallback(async (requestedTargetIds = null) => {
     if (isGenerating) return;

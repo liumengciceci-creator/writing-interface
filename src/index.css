@@ -119,6 +119,7 @@ body {
 }
 
 .page-canvas-shell {
+  --page-canvas-top-inset: 8px;
   padding-right: var(--workspace-sidebar-width);
   box-sizing: border-box;
 }
@@ -134,7 +135,7 @@ body {
    * 审阅面板与画布使用同一条纵向滚动轴并同步移动。
    */
   position: absolute;
-  top: 134px;
+  top: var(--page-canvas-top-inset);
   right: 20px;
   bottom: auto;
   width: var(--review-panel-width);
@@ -150,7 +151,7 @@ body {
 
 .editor-main.review-panel-stacked .review-issues-panel {
   position: absolute;
-  top: 134px;
+  top: var(--page-canvas-top-inset);
   right: 20px;
   bottom: auto;
   width: var(--review-panel-width);
@@ -169,7 +170,7 @@ body {
 
   .review-issues-panel {
     position: absolute;
-    top: 134px;
+    top: var(--page-canvas-top-inset);
     right: 12px;
     bottom: auto;
     width: min(340px, calc(100vw - 24px));
