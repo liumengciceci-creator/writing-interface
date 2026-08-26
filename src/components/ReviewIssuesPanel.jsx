@@ -270,9 +270,14 @@ export default function ReviewIssuesPanel({
         height: "auto",
         minHeight: 0,
         overflowY: "auto",
-        padding: "0 0 20px",
+        overflowX: "hidden",
+        // 覆盖式滚动条和滚动容器会裁切贴边卡片的阴影；
+        // 右侧及底部保留安全区，保证审阅内容右下角完整可见。
+        padding: "0 12px 32px 2px",
         background: "transparent",
         boxSizing: "border-box",
+        scrollbarGutter: "stable",
+        overscrollBehavior: "contain",
         isolation: "isolate",
         transform: `translate3d(${panelOffset.x}px, ${panelOffset.y}px, 0)`,
         willChange: panelDragging ? "transform" : "auto",
@@ -284,7 +289,8 @@ export default function ReviewIssuesPanel({
           borderRadius: 13,
           background: "rgba(255,255,255,0.92)",
           boxShadow: "0 7px 22px rgba(15,23,42,0.09)",
-          overflow: "visible",
+          overflow: "hidden",
+          boxSizing: "border-box",
         }}
       >
         <header
@@ -544,6 +550,9 @@ export default function ReviewIssuesPanel({
             background: accentFill,
             boxShadow: "0 7px 18px rgba(15,23,42,0.08)",
             color: "#374151",
+            boxSizing: "border-box",
+            marginRight: 2,
+            marginBottom: 4,
           }}
         >
           <span

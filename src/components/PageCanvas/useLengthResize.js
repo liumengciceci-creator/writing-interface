@@ -150,7 +150,6 @@ export default function useLengthResize({
   editorRef,
 
   lineExtensions = [],
-  selectedIdSet,
   blockById,
 
   editingBlockId = null,
@@ -242,23 +241,23 @@ export default function useLengthResize({
   ]);
 
   /**
-   * 根据当前选中的模块和 DOM 测量矩形，
+   * 根据全部可编辑模块和 DOM 测量矩形，
    * 计算长度拉伸手柄的位置。
+   *
+   * 生成开始时会清空选区，因此这里不能依赖 selectedIds；
+   * 否则生成结束后只有重新点选过的模块才会出现句尾手柄。
    */
   const lengthResizeHandles =
     useMemo(() => {
       const handles = [];
 
-      if (
-        !selectedIdSet ||
-        !blockById
-      ) {
+      if (!blockById) {
         return handles;
       }
 
       for (
         const rawBlockId of
-        selectedIdSet
+        blockById.keys()
       ) {
         const blockId =
           normalizeId(
@@ -274,7 +273,6 @@ export default function useLengthResize({
           !block ||
           block.isCompletedParagraph ||
           block.hideResizeHandle === true ||
-          block.hideFloatingResizeHandle === true ||
           !String(
             block.text || ""
           ).trim()
@@ -613,7 +611,6 @@ export default function useLengthResize({
       blockById,
       editorRef,
       lineExtensions,
-      selectedIdSet,
     ]);
 
   /**
@@ -1567,7 +1564,7 @@ export default function useLengthResize({
           );
 
           if (
-            selectedIdSet?.has(
+            blockById?.has(
               submittedDraft.blockId
             )
           ) {
@@ -1613,17 +1610,16 @@ export default function useLengthResize({
     isAdjustingLength,
     lengthResizeDraft,
     onAdjustLength,
-    selectedIdSet,
   ]);
 
   /**
-   * 用户取消选中正在拉伸的模块时，
-   * 自动取消拉伸预览。
+   * 只有模块真的从正文中消失时才取消拉伸预览。
+   * 手柄属于每一个正文模块，取消选择不应让拖动瞬间中断。
    */
   useEffect(() => {
     if (
       lengthResizeDraft &&
-      !selectedIdSet?.has(
+      !blockById?.has(
         lengthResizeDraft.blockId
       ) &&
       !lengthResizeDraft
@@ -1641,8 +1637,8 @@ export default function useLengthResize({
       );
     }
   }, [
+    blockById,
     lengthResizeDraft,
-    selectedIdSet,
   ]);
 
   /**

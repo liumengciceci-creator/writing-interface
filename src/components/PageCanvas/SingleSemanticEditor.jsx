@@ -1165,7 +1165,6 @@ const SingleSemanticEditor =
       } = useLengthResize({
         editorRef,
         lineExtensions,
-        selectedIdSet,
         blockById,
         editingBlockId,
         isGenerating,
@@ -2781,10 +2780,10 @@ const SingleSemanticEditor =
                           display:
                             "block",
                           width: "100%",
-                          height: 10,
-                          minHeight: 10,
+                          height: 16,
+                          minHeight: 16,
                           lineHeight:
-                            "10px",
+                            "16px",
                           pointerEvents:
                             "none",
                           userSelect:
