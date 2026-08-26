@@ -353,12 +353,23 @@ export default function Toolbar({
             alignItems: "center",
             justifyContent: "center",
             gap: 6,
-            color: isGenerating ? "#b93832" : "#111827",
-            background: isGenerating ? "#fff1f0" : toolbarWideButton.background,
-            borderColor: isGenerating ? "rgba(217,83,79,0.42)" : undefined,
+            color: isGenerating ? "#4b5563" : "#111827",
+            background: isGenerating ? "#f3f4f6" : toolbarWideButton.background,
+            borderColor: isGenerating ? "#d1d5db" : undefined,
           }}
         >
-          {isGenerating && <span aria-hidden="true">Ⅱ</span>}
+          {isGenerating && (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 1,
+                background: "currentColor",
+                flex: "0 0 auto",
+              }}
+            />
+          )}
           {isGenerating
             ? t("toolbar.pauseGenerate")
             : t("toolbar.generate")}
@@ -384,12 +395,23 @@ export default function Toolbar({
             alignItems: "center",
             justifyContent: "center",
             gap: 6,
-            color: isReviewing ? "#b93832" : "#111827",
-            background: isReviewing ? "#fff1f0" : toolbarWideButton.background,
-            borderColor: isReviewing ? "rgba(217,83,79,0.42)" : undefined,
+            color: isReviewing ? "#4b5563" : "#111827",
+            background: isReviewing ? "#f3f4f6" : toolbarWideButton.background,
+            borderColor: isReviewing ? "#d1d5db" : undefined,
           }}
         >
-          {isReviewing && <span aria-hidden="true">Ⅱ</span>}
+          {isReviewing && (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 1,
+                background: "currentColor",
+                flex: "0 0 auto",
+              }}
+            />
+          )}
           {isReviewing
             ? t("toolbar.pauseReview")
             : t("toolbar.review")}

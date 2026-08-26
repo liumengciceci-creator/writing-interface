@@ -105,7 +105,13 @@ const checks = [
       app.includes('error?.name === "AbortError"') &&
       reviewApi.includes("signal,") &&
       toolbar.includes('t("toolbar.pauseGenerate")') &&
-      toolbar.includes('t("toolbar.pauseReview")'),
+      toolbar.includes('t("toolbar.pauseReview")') &&
+      toolbar.includes('background: isGenerating ? "#f3f4f6"') &&
+      toolbar.includes('background: isReviewing ? "#f3f4f6"') &&
+      toolbar.includes('background: "currentColor"') &&
+      toolbar.includes("width: 8") &&
+      !toolbar.includes("#b93832") &&
+      !toolbar.includes("#fff1f0"),
   },
   {
     name: "generation remounts contentEditable DOM flattened by manual editing",
