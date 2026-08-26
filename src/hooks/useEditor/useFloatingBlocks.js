@@ -12,6 +12,13 @@ import {
 } from "../../constants";
 
 /**
+ * inline 模块离开白色页面后会转换成紧凑 floating 卡片。
+ * 转换后的落点不能继续沿用原长文本中的几百像素点击偏移，
+ * 否则长模块拖向左侧灰区时卡片左边缘会跑出浏览器可视区。
+ */
+const COMPACT_FLOATING_POINTER_ANCHOR_X = 24;
+
+/**
  * 灰色区域统一使用现有 floating 卡片的紧凑宽度。
  * 长文本不会沿用白色画布中的整行宽度。
  */
@@ -1124,13 +1131,7 @@ export function useFloatingBlocks({
           stageRect.left -
           (
             convertsToStandardFloating
-              ? Math.min(
-                  pointerOffsetRef.current
-                    .x,
-                  getStandardFloatingWidth(
-                    block.text
-                  ) - 20
-                )
+              ? COMPACT_FLOATING_POINTER_ANCHOR_X
               : pointerOffsetRef.current
                   .x
           ),
@@ -1536,11 +1537,7 @@ export function useFloatingBlocks({
             hasCopiedLineAppearance
               ? event.clientX -
                 stageRect.left -
-                Math.min(
-                  pointerOffsetRef.current
-                    .x,
-                  floatingWidth - 20
-                )
+                COMPACT_FLOATING_POINTER_ANCHOR_X
               : nextX;
 
           /**

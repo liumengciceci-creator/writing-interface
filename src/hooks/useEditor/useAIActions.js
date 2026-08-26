@@ -137,6 +137,39 @@ export function useAIActions({
                             return block;
                           }
 
+                          if (
+                            block.placement !==
+                            "floating"
+                          ) {
+                            const nextBlock = {
+                              ...block,
+
+                              text:
+                                result.text,
+
+                              isGenerated:
+                                markGenerated
+                                  ? true
+                                  : block.isGenerated,
+                            };
+
+                            /**
+                             * inline 模块永远由真实 DOM 自然排版。
+                             * AI 生成/扩写后不能残留估算 width / height 或
+                             * floating 几何，否则拖出时会和真实 DOM 尺寸冲突。
+                             */
+                            delete nextBlock.x;
+                            delete nextBlock.y;
+                            delete nextBlock.width;
+                            delete nextBlock.height;
+                            delete nextBlock.floatingX;
+                            delete nextBlock.floatingY;
+                            delete nextBlock.floatingWidth;
+                            delete nextBlock.floatingHeight;
+
+                            return nextBlock;
+                          }
+
                           const widthForHeight =
                             block.floatingWidth ||
                             block.width ||

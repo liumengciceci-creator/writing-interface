@@ -1112,10 +1112,46 @@ export function useStreamingGenerate({
           const cleanedText = cleanedTextByRealId.get(String(block.id));
           if (cleanedText == null) return block;
 
+          if (
+            block.placement !==
+            "floating"
+          ) {
+            const nextBlock = {
+              ...block,
+              text: cleanedText,
+              isGenerated: true,
+              isModuleHidden: false,
+              generationDirective: "",
+              generationError: null,
+            };
+
+            delete nextBlock.x;
+            delete nextBlock.y;
+            delete nextBlock.width;
+            delete nextBlock.height;
+            delete nextBlock.floatingX;
+            delete nextBlock.floatingY;
+            delete nextBlock.floatingWidth;
+            delete nextBlock.floatingHeight;
+
+            return nextBlock;
+          }
+
+          const floatingWidth =
+            Number(
+              block.floatingWidth ??
+                block.width ??
+                180
+            ) || 180;
+
           return {
             ...block,
             text: cleanedText,
-            height: estimateBlockHeight(cleanedText, block.width),
+            height:
+              estimateBlockHeight(
+                cleanedText,
+                floatingWidth
+              ),
             isGenerated: true,
             isModuleHidden: false,
             generationDirective: "",
@@ -1208,10 +1244,46 @@ export function useStreamingGenerate({
 
           const validText = validTextByRealId.get(blockId);
           if (validText) {
+            if (
+              block.placement !==
+              "floating"
+            ) {
+              const nextBlock = {
+                ...block,
+                text: validText,
+                isGenerated: true,
+                isModuleHidden: false,
+                generationDirective: "",
+                generationError: null,
+              };
+
+              delete nextBlock.x;
+              delete nextBlock.y;
+              delete nextBlock.width;
+              delete nextBlock.height;
+              delete nextBlock.floatingX;
+              delete nextBlock.floatingY;
+              delete nextBlock.floatingWidth;
+              delete nextBlock.floatingHeight;
+
+              return nextBlock;
+            }
+
+            const floatingWidth =
+              Number(
+                block.floatingWidth ??
+                  block.width ??
+                  180
+              ) || 180;
+
             return {
               ...block,
               text: validText,
-              height: estimateBlockHeight(validText, block.width),
+              height:
+                estimateBlockHeight(
+                  validText,
+                  floatingWidth
+                ),
               isGenerated: true,
               isModuleHidden: false,
               generationDirective: "",
@@ -1222,13 +1294,52 @@ export function useStreamingGenerate({
           const originalBlock = originalBlockByRealId.get(blockId);
           const originalText = String(originalBlock?.text || "");
 
+          if (
+            block.placement !==
+            "floating"
+          ) {
+            const nextBlock = {
+              ...block,
+              text: originalText,
+              sources: Array.isArray(originalBlock?.sources)
+                ? originalBlock.sources
+                : [],
+              isGenerated: originalBlock?.isGenerated,
+              isModuleHidden: false,
+              generationDirective: directiveByRealId.get(blockId) || "",
+              generationError: null,
+            };
+
+            delete nextBlock.x;
+            delete nextBlock.y;
+            delete nextBlock.width;
+            delete nextBlock.height;
+            delete nextBlock.floatingX;
+            delete nextBlock.floatingY;
+            delete nextBlock.floatingWidth;
+            delete nextBlock.floatingHeight;
+
+            return nextBlock;
+          }
+
+          const floatingWidth =
+            Number(
+              block.floatingWidth ??
+                block.width ??
+                180
+            ) || 180;
+
           return {
             ...block,
             text: originalText,
             sources: Array.isArray(originalBlock?.sources)
               ? originalBlock.sources
               : [],
-            height: estimateBlockHeight(originalText, block.width),
+            height:
+              estimateBlockHeight(
+                originalText,
+                floatingWidth
+              ),
             isGenerated: originalBlock?.isGenerated,
             isModuleHidden: false,
             generationDirective: directiveByRealId.get(blockId) || "",
