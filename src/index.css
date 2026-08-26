@@ -128,12 +128,17 @@ body {
 }
 
 .review-issues-panel {
-  position: absolute;
+  /*
+   * 审阅面板必须始终脱离 editor-main 的文档流。
+   * 多段审阅会让面板持续增高；relative 会把画布向下推，随后浏览器的
+   * 滚动锚定又会反向补偿，造成首个模块看起来突然漂移。
+   */
+  position: fixed;
   top: 134px;
   right: 20px;
   bottom: auto;
   width: var(--review-panel-width);
-  max-height: none;
+  max-height: calc(100dvh - 154px);
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
@@ -144,15 +149,13 @@ body {
 }
 
 .editor-main.review-panel-stacked .review-issues-panel {
-  position: relative;
-  top: auto;
-  right: auto;
+  position: fixed;
+  top: 134px;
+  right: 20px;
   bottom: auto;
-  align-self: flex-end;
-  width: min(340px, 100%);
-  max-height: 58dvh;
-  margin-top: 10px;
-  margin-bottom: 4px;
+  width: var(--review-panel-width);
+  max-height: calc(100dvh - 154px);
+  margin: 0;
 }
 
 @media (max-width: 1540px) {
@@ -165,15 +168,13 @@ body {
   }
 
   .review-issues-panel {
-    position: relative;
-    top: auto;
-    right: auto;
+    position: fixed;
+    top: 134px;
+    right: 12px;
     bottom: auto;
-    align-self: flex-end;
-    width: min(340px, 100%);
-    max-height: 58dvh;
-    margin-top: 10px;
-    margin-bottom: 4px;
+    width: min(340px, calc(100vw - 24px));
+    max-height: calc(100dvh - 146px);
+    margin: 0;
   }
 }
 

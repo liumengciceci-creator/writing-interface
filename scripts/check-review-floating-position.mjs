@@ -70,6 +70,14 @@ const editorSource = readFileSync(
   new URL("../src/hooks/useEditor/useEditor.js", import.meta.url),
   "utf8"
 );
+const appSource = readFileSync(
+  new URL("../src/App.jsx", import.meta.url),
+  "utf8"
+);
+const cssSource = readFileSync(
+  new URL("../src/index.css", import.meta.url),
+  "utf8"
+);
 const reviewHandlerStart = editorSource.indexOf(
   "const handleRestoreAllCompletedForReview"
 );
@@ -95,6 +103,18 @@ assert.equal(
   reviewHandlerSource.includes("pushHistorySnapshot("),
   false,
   "只读审阅不得创建编辑历史"
+);
+assert.ok(
+  cssSource.includes(".review-issues-panel {") &&
+    cssSource.includes("position: fixed;") &&
+    !cssSource.includes(".review-issues-panel {\n    position: relative;"),
+  "所有响应式宽度下审阅面板都必须脱离文档流"
+);
+assert.ok(
+  appSource.includes("Review Layout Debug") &&
+    appSource.includes("captureReviewLayoutSnapshot({") &&
+    appSource.includes('label: "01-before-review"'),
+  "审阅前后必须保留可对比的数据坐标与 DOM 坐标 Debug"
 );
 
 console.log("review floating position regression checks passed");

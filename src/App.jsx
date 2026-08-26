@@ -38,6 +38,10 @@ import {
   serializeResearchDocument,
   useResearchDocumentLogger,
 } from "./research/useResearchDocumentLogger.js";
+import {
+  captureReviewLayoutSnapshot,
+  logReviewLayoutSnapshot,
+} from "./debug/reviewLayoutDebug.js";
 
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
@@ -240,6 +244,7 @@ export default function App() {
     getResearchSessionInfo
   );
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const reviewLayoutDebugBaselineRef = useRef(null);
   const [isApplyingReviewSuggestion, setIsApplyingReviewSuggestion] =
     useState(false);
   const [reviewApplyPulse, setReviewApplyPulse] = useState(() => ({
@@ -601,6 +606,16 @@ export default function App() {
 
   const handleReview = async () => {
     if (reviewState.running) return;
+
+    const reviewLayoutBaseline = captureReviewLayoutSnapshot({
+      label: "01-before-review",
+      sections,
+      stage: stageRef.current,
+      page: pageRef.current,
+      content: contentRef.current,
+    });
+    reviewLayoutDebugBaselineRef.current = reviewLayoutBaseline;
+    logReviewLayoutSnapshot(reviewLayoutBaseline);
 
     const selectedBeforeRestore = selectedIds.map(String);
     const reviewSections = handleRestoreAllCompletedForReview();
@@ -1151,6 +1166,51 @@ export default function App() {
       window.clearInterval(blinkTimer);
     }
   };
+
+  /**
+   * 面板显示、阶段切换和新段落结果到达后，在浏览器完成两帧布局后采样。
+   * 控制台搜索 “Review Layout Debug” 即可获得相对审阅前的坐标变化。
+   */
+  useEffect(() => {
+    if (!reviewPanelOpen && !reviewState.running) return undefined;
+
+    let secondFrameId = null;
+    const firstFrameId = window.requestAnimationFrame(() => {
+      secondFrameId = window.requestAnimationFrame(() => {
+        const snapshot = captureReviewLayoutSnapshot({
+          label: [
+            "02-review-layout",
+            reviewState.phase,
+            `criteria-${reviewState.criteria.length}`,
+            `results-${reviewState.results.length}`,
+          ].join("/"),
+          sections,
+          stage: stageRef.current,
+          page: pageRef.current,
+          content: contentRef.current,
+          baseline: reviewLayoutDebugBaselineRef.current,
+        });
+        logReviewLayoutSnapshot(snapshot);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrameId);
+      if (secondFrameId != null) {
+        window.cancelAnimationFrame(secondFrameId);
+      }
+    };
+  }, [
+    reviewPanelOpen,
+    reviewState.running,
+    reviewState.phase,
+    reviewState.criteria.length,
+    reviewState.results.length,
+    sections,
+    stageRef,
+    pageRef,
+    contentRef,
+  ]);
 
   const clearReviewIssueFocus = () => {
     setReviewState((state) => ({
