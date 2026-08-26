@@ -282,6 +282,10 @@ export function useFloatingBlocks({
   const dragStartRef =
     useRef(null);
 
+  /** 只有当前手势真正移动过，Stage 外 mouseup 才能提交放置。 */
+  const dragMovedRef =
+    useRef(false);
+
   const pointerOffsetRef =
     useRef({
       x: 0,
@@ -488,6 +492,9 @@ export function useFloatingBlocks({
 
         dragStartRef.current =
           point;
+
+        dragMovedRef.current =
+          false;
 
         const sourceElement =
           event.target?.closest?.(
@@ -826,6 +833,18 @@ export function useFloatingBlocks({
           return;
         }
 
+        if (
+          Math.hypot(
+            point.x -
+              dragStartRef.current.x,
+            point.y -
+              dragStartRef.current.y
+          ) >= 3
+        ) {
+          dragMovedRef.current =
+            true;
+        }
+
         setDragPointer(
           point
         );
@@ -857,6 +876,9 @@ export function useFloatingBlocks({
       dragStartRef.current =
         null;
 
+      dragMovedRef.current =
+        false;
+
       pointerOffsetRef.current =
         {
           x: 0,
@@ -872,6 +894,27 @@ export function useFloatingBlocks({
       dragGroupSnapshotRef.current =
         [];
     }, []);
+
+  /**
+   * draggingBlockId 可能是上一次拖拽留下的异步状态，不能单独作为放置依据。
+   * 必须同时存在本次快照、起点，并且指针移动超过阈值。
+   */
+  const hasActiveDragGesture =
+    useCallback(
+      (blockId) => {
+        const snapshot =
+          dragBlockSnapshotRef.current;
+
+        return Boolean(
+          dragStartRef.current &&
+          dragMovedRef.current &&
+          snapshot &&
+          String(snapshot.id) ===
+            String(blockId)
+        );
+      },
+      []
+    );
 
   /**
    * 綵������遵�霡脂���
@@ -1726,6 +1769,7 @@ export function useFloatingBlocks({
     dragOffset,
     updateDragPointer,
     clearDragPointer,
+    hasActiveDragGesture,
 
     isInsideContentArea,
     isDraggingOutsideContent,
