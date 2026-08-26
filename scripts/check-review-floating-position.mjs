@@ -106,9 +106,12 @@ assert.equal(
 );
 assert.ok(
   cssSource.includes(".review-issues-panel {") &&
-    cssSource.includes("position: fixed;") &&
-    !cssSource.includes(".review-issues-panel {\n    position: relative;"),
-  "所有响应式宽度下审阅面板都必须脱离文档流"
+    cssSource.includes("position: absolute;") &&
+    !cssSource.includes("position: fixed;") &&
+    cssSource.includes("overflow-y: auto;") &&
+    cssSource.includes(".editor-main") &&
+    appSource.includes('position:\n              "relative"'),
+  "审阅面板必须脱离 flex 文档流，但要定位在 editor-main 内并随画布共用根滚动轴"
 );
 assert.ok(
   appSource.includes("Review Layout Debug") &&

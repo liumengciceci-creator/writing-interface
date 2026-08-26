@@ -129,11 +129,11 @@ body {
 
 .review-issues-panel {
   /*
-   * 审阅面板必须始终脱离 editor-main 的文档流。
-   * 多段审阅会让面板持续增高；relative 会把画布向下推，随后浏览器的
-   * 滚动锚定又会反向补偿，造成首个模块看起来突然漂移。
+   * 审阅面板脱离 flex 文档流，避免内容增长时把画布向下推；但它必须
+   * 定位在 editor-main 内，而不是钉在浏览器视口上。这样 #root 滚动时
+   * 审阅面板与画布使用同一条纵向滚动轴并同步移动。
    */
-  position: fixed;
+  position: absolute;
   top: 134px;
   right: 20px;
   bottom: auto;
@@ -149,7 +149,7 @@ body {
 }
 
 .editor-main.review-panel-stacked .review-issues-panel {
-  position: fixed;
+  position: absolute;
   top: 134px;
   right: 20px;
   bottom: auto;
@@ -168,7 +168,7 @@ body {
   }
 
   .review-issues-panel {
-    position: fixed;
+    position: absolute;
     top: 134px;
     right: 12px;
     bottom: auto;
