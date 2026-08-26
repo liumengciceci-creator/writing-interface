@@ -27,7 +27,7 @@ const assertions = [
     "不能再因为仅存在 lengthResizeDraft 就让圆点常驻",
   ],
   [
-    /const LENGTH_PREVIEW_END_GAP = 14;/.test(hook),
+    /const LENGTH_PREVIEW_END_GAP = 6;/.test(hook),
     "拉伸预览与后续模块之间必须保留足够安全间距，避免圆点/边框遮挡",
   ],
 ];
