@@ -421,6 +421,8 @@ function InlineDragPreview({
 export default function PageCanvas(
   props
 ) {
+  const { t } = useI18n();
+
   const {
     zoom = 1,
 
