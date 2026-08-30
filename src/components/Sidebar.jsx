@@ -171,12 +171,13 @@ function loadDefaultTemplateOverrides() {
 }
 
 /**
- * 左侧标签栏只展示这五个默认模块。
+ * 左侧标签栏只展示标题及五个论证模块。
  * constants.js 仍保留其余历史类型的配置，
  * 避免影响画布上已经存在的旧模块。
  */
 const DEFAULT_SIDEBAR_TYPES =
   new Set([
+    "Title",
     "Claim",
     "Reason",
     "Evidence",

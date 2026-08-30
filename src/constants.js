@@ -84,8 +84,8 @@ export const BLOCK_TYPES = [
   {
     type: "Conclusion",
     label: "总结",
-    color: "#d4a72c",
-    fill: "#fbf4dc",
+    color: "#2aa876",
+    fill: "#e5f7ef",
   },
 
   {
