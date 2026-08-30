@@ -275,15 +275,13 @@ function SemanticHighlightLayer({
                       ?.phase === "hover"
                       ?
                       `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
-                      : showingGenerationPulse
-                      ?
-                      `drop-shadow(0 0 2px ${pulseColor}33) drop-shadow(0 2px 3px rgba(31,41,55,0.12))`
-                      :
-                      selected &&
-                      !adjustingLength &&
-                      !instructionGenerating
+                      : selected &&
+                      !adjustingLength
                         ?
                         `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
+                        : showingGenerationPulse
+                      ?
+                      `drop-shadow(0 0 2px ${pulseColor}33) drop-shadow(0 2px 3px rgba(31,41,55,0.12))`
                         :
                         undefined,
 

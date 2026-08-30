@@ -756,15 +756,21 @@ export default function PageCanvas(
           );
         }
 
-        // 当前模块真正开始生成时才移除它的选中高亮；
-        // 尚未轮到的模块继续保持高亮，提示接下来的处理范围。
-        onContextSelectBlocks?.(
-          targetBlocks
-            .slice(targetIndex + 1)
-            .map((item) => item.id)
+        await handleApplyInstructionToBlock(
+          block,
+          instruction,
+          {
+            // 等待请求期间保留阴影。只有 AI 已返回有效结果、
+            // 模块即将出现第一批新文字时，才取消当前模块的高亮。
+            onTextStart: () => {
+              onContextSelectBlocks?.(
+                targetBlocks
+                  .slice(targetIndex + 1)
+                  .map((item) => item.id)
+              );
+            },
+          }
         );
-
-        await handleApplyInstructionToBlock(block, instruction);
       }
     } finally {
       setIsBatchInstructionSubmitting(false);
