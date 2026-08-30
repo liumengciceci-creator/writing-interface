@@ -95,6 +95,8 @@ export default function QuickInstructionComposer({
   onSubmit,
   isSubmitting = false,
   onStop,
+  followAnchorResize = true,
+  avoidElement = null,
 }) {
   const [value, setValue] = useState("");
   const [instructions, setInstructions] = useState(readInstructions);
@@ -217,7 +219,7 @@ export default function QuickInstructionComposer({
   ]);
 
   useEffect(() => {
-    if (!anchorElement) return undefined;
+    if (!followAnchorResize || !anchorElement) return undefined;
     let frameId = 0;
 
     const syncWithAnchor = () => {
@@ -273,7 +275,77 @@ export default function QuickInstructionComposer({
       mutationObserver?.disconnect();
       window.removeEventListener("resize", requestSync);
     };
-  }, [anchorElement, initialGeometry.width]);
+  }, [anchorElement, followAnchorResize, initialGeometry.width]);
+
+  /**
+   * 批量生成时保持对话框的初始位置，不绑定当前模块。
+   * 仅当正在流式生成的模块实际触及对话框时，才把对话框
+   * 单向推到模块底部，从而逐个避让后续生成模块。
+   */
+  useEffect(() => {
+    if (!avoidElement) return undefined;
+    let frameId = 0;
+
+    const avoidOverlap = () => {
+      frameId = 0;
+      if (!avoidElement.isConnected || dragRef.current) return;
+
+      const moduleRect = avoidElement.getBoundingClientRect();
+      const panelRect = panelRef.current?.getBoundingClientRect();
+      if (!panelRect) return;
+
+      const overlapsHorizontally =
+        moduleRect.left < panelRect.right - 2 &&
+        moduleRect.right > panelRect.left + 2;
+      const reachesPanel =
+        moduleRect.top < panelRect.bottom &&
+        moduleRect.bottom + 6 > panelRect.top;
+
+      if (!overlapsHorizontally || !reachesPanel) return;
+
+      const nextTop = moduleRect.bottom + 6;
+      setPosition((current) => {
+        if (nextTop <= current.top + 0.5) return current;
+
+        return {
+          left: current.left,
+          top: clamp(
+            nextTop,
+            12,
+            window.innerHeight - panelRect.height - 12
+          ),
+        };
+      });
+    };
+
+    const requestAvoidance = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(avoidOverlap);
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(requestAvoidance)
+        : null;
+    const mutationObserver =
+      typeof MutationObserver !== "undefined"
+        ? new MutationObserver(requestAvoidance)
+        : null;
+
+    resizeObserver?.observe(avoidElement);
+    mutationObserver?.observe(avoidElement, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    requestAvoidance();
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [avoidElement]);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;

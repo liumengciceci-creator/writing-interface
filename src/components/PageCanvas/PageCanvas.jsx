@@ -561,9 +561,36 @@ export default function PageCanvas(
     useState(null);
   const [contextEditingIds, setContextEditingIds] =
     useState([]);
+  const [contextHighlightIds, setContextHighlightIds] =
+    useState([]);
   const [isBatchInstructionSubmitting, setIsBatchInstructionSubmitting] =
     useState(false);
   const batchInstructionCancelledRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const snapshot = {
+      selectedIds: selectedIds.map(normalizeId),
+      menuTargetIds: (blockContextMenu?.targetIds || []).map(normalizeId),
+      instructionTargetIds: (
+        batchInstructionTarget?.targetIds || []
+      ).map(normalizeId),
+      highlightIds: contextHighlightIds.map(normalizeId),
+      activeBlockId: batchInstructionTarget?.activeBlockId || null,
+      isSubmitting: isBatchInstructionSubmitting,
+      timestamp: Date.now(),
+    };
+
+    window.__ARGUWEAVE_CONTEXT_DEBUG__ = snapshot;
+    console.debug("[ArguWeave context instruction]", snapshot);
+  }, [
+    selectedIds,
+    blockContextMenu,
+    batchInstructionTarget,
+    contextHighlightIds,
+    isBatchInstructionSubmitting,
+  ]);
 
   const contextFocusIds = useMemo(
     () =>
@@ -651,6 +678,7 @@ export default function PageCanvas(
   const openBatchInstructionComposer = () => {
     if (!blockContextMenu) return;
     setContextEditingIds([]);
+    setContextHighlightIds(blockContextMenu.targetIds || []);
     batchInstructionCancelledRef.current = false;
     setBatchInstructionTarget(blockContextMenu);
     setBlockContextMenu(null);
@@ -661,6 +689,7 @@ export default function PageCanvas(
     setBlockContextMenu(null);
     setBatchInstructionTarget(null);
     setContextEditingIds([]);
+    setContextHighlightIds([]);
     onDeleteContextBlocks?.(targetIds);
   };
 
@@ -669,6 +698,7 @@ export default function PageCanvas(
     setBlockContextMenu(null);
     setBatchInstructionTarget(null);
     setContextEditingIds([]);
+    setContextHighlightIds([]);
     onRegenerateContextBlocks?.(targetIds);
   };
 
@@ -677,6 +707,7 @@ export default function PageCanvas(
     setBlockContextMenu(null);
     setBatchInstructionTarget(null);
     setContextEditingIds([]);
+    setContextHighlightIds([]);
     onRestoreContextBlocks?.(targetIds);
   };
 
@@ -684,6 +715,7 @@ export default function PageCanvas(
     const targetIds = blockContextMenu?.targetIds || [];
     setBlockContextMenu(null);
     setBatchInstructionTarget(null);
+    setContextHighlightIds([]);
     setContextEditingIds(targetIds);
     onContextSelectBlocks?.(targetIds);
   };
@@ -733,26 +765,22 @@ export default function PageCanvas(
         });
 
         if (currentAnchor) {
-          const rect = currentAnchor.getBoundingClientRect();
           setBatchInstructionTarget((current) =>
             current
               ? {
                   ...current,
                   activeBlockId: normalizeId(block.id),
-                  anchorElement: currentAnchor,
-                  anchorRect: {
-                    left: rect.left,
-                    right: rect.right,
-                    top: rect.top,
-                    bottom: rect.bottom,
-                  },
+                  avoidElement: currentAnchor,
                 }
               : current
           );
 
-          // 先让对话框移动到当前生成模块，再启动文字生成。
+          // 先切换当前碰撞检测目标。对话框保持原位；
+          // 只有该模块触及对话框区域时才向下避让。
           await new Promise((resolve) =>
-            window.requestAnimationFrame(() => resolve())
+            window.requestAnimationFrame(() =>
+              window.requestAnimationFrame(() => resolve())
+            )
           );
         }
 
@@ -763,11 +791,12 @@ export default function PageCanvas(
             // 等待请求期间保留阴影。只有 AI 已返回有效结果、
             // 模块即将出现第一批新文字时，才取消当前模块的高亮。
             onTextStart: () => {
-              onContextSelectBlocks?.(
-                targetBlocks
-                  .slice(targetIndex + 1)
-                  .map((item) => item.id)
-              );
+              const remainingIds = targetBlocks
+                .slice(targetIndex + 1)
+                .map((item) => item.id);
+
+              setContextHighlightIds(remainingIds);
+              onContextSelectBlocks?.(remainingIds);
             },
           }
         );
@@ -2028,6 +2057,10 @@ export default function PageCanvas(
                 batchInstructionTarget?.targetIds || []
               }
 
+              contextHighlightIds={
+                contextHighlightIds
+              }
+
               onStopAdjustingStyle={
                 onStopAdjustingStyle
               }
@@ -2178,6 +2211,11 @@ export default function PageCanvas(
                 )
             );
 
+          const isContextHighlighted =
+            contextHighlightIds.some(
+              (id) => normalizeId(id) === normalizeId(block.id)
+            );
+
           const isBlockGenerating =
             generatingBlockIds.some(
               (id) =>
@@ -2200,7 +2238,7 @@ export default function PageCanvas(
               zoom={zoom}
 
               isSelected={
-                isSelected
+                isSelected || isContextHighlighted
               }
 
               isGenerating={
@@ -2409,10 +2447,13 @@ export default function PageCanvas(
           onClose={() => {
             if (isBatchInstructionSubmitting) return;
             setBatchInstructionTarget(null);
+            setContextHighlightIds([]);
           }}
           onSubmit={submitBatchInstruction}
           isSubmitting={isBatchInstructionSubmitting}
           onStop={stopBatchInstruction}
+          followAnchorResize={false}
+          avoidElement={batchInstructionTarget.avoidElement}
         />
       ) : null}
 

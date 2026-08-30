@@ -588,6 +588,7 @@ const SingleSemanticEditor =
         adjustingStyleBlockId = null,
         contextEditingIds = [],
         contextInstructionIds = [],
+        contextHighlightIds = [],
         onStopAdjustingStyle,
 
         focusedEditingBlockId = null,
@@ -1161,11 +1162,16 @@ const SingleSemanticEditor =
             );
           }
 
+          contextHighlightIds.forEach((id) => {
+            next.add(normalizeId(id));
+          });
+
           return next;
         }, [
           selectedIdSet,
           quickInstructionTarget
             ?.blockId,
+          contextHighlightIds,
         ]);
 
       const {
