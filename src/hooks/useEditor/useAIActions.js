@@ -156,6 +156,16 @@ export function useAIActions({
                                 result.lastGenerationPrompt ||
                                 block.lastGenerationPrompt ||
                                 "",
+
+                              contentHistory:
+                                recordHistory
+                                  ? [
+                                      ...(Array.isArray(block.contentHistory)
+                                        ? block.contentHistory
+                                        : []),
+                                      String(block.text || ""),
+                                    ].slice(-20)
+                                  : block.contentHistory,
                             };
 
                             /**
@@ -201,6 +211,16 @@ export function useAIActions({
                               result.lastGenerationPrompt ||
                               block.lastGenerationPrompt ||
                               "",
+
+                            contentHistory:
+                              recordHistory
+                                ? [
+                                    ...(Array.isArray(block.contentHistory)
+                                      ? block.contentHistory
+                                      : []),
+                                    String(block.text || ""),
+                                  ].slice(-20)
+                                : block.contentHistory,
                           };
                         }
                       ),

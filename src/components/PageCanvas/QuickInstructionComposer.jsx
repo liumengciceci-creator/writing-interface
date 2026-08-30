@@ -202,8 +202,19 @@ export default function QuickInstructionComposer({
     const currentRect = anchorElement?.isConnected
       ? anchorElement.getBoundingClientRect()
       : anchorRect;
-    if (currentRect) lastAnchorRectRef.current = currentRect;
-  }, [anchorElement, anchorRect]);
+    if (currentRect) {
+      lastAnchorRectRef.current = currentRect;
+      setPosition({
+        left: initialGeometry.left,
+        top: initialGeometry.top,
+      });
+    }
+  }, [
+    anchorElement,
+    anchorRect,
+    initialGeometry.left,
+    initialGeometry.top,
+  ]);
 
   useEffect(() => {
     if (!anchorElement) return undefined;

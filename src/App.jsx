@@ -434,6 +434,7 @@ export default function App() {
     generateFromSelectedBlocks,
     regenerateBlocksFromLastPrompt,
     deleteBlocksByIds,
+    restoreBlocksPreviousContent,
   duplicateSelectedBlocks,
     beginDuplicateDrag,
 } = useEditor();
@@ -2348,6 +2349,10 @@ export default function App() {
 
               onRegenerateContextBlocks={
                 regenerateBlocksFromLastPrompt
+              }
+
+              onRestoreContextBlocks={
+                restoreBlocksPreviousContent
               }
 
               onBlockDragStart={

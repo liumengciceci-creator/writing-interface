@@ -197,6 +197,8 @@ export default function FloatingEditableBlock({
    */
   const isEditingRef =
     useRef(false);
+  const editOriginalTextRef =
+    useRef(null);
 
   const [
     isEditing,
@@ -841,7 +843,8 @@ export default function FloatingEditableBlock({
    * 更新本地文本和父组件数据。
    */
   const updateText = (
-    nextText
+    nextText,
+    options = {}
   ) => {
     setDraftText(
       nextText
@@ -849,7 +852,8 @@ export default function FloatingEditableBlock({
 
     onUpdateText?.(
       block.id,
-      nextText
+      nextText,
+      options
     );
   };
 
@@ -936,6 +940,7 @@ export default function FloatingEditableBlock({
           y: event.clientY,
         };
         textUndoStackRef.current = [];
+        editOriginalTextRef.current = String(block.text || "");
         setIsEditing(true);
         onEditingChange?.(
           block.isGenerated === true || block.type === "Generated"
@@ -1207,6 +1212,7 @@ export default function FloatingEditableBlock({
               };
               textUndoStackRef.current =
                 [];
+              editOriginalTextRef.current = String(block.text || "");
               setIsEditing(true);
               onEditingChange?.(
                 block.isGenerated ===
@@ -1473,6 +1479,8 @@ export default function FloatingEditableBlock({
           textUndoStackRef.current =
             [];
 
+          editOriginalTextRef.current = String(block.text || "");
+
           setIsEditing(true);
           onEditingChange?.(
             block.isGenerated ===
@@ -1499,9 +1507,10 @@ export default function FloatingEditableBlock({
               event
             );
 
-          updateText(
-            nextText
-          );
+          updateText(nextText, {
+            previousText: editOriginalTextRef.current,
+          });
+          editOriginalTextRef.current = null;
         }}
         onBeforeInput={(
           event

@@ -915,6 +915,12 @@ export function useStreamingGenerate({
           generationRenderRevision:
             (Number(block.generationRenderRevision) || 0) + 1,
           generationDirective: directiveByRealId.get(blockId) || "",
+          contentHistory: [
+            ...(Array.isArray(block.contentHistory)
+              ? block.contentHistory
+              : []),
+            String(block.text || ""),
+          ].slice(-20),
           generationError: null,
         };
       })
@@ -1342,6 +1348,9 @@ export function useStreamingGenerate({
               isGenerated: originalBlock?.isGenerated,
               isModuleHidden: false,
               generationDirective: directiveByRealId.get(blockId) || "",
+              contentHistory: Array.isArray(originalBlock?.contentHistory)
+                ? originalBlock.contentHistory
+                : [],
               generationError: null,
             };
 
@@ -1378,6 +1387,9 @@ export function useStreamingGenerate({
             isGenerated: originalBlock?.isGenerated,
             isModuleHidden: false,
             generationDirective: directiveByRealId.get(blockId) || "",
+            contentHistory: Array.isArray(originalBlock?.contentHistory)
+              ? originalBlock.contentHistory
+              : [],
             generationError: null,
           };
         })

@@ -84,7 +84,7 @@ export function useBlockActions({
    */
   const handleUpdateFloatingBlockText =
     useCallback(
-      (blockId, text) => {
+      (blockId, text, options = {}) => {
         const targetId =
           String(blockId);
 
@@ -121,11 +121,21 @@ export function useBlockActions({
                             text ?? ""
                           );
 
+                        const previousTextForHistory =
+                          options?.previousText == null
+                            ? null
+                            : String(options.previousText);
+
+                        const shouldRecordPrevious =
+                          previousTextForHistory != null &&
+                          previousTextForHistory !== nextText;
+
                         if (
                           String(
                             block.text ??
                               ""
-                          ) === nextText
+                          ) === nextText &&
+                          !shouldRecordPrevious
                         ) {
                           return block;
                         }
@@ -146,6 +156,16 @@ export function useBlockActions({
 
                           text:
                             nextText,
+
+                          contentHistory:
+                            shouldRecordPrevious
+                              ? [
+                                  ...(Array.isArray(block.contentHistory)
+                                    ? block.contentHistory
+                                    : []),
+                                  previousTextForHistory,
+                                ].slice(-20)
+                              : block.contentHistory,
 
                           height:
                             estimateBlockHeight(
@@ -1078,6 +1098,12 @@ export function useBlockActions({
                             ...block,
                             text:
                               nextText,
+                            contentHistory: [
+                              ...(Array.isArray(block.contentHistory)
+                                ? block.contentHistory
+                                : []),
+                              String(block.text || ""),
+                            ].slice(-20),
                             generationDirective: "",
                             generationError: null,
                           };
@@ -1108,6 +1134,13 @@ export function useBlockActions({
 
                           text:
                             nextText,
+
+                          contentHistory: [
+                            ...(Array.isArray(block.contentHistory)
+                              ? block.contentHistory
+                              : []),
+                            String(block.text || ""),
+                          ].slice(-20),
 
                           generationDirective:
                             "",
@@ -1152,6 +1185,80 @@ export function useBlockActions({
         pushHistorySnapshot,
         createEditingSectionFn,
       ]
+    );
+
+  /** 将指定模块分别恢复到最近一个保存的内容版本。 */
+  const restoreBlocksPreviousContent =
+    useCallback(
+      (blockIds) => {
+        const targetIds = new Set(
+          (Array.isArray(blockIds) ? blockIds : [])
+            .filter((id) => id != null)
+            .map(String)
+        );
+
+        if (targetIds.size === 0) return;
+
+        setSections((previousSections) => {
+          let hasChanges = false;
+
+          const nextSections = previousSections.map((section) => ({
+            ...section,
+            blocks: Array.isArray(section?.blocks)
+              ? section.blocks.map((block) => {
+                  if (!targetIds.has(String(block.id))) return block;
+
+                  const history = Array.isArray(block.contentHistory)
+                    ? block.contentHistory
+                    : [];
+                  if (history.length === 0) return block;
+
+                  const previousText = String(history[history.length - 1] ?? "");
+                  const nextHistory = history.slice(0, -1);
+                  hasChanges = true;
+
+                  if (block.placement !== "floating") {
+                    const nextBlock = {
+                      ...block,
+                      text: previousText,
+                      contentHistory: nextHistory,
+                      generationDirective: "",
+                      generationError: null,
+                    };
+
+                    delete nextBlock.x;
+                    delete nextBlock.y;
+                    delete nextBlock.width;
+                    delete nextBlock.height;
+                    delete nextBlock.floatingX;
+                    delete nextBlock.floatingY;
+                    delete nextBlock.floatingWidth;
+                    delete nextBlock.floatingHeight;
+                    return nextBlock;
+                  }
+
+                  const width =
+                    Number(block.floatingWidth ?? block.width ?? BLOCK_WIDTH) ||
+                    BLOCK_WIDTH;
+
+                  return {
+                    ...block,
+                    text: previousText,
+                    contentHistory: nextHistory,
+                    generationDirective: "",
+                    generationError: null,
+                    height: estimateBlockHeight(previousText, width),
+                  };
+                })
+              : section?.blocks,
+          }));
+
+          if (!hasChanges) return previousSections;
+          pushHistorySnapshot?.(previousSections);
+          return normalizeSections(nextSections, createEditingSectionFn);
+        });
+      },
+      [setSections, pushHistorySnapshot, createEditingSectionFn]
     );
 
   /**
@@ -1312,6 +1419,7 @@ export function useBlockActions({
 
     handleDeleteSelected,
     deleteBlocksByIds,
+    restoreBlocksPreviousContent,
   };
 }
 

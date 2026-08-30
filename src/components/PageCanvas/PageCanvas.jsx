@@ -450,6 +450,7 @@ export default function PageCanvas(
     onContextSelectBlocks,
     onDeleteContextBlocks,
     onRegenerateContextBlocks,
+    onRestoreContextBlocks,
 
     /**
      * Option + Shift + 左键拖动复制。
@@ -671,6 +672,14 @@ export default function PageCanvas(
     onRegenerateContextBlocks?.(targetIds);
   };
 
+  const restoreContextBlocks = () => {
+    const targetIds = blockContextMenu?.targetIds || [];
+    setBlockContextMenu(null);
+    setBatchInstructionTarget(null);
+    setContextEditingIds([]);
+    onRestoreContextBlocks?.(targetIds);
+  };
+
   const editContextBlocks = () => {
     const targetIds = blockContextMenu?.targetIds || [];
     setBlockContextMenu(null);
@@ -706,6 +715,42 @@ export default function PageCanvas(
       // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
       for (const block of targetBlocks) {
         if (batchInstructionCancelledRef.current) break;
+
+        const currentAnchor = Array.from(
+          document.querySelectorAll(
+            "[data-semantic-block-id], [data-block-root='true'][data-block-id]"
+          )
+        ).find((element) => {
+          const elementId =
+            element.getAttribute("data-semantic-block-id") ||
+            element.getAttribute("data-block-id");
+          return normalizeId(elementId) === normalizeId(block.id);
+        });
+
+        if (currentAnchor) {
+          const rect = currentAnchor.getBoundingClientRect();
+          setBatchInstructionTarget((current) =>
+            current
+              ? {
+                  ...current,
+                  activeBlockId: normalizeId(block.id),
+                  anchorElement: currentAnchor,
+                  anchorRect: {
+                    left: rect.left,
+                    right: rect.right,
+                    top: rect.top,
+                    bottom: rect.bottom,
+                  },
+                }
+              : current
+          );
+
+          // 先让对话框移动到当前生成模块，再启动文字生成。
+          await new Promise((resolve) =>
+            window.requestAnimationFrame(() => resolve())
+          );
+        }
+
         await handleApplyInstructionToBlock(block, instruction);
       }
     } finally {
@@ -2264,7 +2309,7 @@ export default function PageCanvas(
             style={{
               position: "fixed",
               left: Math.min(blockContextMenu.x, window.innerWidth - 190),
-              top: Math.min(blockContextMenu.y, window.innerHeight - 174),
+              top: Math.min(blockContextMenu.y, window.innerHeight - 216),
               zIndex: 20000,
               minWidth: 178,
               padding: 6,
@@ -2286,6 +2331,11 @@ export default function PageCanvas(
                 action: regenerateContextBlocks,
               },
               {
+                key: "restore",
+                label: t("contextMenu.restorePrevious"),
+                action: restoreContextBlocks,
+              },
+              {
                 key: "edit",
                 label: t("contextMenu.editText"),
                 action: editContextBlocks,
@@ -2296,7 +2346,7 @@ export default function PageCanvas(
                 action: deleteContextBlocks,
                 danger: true,
               },
-            ].map((item) => (
+            ].map((item, index) => (
               <button
                 key={item.key}
                 type="button"
@@ -2305,6 +2355,10 @@ export default function PageCanvas(
                 style={{
                   width: "100%",
                   border: 0,
+                  borderTop:
+                    index === 0
+                      ? 0
+                      : "1px solid #e5e7eb",
                   borderRadius: 7,
                   background: "transparent",
                   padding: "9px 12px",

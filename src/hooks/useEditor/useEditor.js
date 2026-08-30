@@ -588,6 +588,7 @@ export function useEditor() {
 
     handleDeleteSelected,
     deleteBlocksByIds,
+    restoreBlocksPreviousContent,
   } = useBlockActions({
     sections,
     setSections,
@@ -1979,6 +1980,7 @@ export function useEditor() {
     dismissGenerationFailure,
     stopGenerating,
     deleteBlocksByIds,
+    restoreBlocksPreviousContent,
   };
 }
 
