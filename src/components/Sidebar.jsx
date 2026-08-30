@@ -25,10 +25,10 @@ const BLOCK_TYPE_LABELS = {
   Title: "标题",
   Claim: "论点",
   Evidence: "证据",
-  Reason: "原因",
+  Reason: "解释",
   Counter: "反论",
   Compare: "对比",
-  Conclusion: "结论",
+  Conclusion: "总结",
   Question: "问题",
   Generated: "生成",
   Transition: "过渡",
@@ -171,29 +171,18 @@ function loadDefaultTemplateOverrides() {
 }
 
 /**
- * 这三类不再显示在默认标签栏中。
- * 仍保留 constants.js 中的类型配置，
+ * 左侧标签栏只展示这五个默认模块。
+ * constants.js 仍保留其余历史类型的配置，
  * 避免影响画布上已经存在的旧模块。
  */
-const DEFAULT_SIDEBAR_EXCLUDED_TYPES =
+const DEFAULT_SIDEBAR_TYPES =
   new Set([
-    "Generated",
-    "Question",
-    "Merged",
+    "Claim",
+    "Reason",
+    "Evidence",
+    "Counter",
+    "Conclusion",
   ]);
-
-/**
- * 标题是系统内置的固定默认模块。
- * 在这里直接声明，避免旧版 localStorage 的隐藏列表或模板覆盖
- * 导致升级后看不到新加入的标题模块。
- */
-const DEFAULT_TITLE_TEMPLATE = {
-  type: "Title",
-  label: "标题",
-  color: "#374151",
-  fill: "#f3f4f6",
-  width: 220,
-};
 
 function loadHiddenDefaultTypes() {
   try {
@@ -1265,23 +1254,15 @@ export default function Sidebar({
       hiddenDefaultTypes
     );
 
-  const defaultTemplates = [
-    ...(
-      hiddenDefaultTypeSet.has("Title")
-        ? []
-        : [DEFAULT_TITLE_TEMPLATE]
-    ),
-    ...BLOCK_TYPES.filter(
-      (item) =>
-        item.type !== "Title" &&
-        !DEFAULT_SIDEBAR_EXCLUDED_TYPES.has(
-          item.type
-        ) &&
-        !hiddenDefaultTypeSet.has(
-          item.type
-        )
-    ),
-  ].map((item) => {
+  const defaultTemplates = BLOCK_TYPES.filter(
+    (item) =>
+      DEFAULT_SIDEBAR_TYPES.has(
+        item.type
+      ) &&
+      !hiddenDefaultTypeSet.has(
+        item.type
+      )
+  ).map((item) => {
       const override =
         defaultTemplateOverrides[
           item.type
@@ -1313,11 +1294,13 @@ export default function Sidebar({
           "标题",
           "论点",
           "原因",
+          "解释",
           "证据",
           "反论",
           "对比",
           "过渡",
           "结论",
+          "总结",
         ].includes(normalizedLabel);
       }
     ).map(

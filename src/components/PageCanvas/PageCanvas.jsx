@@ -18,6 +18,7 @@ import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
 
 import CompletedSection from "./CompletedSection";
 import FloatingEditableBlock from "./FloatingEditableBlock";
+import InstructionDropBurst from "./InstructionDropBurst";
 import SingleSemanticEditor from "./SingleSemanticEditor";
 import QuickInstructionComposer from "./QuickInstructionComposer";
 import { useI18n } from "../../i18n.jsx";
@@ -563,6 +564,8 @@ export default function PageCanvas(
     useState([]);
   const [contextHighlightIds, setContextHighlightIds] =
     useState([]);
+  const [batchInstructionEffects, setBatchInstructionEffects] =
+    useState([]);
   const [isBatchInstructionSubmitting, setIsBatchInstructionSubmitting] =
     useState(false);
   const batchInstructionCancelledRef = useRef(false);
@@ -743,7 +746,47 @@ export default function PageCanvas(
     batchInstructionCancelledRef.current = false;
     setIsBatchInstructionSubmitting(true);
 
+    const startingEffects = targetBlocks.map((block) => {
+      const anchor = Array.from(
+        document.querySelectorAll(
+          "[data-semantic-block-id], [data-block-root='true'][data-block-id]"
+        )
+      ).find((element) => {
+        const elementId =
+          element.getAttribute("data-semantic-block-id") ||
+          element.getAttribute("data-block-id");
+        return normalizeId(elementId) === normalizeId(block.id);
+      });
+      const rect = anchor?.getBoundingClientRect?.();
+
+      return {
+        blockId: normalizeId(block.id),
+        color: block.color || "#7c83fd",
+        fill: block.fill || "rgba(124,131,253,0.08)",
+        phase: "impact",
+        clientX: rect ? (rect.left + rect.right) / 2 : undefined,
+        clientY: rect ? (rect.top + rect.bottom) / 2 : undefined,
+      };
+    });
+
+    // 与双击单模块提交指令保持一致：先让模块本色从左向右平滑铺开，
+    // 640ms 动画结束后再进入等待脉冲并开始请求。
+    setBatchInstructionEffects(startingEffects);
+
     try {
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 660)
+      );
+
+      if (batchInstructionCancelledRef.current) return;
+
+      setBatchInstructionEffects((effects) =>
+        effects.map((effect) => ({
+          ...effect,
+          phase: "waiting",
+        }))
+      );
+
       // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
       for (
         let targetIndex = 0;
@@ -791,6 +834,14 @@ export default function PageCanvas(
             // 等待请求期间保留阴影。只有 AI 已返回有效结果、
             // 模块即将出现第一批新文字时，才取消当前模块的高亮。
             onTextStart: () => {
+              setBatchInstructionEffects((effects) =>
+                effects.filter(
+                  (effect) =>
+                    normalizeId(effect.blockId) !==
+                    normalizeId(block.id)
+                )
+              );
+
               const remainingIds = targetBlocks
                 .slice(targetIndex + 1)
                 .map((item) => item.id);
@@ -800,8 +851,17 @@ export default function PageCanvas(
             },
           }
         );
+
+        setBatchInstructionEffects((effects) =>
+          effects.filter(
+            (effect) =>
+              normalizeId(effect.blockId) !==
+              normalizeId(block.id)
+          )
+        );
       }
     } finally {
+      setBatchInstructionEffects([]);
       setIsBatchInstructionSubmitting(false);
     }
   };
@@ -809,6 +869,7 @@ export default function PageCanvas(
   const stopBatchInstruction = () => {
     batchInstructionCancelledRef.current = true;
     onStopAdjustingStyle?.();
+    setBatchInstructionEffects([]);
     setIsBatchInstructionSubmitting(false);
   };
 
@@ -2061,6 +2122,10 @@ export default function PageCanvas(
                 contextHighlightIds
               }
 
+              contextInstructionEffects={
+                batchInstructionEffects
+              }
+
               onStopAdjustingStyle={
                 onStopAdjustingStyle
               }
@@ -2227,6 +2292,13 @@ export default function PageCanvas(
                 )
             );
 
+          const contextInstructionEffect =
+            batchInstructionEffects.find(
+              (effect) =>
+                normalizeId(effect.blockId) ===
+                normalizeId(block.id)
+            ) || null;
+
           return (
             <FloatingEditableBlock
               key={
@@ -2247,6 +2319,10 @@ export default function PageCanvas(
 
               generatingBlinkOn={
                 generatingBlinkOn
+              }
+
+              contextInstructionEffect={
+                contextInstructionEffect
               }
 
               isDimmed={
@@ -2439,6 +2515,13 @@ export default function PageCanvas(
           </div>,
           document.body
         )}
+
+      {batchInstructionEffects.map((effect) => (
+        <InstructionDropBurst
+          key={`batch-instruction-impact-${effect.blockId}`}
+          effect={effect}
+        />
+      ))}
 
       {batchInstructionTarget ? (
         <QuickInstructionComposer

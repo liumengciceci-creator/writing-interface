@@ -589,6 +589,7 @@ const SingleSemanticEditor =
         contextEditingIds = [],
         contextInstructionIds = [],
         contextHighlightIds = [],
+        contextInstructionEffects = [],
         onStopAdjustingStyle,
 
         focusedEditingBlockId = null,
@@ -2513,6 +2514,7 @@ const SingleSemanticEditor =
                 isDraggingSelectedGroup
               }
               instructionEffect={instructionEffect}
+              instructionEffects={contextInstructionEffects}
               hasFocusedEditingBlock={hasVisualFocusedBlock}
               effectiveEditingBlockId={visualFocusBlockId}
               focusedEditingIdSet={visualFocusedIdSet}

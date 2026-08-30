@@ -134,6 +134,7 @@ export default function FloatingEditableBlock({
   isSelected,
   isGenerating = false,
   generatingBlinkOn = false,
+  contextInstructionEffect = null,
   isDimmed = false,
   groupEditingEnabled = false,
   onEditingChange,
@@ -209,6 +210,10 @@ export default function FloatingEditableBlock({
     instructionEffect,
     setInstructionEffect,
   ] = useState(null);
+
+  const activeInstructionEffect =
+    instructionEffect ||
+    contextInstructionEffect;
 
   const instructionDropTimerRef =
     useRef(null);
@@ -1122,7 +1127,7 @@ export default function FloatingEditableBlock({
         boxShadow:
           usesLineFragments
             ? "none"
-            : instructionEffect
+            : activeInstructionEffect
                 ?.phase === "hover"
             ? `0 10px 28px rgba(15,23,42,0.24), 0 3px 10px rgba(15,23,42,0.16), 0 0 0 2px ${block.color}38`
             : isEditing
@@ -1344,7 +1349,7 @@ export default function FloatingEditableBlock({
         `}
       </style>
 
-      {instructionEffect && (
+      {activeInstructionEffect && (
         <div
           aria-hidden="true"
           style={{
@@ -1353,20 +1358,20 @@ export default function FloatingEditableBlock({
             zIndex: 0,
             borderRadius: 8,
             background:
-              instructionEffect.fill,
+              activeInstructionEffect.fill,
             pointerEvents: "none",
             transformOrigin:
               "left center",
             animation:
-              instructionEffect.phase ===
+              activeInstructionEffect.phase ===
                 "impact"
                 ? "floating-instruction-water-fill 640ms cubic-bezier(0.22, 1, 0.36, 1) forwards"
-                : instructionEffect.phase ===
+                : activeInstructionEffect.phase ===
                   "waiting"
                 ? "floating-instruction-waiting-pulse 620ms ease-in-out infinite"
                 : undefined,
             opacity:
-              instructionEffect.phase ===
+              activeInstructionEffect.phase ===
                 "hover"
                 ? 0
                 : undefined,

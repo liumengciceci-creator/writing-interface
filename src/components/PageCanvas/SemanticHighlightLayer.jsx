@@ -47,6 +47,7 @@ function SemanticHighlightLayer({
    * 指令拖入动画
    */
   instructionEffect = null,
+  instructionEffects = [],
 
 
   hasFocusedEditingBlock = false,
@@ -207,9 +208,19 @@ function SemanticHighlightLayer({
 
 
           const instructionTarget =
-            normalizeId(
-              instructionEffect?.blockId
-            ) === blockId;
+            normalizeId(instructionEffect?.blockId) === blockId ||
+            instructionEffects.some(
+              (effect) =>
+                normalizeId(effect?.blockId) === blockId
+            );
+
+          const activeInstructionEffect =
+            normalizeId(instructionEffect?.blockId) === blockId
+              ? instructionEffect
+              : instructionEffects.find(
+                  (effect) =>
+                    normalizeId(effect?.blockId) === blockId
+                );
 
 
 
@@ -271,7 +282,7 @@ function SemanticHighlightLayer({
                 style={{
                   filter:
                     instructionTarget &&
-                    instructionEffect
+                    activeInstructionEffect
                       ?.phase === "hover"
                       ?
                       `drop-shadow(0 5px 7px rgba(15,23,42,0.28)) drop-shadow(0 1px 2px ${color}55)`
@@ -300,7 +311,7 @@ function SemanticHighlightLayer({
               {
                 instructionTarget &&
                 !dragging &&
-                instructionEffect &&
+                activeInstructionEffect &&
 
                 (
                   <rect
@@ -321,12 +332,12 @@ function SemanticHighlightLayer({
 
 
                     fill={
-                      instructionEffect.fill
+                      activeInstructionEffect.fill
                     }
 
 
                     stroke={
-                      instructionEffect.color
+                      activeInstructionEffect.color
                     }
 
 
@@ -346,12 +357,12 @@ function SemanticHighlightLayer({
 
 
                       animation:
-                        instructionEffect.phase ===
+                        activeInstructionEffect.phase ===
                         "impact"
                           ?
                           "semantic-instruction-water-fill 640ms cubic-bezier(0.22,1,0.36,1) forwards"
                           :
-                        instructionEffect.phase ===
+                        activeInstructionEffect.phase ===
                           "waiting"
                           ?
                           "semantic-instruction-waiting-pulse 620ms ease-in-out infinite"
@@ -360,7 +371,7 @@ function SemanticHighlightLayer({
 
 
                     opacity:
-                        instructionEffect.phase ===
+                        activeInstructionEffect.phase ===
                         "hover"
                           ? 0
                           : undefined,

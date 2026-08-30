@@ -34,7 +34,7 @@ export const BLOCK_TYPES = [
 
   {
     type: "Reason",
-    label: "原因",
+    label: "解释",
     color: "#5b7cfa",
     fill: "#e8edff",
   },
@@ -83,7 +83,7 @@ export const BLOCK_TYPES = [
 
   {
     type: "Conclusion",
-    label: "结论",
+    label: "总结",
     color: "#d4a72c",
     fill: "#fbf4dc",
   },
