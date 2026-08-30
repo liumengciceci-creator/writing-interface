@@ -135,6 +135,7 @@ export default function FloatingEditableBlock({
   isGenerating = false,
   generatingBlinkOn = false,
   isDimmed = false,
+  groupEditingEnabled = false,
   onEditingChange,
   onApplyInstruction,
   onSelect,
@@ -918,6 +919,30 @@ export default function FloatingEditableBlock({
       onMouseDownCapture={
         beginPointerGesture
       }
+      onClick={(event) => {
+        if (
+          !groupEditingEnabled ||
+          isEditing ||
+          isGenerating
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        cancelDragCandidate();
+        editPointRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+        };
+        textUndoStackRef.current = [];
+        setIsEditing(true);
+        onEditingChange?.(
+          block.isGenerated === true || block.type === "Generated"
+            ? block.id
+            : null
+        );
+      }}
       onDragOver={(event) => {
         if (
           !hasInstructionDragData(

@@ -151,6 +151,11 @@ export function useAIActions({
                                 markGenerated
                                   ? true
                                   : block.isGenerated,
+
+                              lastGenerationPrompt:
+                                result.lastGenerationPrompt ||
+                                block.lastGenerationPrompt ||
+                                "",
                             };
 
                             /**
@@ -191,6 +196,11 @@ export function useAIActions({
                               markGenerated
                                 ? true
                                 : block.isGenerated,
+
+                            lastGenerationPrompt:
+                              result.lastGenerationPrompt ||
+                              block.lastGenerationPrompt ||
+                              "",
                           };
                         }
                       ),
@@ -804,7 +814,11 @@ export function useAIActions({
           onTextStart?.();
 
           await revealGeneratedText(
-            result,
+            {
+              ...result,
+              lastGenerationPrompt:
+                normalizedStyle,
+            },
             controller.signal
           );
 
@@ -884,6 +898,16 @@ export function useAIActions({
       ]
     );
 
+  /** 停止当前由修改指令触发的文本生成。 */
+  const stopAdjustingStyle =
+    useCallback(() => {
+      adjustStyleAbortControllerRef.current?.abort();
+      adjustStyleAbortControllerRef.current = null;
+      setIsAdjustingStyle(false);
+      setAdjustingStyleBlockId(null);
+      setStatusText("");
+    }, [setStatusText]);
+
   /**
    * 组件卸载时取消未完成请求。
    */
@@ -905,5 +929,6 @@ export function useAIActions({
 
     handleApplyBlockLength,
     handleApplyBlockStyle,
+    stopAdjustingStyle,
   };
 }

@@ -556,6 +556,7 @@ export function useEditor() {
     webSearchEnabled,
     toggleWebSearch,
     generateFromSelectedBlocks,
+    regenerateBlocksFromLastPrompt,
     retryFailedGeneration,
     dismissGenerationFailure,
     stopGenerating,
@@ -586,6 +587,7 @@ export function useEditor() {
     handleTextBlur,
 
     handleDeleteSelected,
+    deleteBlocksByIds,
   } = useBlockActions({
     sections,
     setSections,
@@ -675,6 +677,7 @@ export function useEditor() {
 
     handleApplyBlockLength,
     handleApplyBlockStyle,
+    stopAdjustingStyle,
   } = useAIActions({
     setSections,
 
@@ -1942,6 +1945,7 @@ export function useEditor() {
      */
     handleApplyBlockLength,
     handleApplyBlockStyle,
+    stopAdjustingStyle,
 
     /**
      * 多模块 AI 操作。
@@ -1970,9 +1974,11 @@ export function useEditor() {
      * AI 生成。
      */
     generateFromSelectedBlocks,
+    regenerateBlocksFromLastPrompt,
     retryFailedGeneration,
     dismissGenerationFailure,
     stopGenerating,
+    deleteBlocksByIds,
   };
 }
 

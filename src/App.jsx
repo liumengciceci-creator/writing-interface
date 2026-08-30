@@ -414,6 +414,7 @@ export default function App() {
      */
     handleApplyBlockLength,
     handleApplyBlockStyle,
+    stopAdjustingStyle,
 
     /**
      * 页面控制。
@@ -431,6 +432,8 @@ export default function App() {
      * AI 初次生成。
      */
     generateFromSelectedBlocks,
+    regenerateBlocksFromLastPrompt,
+    deleteBlocksByIds,
   duplicateSelectedBlocks,
     beginDuplicateDrag,
 } = useEditor();
@@ -2303,6 +2306,14 @@ export default function App() {
                 adjustingStyleBlockId
               }
 
+              onStopAdjustingStyle={
+                stopAdjustingStyle
+              }
+
+              onStopGenerating={
+                stopGenerating
+              }
+
               onCanvasMouseUp={
                 handleCanvasMouseUp
               }
@@ -2329,6 +2340,14 @@ export default function App() {
 
               onContextSelectBlocks={
                 selectBlocksForContextMenu
+              }
+
+              onDeleteContextBlocks={
+                deleteBlocksByIds
+              }
+
+              onRegenerateContextBlocks={
+                regenerateBlocksFromLastPrompt
               }
 
               onBlockDragStart={

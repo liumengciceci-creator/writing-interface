@@ -448,6 +448,8 @@ export default function PageCanvas(
     onBlockMouseDown,
     onBlockDragStart,
     onContextSelectBlocks,
+    onDeleteContextBlocks,
+    onRegenerateContextBlocks,
 
     /**
      * Option + Shift + 左键拖动复制。
@@ -471,6 +473,8 @@ export default function PageCanvas(
 
     isAdjustingStyle = false,
     adjustingStyleBlockId = null,
+    onStopAdjustingStyle,
+    onStopGenerating,
 
     onClearSelection,
 
@@ -554,6 +558,23 @@ export default function PageCanvas(
     useState(null);
   const [batchInstructionTarget, setBatchInstructionTarget] =
     useState(null);
+  const [contextEditingIds, setContextEditingIds] =
+    useState([]);
+  const [isBatchInstructionSubmitting, setIsBatchInstructionSubmitting] =
+    useState(false);
+  const batchInstructionCancelledRef = useRef(false);
+
+  const contextFocusIds = useMemo(
+    () =>
+      new Set(
+        (
+          batchInstructionTarget?.targetIds?.length
+            ? batchInstructionTarget.targetIds
+            : contextEditingIds
+        ).map(normalizeId)
+      ),
+    [batchInstructionTarget, contextEditingIds]
+  );
 
   useEffect(() => {
     if (!blockContextMenu) return undefined;
@@ -628,8 +649,34 @@ export default function PageCanvas(
 
   const openBatchInstructionComposer = () => {
     if (!blockContextMenu) return;
+    setContextEditingIds([]);
+    batchInstructionCancelledRef.current = false;
     setBatchInstructionTarget(blockContextMenu);
     setBlockContextMenu(null);
+  };
+
+  const deleteContextBlocks = () => {
+    const targetIds = blockContextMenu?.targetIds || [];
+    setBlockContextMenu(null);
+    setBatchInstructionTarget(null);
+    setContextEditingIds([]);
+    onDeleteContextBlocks?.(targetIds);
+  };
+
+  const regenerateContextBlocks = () => {
+    const targetIds = blockContextMenu?.targetIds || [];
+    setBlockContextMenu(null);
+    setBatchInstructionTarget(null);
+    setContextEditingIds([]);
+    onRegenerateContextBlocks?.(targetIds);
+  };
+
+  const editContextBlocks = () => {
+    const targetIds = blockContextMenu?.targetIds || [];
+    setBlockContextMenu(null);
+    setBatchInstructionTarget(null);
+    setContextEditingIds(targetIds);
+    onContextSelectBlocks?.(targetIds);
   };
 
   const submitBatchInstruction = async (
@@ -637,7 +684,7 @@ export default function PageCanvas(
     instructionStyle
   ) => {
     const target = batchInstructionTarget;
-    if (!target) return;
+    if (!target || isBatchInstructionSubmitting) return;
 
     const targetBlocks = target.targetIds
       .map((id) => getBlockById?.(id))
@@ -652,10 +699,24 @@ export default function PageCanvas(
       fill: targetBlocks[0]?.fill || "rgba(124,131,253,0.08)",
     };
 
-    // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
-    for (const block of targetBlocks) {
-      await handleApplyInstructionToBlock(block, instruction);
+    batchInstructionCancelledRef.current = false;
+    setIsBatchInstructionSubmitting(true);
+
+    try {
+      // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
+      for (const block of targetBlocks) {
+        if (batchInstructionCancelledRef.current) break;
+        await handleApplyInstructionToBlock(block, instruction);
+      }
+    } finally {
+      setIsBatchInstructionSubmitting(false);
     }
+  };
+
+  const stopBatchInstruction = () => {
+    batchInstructionCancelledRef.current = true;
+    onStopAdjustingStyle?.();
+    setIsBatchInstructionSubmitting(false);
   };
 
   const completedSections =
@@ -1064,6 +1125,12 @@ export default function PageCanvas(
         )
       ) {
         return;
+      }
+
+      if (event.button === 0) {
+        setContextEditingIds([]);
+        setBatchInstructionTarget(null);
+        setActiveEditingBlockId(null);
       }
 
       onSelectionStart?.(
@@ -1889,6 +1956,18 @@ export default function PageCanvas(
                 adjustingStyleBlockId
               }
 
+              contextEditingIds={
+                contextEditingIds
+              }
+
+              contextInstructionIds={
+                batchInstructionTarget?.targetIds || []
+              }
+
+              onStopAdjustingStyle={
+                onStopAdjustingStyle
+              }
+
               focusedEditingBlockId={
                 activeEditingBlockId
               }
@@ -1929,7 +2008,11 @@ export default function PageCanvas(
                     onUpdateCompletedSectionText
                   }
                   isDimmed={
-                    activeEditingBlockId != null
+                    contextFocusIds.size > 0
+                      ? !(section.blocks || []).some((block) =>
+                          contextFocusIds.has(normalizeId(block.id))
+                        )
+                      : activeEditingBlockId != null
                   }
                 />
               )
@@ -2065,13 +2148,17 @@ export default function PageCanvas(
               }
 
               isDimmed={
-                activeEditingBlockId != null &&
-                normalizeId(
-                  activeEditingBlockId
-                ) !==
-                  normalizeId(
-                    block.id
-                  )
+                contextFocusIds.size > 0
+                  ? !contextFocusIds.has(normalizeId(block.id))
+                  : activeEditingBlockId != null &&
+                    normalizeId(activeEditingBlockId) !==
+                      normalizeId(block.id)
+              }
+
+              groupEditingEnabled={
+                contextEditingIds.some(
+                  (id) => normalizeId(id) === normalizeId(block.id)
+                )
               }
 
               onEditingChange={
@@ -2177,7 +2264,7 @@ export default function PageCanvas(
             style={{
               position: "fixed",
               left: Math.min(blockContextMenu.x, window.innerWidth - 190),
-              top: Math.min(blockContextMenu.y, window.innerHeight - 54),
+              top: Math.min(blockContextMenu.y, window.innerHeight - 174),
               zIndex: 20000,
               minWidth: 178,
               padding: 6,
@@ -2187,30 +2274,57 @@ export default function PageCanvas(
               boxShadow: "0 10px 30px rgba(0,0,0,0.16)",
             }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={openBatchInstructionComposer}
-              style={{
-                width: "100%",
-                border: 0,
-                borderRadius: 7,
-                background: "transparent",
-                padding: "9px 12px",
-                color: "#262626",
-                fontSize: 14,
-                textAlign: "left",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = "#f3f4f6";
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = "transparent";
-              }}
-            >
-              {t("instruction.add")}
-            </button>
+            {[
+              {
+                key: "instruction",
+                label: t("instruction.add"),
+                action: openBatchInstructionComposer,
+              },
+              {
+                key: "regenerate",
+                label: t("contextMenu.regenerate"),
+                action: regenerateContextBlocks,
+              },
+              {
+                key: "edit",
+                label: t("contextMenu.editText"),
+                action: editContextBlocks,
+              },
+              {
+                key: "delete",
+                label: t("contextMenu.delete"),
+                action: deleteContextBlocks,
+                danger: true,
+              },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                onClick={item.action}
+                style={{
+                  width: "100%",
+                  border: 0,
+                  borderRadius: 7,
+                  background: "transparent",
+                  padding: "9px 12px",
+                  color: item.danger ? "#dc2626" : "#262626",
+                  fontSize: 14,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = item.danger
+                    ? "#fef2f2"
+                    : "#f3f4f6";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = "transparent";
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>,
           document.body
         )}
@@ -2219,8 +2333,13 @@ export default function PageCanvas(
         <QuickInstructionComposer
           anchorRect={batchInstructionTarget.anchorRect}
           anchorElement={batchInstructionTarget.anchorElement}
-          onClose={() => setBatchInstructionTarget(null)}
+          onClose={() => {
+            if (isBatchInstructionSubmitting) return;
+            setBatchInstructionTarget(null);
+          }}
           onSubmit={submitBatchInstruction}
+          isSubmitting={isBatchInstructionSubmitting}
+          onStop={stopBatchInstruction}
         />
       ) : null}
 

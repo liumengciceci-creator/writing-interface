@@ -643,7 +643,10 @@ export function useStreamingGenerate({
     setGenerationStatus("");
   }, [flushPendingDeltas, stopBlinking]);
 
-  const generateFromSelectedBlocks = useCallback(async (requestedTargetIds = null) => {
+  const generateFromSelectedBlocks = useCallback(async (
+    requestedTargetIds = null,
+    requestedDirectiveOverrides = null
+  ) => {
     if (isGenerating) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -655,7 +658,7 @@ export function useStreamingGenerate({
      * 混进请求。
      */
     const snapshotDiagnostics = [];
-    const entries =
+    let entries =
       flattenBlockEntries(
         sections
       ).map((entry) => {
@@ -702,6 +705,30 @@ export function useStreamingGenerate({
           },
         };
       });
+
+    if (requestedDirectiveOverrides) {
+      const overrideMap =
+        requestedDirectiveOverrides instanceof Map
+          ? requestedDirectiveOverrides
+          : new Map(
+              Object.entries(requestedDirectiveOverrides)
+            );
+
+      entries = entries.map((entry) => {
+        const blockId = String(entry.block?.id ?? "");
+        if (!overrideMap.has(blockId)) return entry;
+
+        return {
+          ...entry,
+          block: {
+            ...entry.block,
+            generationDirective: String(
+              overrideMap.get(blockId) || ""
+            ).trim(),
+          },
+        };
+      });
+    }
     const selectionForRequest = Array.isArray(requestedTargetIds)
       ? requestedTargetIds
       : selectedIds;
@@ -1122,6 +1149,10 @@ export function useStreamingGenerate({
               isGenerated: true,
               isModuleHidden: false,
               generationDirective: "",
+              lastGenerationPrompt:
+                directiveByRealId.get(String(block.id)) ||
+                block.lastGenerationPrompt ||
+                "",
               generationError: null,
             };
 
@@ -1155,6 +1186,10 @@ export function useStreamingGenerate({
             isGenerated: true,
             isModuleHidden: false,
             generationDirective: "",
+            lastGenerationPrompt:
+              directiveByRealId.get(String(block.id)) ||
+              block.lastGenerationPrompt ||
+              "",
             generationError: null,
           };
         })
@@ -1391,6 +1426,47 @@ export function useStreamingGenerate({
     setGenerationFailure(null);
   }, []);
 
+  /**
+   * 使用每个模块最近一次生成/修改指令作为 prompt 重新生成。
+   * 模块没有历史指令时退回到它当前的文字，保证菜单操作仍可执行。
+   */
+  const regenerateBlocksFromLastPrompt =
+    useCallback(
+      (requestedTargetIds) => {
+        const targetIds = Array.from(
+          new Set(
+            (requestedTargetIds || [])
+              .filter((id) => id != null)
+              .map(String)
+          )
+        );
+
+        const targetSet = new Set(targetIds);
+        const directiveOverrides = new Map();
+
+        flattenBlockEntries(sections).forEach(({ block }) => {
+          const blockId = String(block?.id ?? "");
+          if (!targetSet.has(blockId)) return;
+
+          directiveOverrides.set(
+            blockId,
+            String(
+              block?.lastGenerationPrompt ||
+              block?.generationDirective ||
+              block?.text ||
+              ""
+            ).trim()
+          );
+        });
+
+        return generateFromSelectedBlocks(
+          targetIds,
+          directiveOverrides
+        );
+      },
+      [generateFromSelectedBlocks, sections]
+    );
+
   const retryFailedGeneration = useCallback(() => {
     const retryTargetIds = generationFailure?.targetIds || [];
     if (isGenerating || retryTargetIds.length === 0) return;
@@ -1408,6 +1484,7 @@ export function useStreamingGenerate({
     webSearchEnabled,
     toggleWebSearch,
     generateFromSelectedBlocks,
+    regenerateBlocksFromLastPrompt,
     retryFailedGeneration,
     dismissGenerationFailure,
     stopGenerating,

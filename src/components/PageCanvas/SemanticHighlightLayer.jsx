@@ -51,6 +51,7 @@ function SemanticHighlightLayer({
 
   hasFocusedEditingBlock = false,
   effectiveEditingBlockId = null,
+  focusedEditingIdSet = null,
 }) {
 
 
@@ -257,10 +258,11 @@ function SemanticHighlightLayer({
                     ? 0
                     :
                     hasFocusedEditingBlock &&
-                    blockId !==
-                      normalizeId(
-                        effectiveEditingBlockId
-                      )
+                    !(
+                      focusedEditingIdSet?.size > 0
+                        ? focusedEditingIdSet.has(blockId)
+                        : blockId === normalizeId(effectiveEditingBlockId)
+                    )
                       ? 0.24
                       : 1
                 }

@@ -586,6 +586,9 @@ const SingleSemanticEditor =
 
         isAdjustingStyle = false,
         adjustingStyleBlockId = null,
+        contextEditingIds = [],
+        contextInstructionIds = [],
+        onStopAdjustingStyle,
 
         focusedEditingBlockId = null,
         onEditingBlockChange,
@@ -1106,11 +1109,38 @@ const SingleSemanticEditor =
           effectiveEditingBlockId
         );
 
+      const contextFocusedIdSet =
+        useMemo(
+          () =>
+            new Set(
+              (
+                contextInstructionIds.length > 0
+                  ? contextInstructionIds
+                  : contextEditingIds
+              ).map(normalizeId)
+            ),
+          [contextEditingIds, contextInstructionIds]
+        );
+
+      const contextEditingIdSet =
+        useMemo(
+          () => new Set(contextEditingIds.map(normalizeId)),
+          [contextEditingIds]
+        );
+
+      const visualFocusedIdSet =
+        useMemo(() => {
+          if (contextFocusedIdSet.size > 0) {
+            return contextFocusedIdSet;
+          }
+
+          return visualFocusBlockId
+            ? new Set([visualFocusBlockId])
+            : new Set();
+        }, [contextFocusedIdSet, visualFocusBlockId]);
+
       const hasVisualFocusedBlock =
-        Boolean(
-          quickInstructionTarget
-        ) ||
-        hasFocusedEditingBlock;
+        visualFocusedIdSet.size > 0;
 
       const visualSelectedIdSet =
         useMemo(() => {
@@ -2257,6 +2287,12 @@ const SingleSemanticEditor =
               anchorRect={quickInstructionTarget.anchorRect}
               anchorElement={quickInstructionTarget.anchorElement}
               onClose={() => setQuickInstructionTarget(null)}
+              isSubmitting={
+                isAdjustingStyle &&
+                normalizeId(adjustingStyleBlockId) ===
+                  normalizeId(quickInstructionTarget.blockId)
+              }
+              onStop={onStopAdjustingStyle}
               onSubmit={(instructionText, instructionStyle) => {
                 const target = quickInstructionTarget;
                 const targetBlock =
@@ -2473,6 +2509,7 @@ const SingleSemanticEditor =
               instructionEffect={instructionEffect}
               hasFocusedEditingBlock={hasVisualFocusedBlock}
               effectiveEditingBlockId={visualFocusBlockId}
+              focusedEditingIdSet={visualFocusedIdSet}
             />
 
             <LengthResizeControls
@@ -2578,7 +2615,8 @@ const SingleSemanticEditor =
                         userSelect: "text",
                         WebkitUserSelect: "text",
                         opacity:
-                          hasFocusedEditingBlock
+                          hasVisualFocusedBlock &&
+                          !visualFocusedIdSet.has(blockId)
                             ? 0.24
                             : 1,
                         transition: "opacity 180ms ease",
@@ -2888,18 +2926,31 @@ const SingleSemanticEditor =
 
                     onMouseDown={(
                       event
-                    ) =>
+                    ) => {
+                      if (
+                        !isEditing &&
+                        contextEditingIdSet.has(blockId) &&
+                        event.button === 0
+                      ) {
+                        handleDoubleClick(event, block);
+                        return;
+                      }
+
                       handleBlockMouseDown(
                         event,
                         block
                       )
-                    }
+                    }}
 
                     onDoubleClick={(event) => {
                       handleDoubleClick(
                         event,
                         block
                       );
+
+                      if (contextEditingIdSet.has(blockId)) {
+                        return;
+                      }
 
                       if (isGenerating) {
                         return;
@@ -3182,8 +3233,7 @@ const SingleSemanticEditor =
                         )
                           ? 0
                           : hasVisualFocusedBlock &&
-                            blockId !==
-                              visualFocusBlockId
+                            !visualFocusedIdSet.has(blockId)
                           ? 0.24
                           : 1,
 

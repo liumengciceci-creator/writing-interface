@@ -1164,17 +1164,15 @@ export function useBlockActions({
       []
     );
 
-  /**
-   * 删除当前选中的模块。
-   */
-  const handleDeleteSelected =
+  /** 删除明确给出的模块集合（同时支持正文与浮动模块）。 */
+  const deleteBlocksByIds =
     useCallback(
-      () => {
+      (blockIds) => {
         if (
           !Array.isArray(
-            selectedIds
+            blockIds
           ) ||
-          selectedIds.length ===
+          blockIds.length ===
             0
         ) {
           return;
@@ -1182,7 +1180,7 @@ export function useBlockActions({
 
         const selectedIdSet =
           new Set(
-            selectedIds.map(
+            blockIds.map(
               (id) =>
                 String(id)
             )
@@ -1285,12 +1283,18 @@ export function useBlockActions({
         setSelectedIds([]);
       },
       [
-        selectedIds,
         setSelectedIds,
         setSections,
         pushHistorySnapshot,
         createEditingSectionFn,
       ]
+    );
+
+  /** 删除当前选中的模块。 */
+  const handleDeleteSelected =
+    useCallback(
+      () => deleteBlocksByIds(selectedIds),
+      [deleteBlocksByIds, selectedIds]
     );
 
   return {
@@ -1307,6 +1311,7 @@ export function useBlockActions({
     handleTextBlur,
 
     handleDeleteSelected,
+    deleteBlocksByIds,
   };
 }
 

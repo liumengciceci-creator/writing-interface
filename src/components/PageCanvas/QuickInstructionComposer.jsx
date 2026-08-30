@@ -93,6 +93,8 @@ export default function QuickInstructionComposer({
   anchorElement,
   onClose,
   onSubmit,
+  isSubmitting = false,
+  onStop,
 }) {
   const [value, setValue] = useState("");
   const [instructions, setInstructions] = useState(readInstructions);
@@ -292,6 +294,7 @@ export default function QuickInstructionComposer({
   };
 
   const submit = () => {
+    if (isSubmitting) return;
     const instruction = value.trim();
     if (!instruction) return;
     const selected = instructions.find(
@@ -432,10 +435,18 @@ export default function QuickInstructionComposer({
         />
         <button
           type="button"
-          aria-label={t("quickInstruction.send")}
-          title={t("quickInstruction.send")}
-          disabled={!value.trim()}
-          onClick={submit}
+          aria-label={
+            isSubmitting
+              ? t("quickInstruction.stop")
+              : t("quickInstruction.send")
+          }
+          title={
+            isSubmitting
+              ? t("quickInstruction.stop")
+              : t("quickInstruction.send")
+          }
+          disabled={!isSubmitting && !value.trim()}
+          onClick={isSubmitting ? onStop : submit}
           style={{
             width: 31,
             height: 31,
@@ -446,14 +457,32 @@ export default function QuickInstructionComposer({
             padding: 0,
             border: 0,
             borderRadius: "50%",
-            background: value.trim() ? "#111111" : "#d1d5db",
+            background:
+              isSubmitting || value.trim()
+                ? "#111111"
+                : "#d1d5db",
             color: "#ffffff",
-            cursor: value.trim() ? "pointer" : "default",
+            cursor:
+              isSubmitting || value.trim()
+                ? "pointer"
+                : "default",
           }}
         >
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24">
-            <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {isSubmitting ? (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 1,
+                background: "#ffffff",
+              }}
+            />
+          ) : (
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24">
+              <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </button>
       </div>
 
