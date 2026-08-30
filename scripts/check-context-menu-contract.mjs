@@ -30,6 +30,7 @@ expectSource(canvas, /setContextHighlightIds\(blockContextMenu\.targetIds \|\| \
 expectSource(canvas, /__ARGUWEAVE_CONTEXT_DEBUG__/, "Context instruction debug state is unavailable");
 expectSource(canvas, /activeBlockId:[\s\S]*avoidElement: currentAnchor/, "Dialog does not inspect the currently generated block for overlap");
 expectSource(canvas, /borderTop:[\s\S]*1px solid #e5e7eb/, "Context actions are missing separators");
+expectSource(canvas, /width:\s*176[\s\S]*maxWidth:\s*"calc\(100vw - 16px\)"/, "Context menu does not use the compact fixed width");
 expectSource(canvas, /handleApplyInstructionToBlock\([\s\S]*onTextStart:[\s\S]*slice\(targetIndex \+ 1\)/, "Selection shadow is not retained until generated text actually starts");
 expectSource(canvas, /setBatchInstructionEffects\(startingEffects\)[\s\S]*setTimeout\(resolve, 660\)[\s\S]*phase: "waiting"/, "Batch instructions do not reuse the single-module color transition lifecycle");
 expectSource(canvas, /contextInstructionEffects=\{[\s\S]*batchInstructionEffects/, "Batch instruction color effects are not passed to inline blocks");
