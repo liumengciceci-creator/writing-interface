@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import {
   CONTENT_LEFT,
@@ -18,6 +19,7 @@ import { useFloatingBlocks } from "../../hooks/useEditor/useFloatingBlocks";
 import CompletedSection from "./CompletedSection";
 import FloatingEditableBlock from "./FloatingEditableBlock";
 import SingleSemanticEditor from "./SingleSemanticEditor";
+import QuickInstructionComposer from "./QuickInstructionComposer";
 import { useI18n } from "../../i18n.jsx";
 
 
@@ -544,6 +546,103 @@ export default function PageCanvas(
    */
   const duplicatePointerGestureRef =
     useRef(null);
+
+  const [blockContextMenu, setBlockContextMenu] =
+    useState(null);
+  const [batchInstructionTarget, setBatchInstructionTarget] =
+    useState(null);
+
+  useEffect(() => {
+    if (!blockContextMenu) return undefined;
+
+    const closeMenu = () => setBlockContextMenu(null);
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [blockContextMenu]);
+
+  const handleBlockContextMenu = (event) => {
+    const blockElement = event.target?.closest?.(
+      "[data-semantic-block-id], [data-block-root='true'][data-block-id]"
+    );
+    if (!blockElement) return;
+
+    const blockId =
+      blockElement.getAttribute("data-semantic-block-id") ||
+      blockElement.getAttribute("data-block-id");
+    const clickedBlock = getBlockById?.(blockId);
+    if (!clickedBlock) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const clickedIsSelected = selectedIds.some(
+      (id) => normalizeId(id) === normalizeId(blockId)
+    );
+    const targetIds = clickedIsSelected
+      ? selectedIds.map(normalizeId)
+      : [normalizeId(blockId)];
+
+    if (!clickedIsSelected) {
+      onBlockMouseDown?.(event, blockId);
+      onSelectBlockForPanel?.(clickedBlock);
+    }
+
+    const rect = blockElement.getBoundingClientRect();
+    setBlockContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      targetIds,
+      anchorElement: blockElement,
+      anchorRect: {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+      },
+    });
+  };
+
+  const openBatchInstructionComposer = () => {
+    if (!blockContextMenu) return;
+    setBatchInstructionTarget(blockContextMenu);
+    setBlockContextMenu(null);
+  };
+
+  const submitBatchInstruction = async (
+    instructionText,
+    instructionStyle
+  ) => {
+    const target = batchInstructionTarget;
+    if (!target) return;
+
+    const targetBlocks = target.targetIds
+      .map((id) => getBlockById?.(id))
+      .filter(Boolean);
+    const instruction = {
+      id:
+        instructionStyle?.id ||
+        `batch-instruction-${Date.now()}`,
+      label: instructionStyle?.label || instructionText,
+      instruction: instructionText,
+      color: targetBlocks[0]?.color || "#7c83fd",
+      fill: targetBlocks[0]?.fill || "rgba(124,131,253,0.08)",
+    };
+
+    // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
+    for (const block of targetBlocks) {
+      await handleApplyInstructionToBlock(block, instruction);
+    }
+  };
 
   const completedSections =
     useMemo(
@@ -1421,6 +1520,9 @@ export default function PageCanvas(
       onDrop={
         handleStageDrop
       }
+      onContextMenu={
+        handleBlockContextMenu
+      }
       style={{
         width: "100%",
         minWidth: 0,
@@ -2039,6 +2141,61 @@ export default function PageCanvas(
             />
           );
         })}
+
+      {blockContextMenu &&
+        createPortal(
+          <div
+            role="menu"
+            onPointerDown={(event) => event.stopPropagation()}
+            style={{
+              position: "fixed",
+              left: Math.min(blockContextMenu.x, window.innerWidth - 190),
+              top: Math.min(blockContextMenu.y, window.innerHeight - 54),
+              zIndex: 20000,
+              minWidth: 178,
+              padding: 6,
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: 10,
+              background: "#ffffff",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.16)",
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={openBatchInstructionComposer}
+              style={{
+                width: "100%",
+                border: 0,
+                borderRadius: 7,
+                background: "transparent",
+                padding: "9px 12px",
+                color: "#262626",
+                fontSize: 14,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = "#f3f4f6";
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = "transparent";
+              }}
+            >
+              {t("instruction.add")}
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {batchInstructionTarget ? (
+        <QuickInstructionComposer
+          anchorRect={batchInstructionTarget.anchorRect}
+          anchorElement={batchInstructionTarget.anchorElement}
+          onClose={() => setBatchInstructionTarget(null)}
+          onSubmit={submitBatchInstruction}
+        />
+      ) : null}
 
     </div>
   );
