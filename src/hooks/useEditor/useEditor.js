@@ -491,6 +491,27 @@ export function useEditor() {
     );
 
   /**
+   * 右键菜单只更新选择集合，不复用左键的编辑/拖拽入口。
+   * 这样打开批量指令时不会意外进入聚焦态并把其他模块变灰。
+   */
+  const selectBlocksForContextMenu =
+    useCallback(
+      (blockIds) => {
+        const nextIds = Array.from(
+          new Set(
+            (Array.isArray(blockIds) ? blockIds : [])
+              .filter((id) => id != null)
+              .map(String)
+          )
+        );
+
+        clearSelection();
+        setSelectedIds(nextIds);
+      },
+      [clearSelection, setSelectedIds]
+    );
+
+  /**
    * 清除当前交互状态。
    */
   const clearInteractionState =
@@ -1898,6 +1919,7 @@ export function useEditor() {
      * 选择操作。
      */
     handleBlockMouseDown,
+    selectBlocksForContextMenu,
 
     handleSelectionStart,
     handleSelectionMove,

@@ -310,6 +310,7 @@ export default function App() {
     zoom,
     selectedIds,
     selectionRect,
+    selectBlocksForContextMenu,
 
     /**
      * AI 生成状态。
@@ -2324,6 +2325,10 @@ export default function App() {
 
               onBlockMouseDown={
                 handleBlockMouseDown
+              }
+
+              onContextSelectBlocks={
+                selectBlocksForContextMenu
               }
 
               onBlockDragStart={

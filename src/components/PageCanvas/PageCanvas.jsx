@@ -445,6 +445,7 @@ export default function PageCanvas(
 
     onBlockMouseDown,
     onBlockDragStart,
+    onContextSelectBlocks,
 
     /**
      * Option + Shift + 左键拖动复制。
@@ -585,6 +586,18 @@ export default function PageCanvas(
     event.preventDefault();
     event.stopPropagation();
 
+    // 右键是独立操作：退出文字编辑聚焦，清除浏览器文字选区，
+    // 防止原有的编辑 dim 效果继续把其他模块压成灰色。
+    if (
+      document.activeElement?.matches?.(
+        "[contenteditable='true']"
+      )
+    ) {
+      document.activeElement.blur();
+    }
+    window.getSelection?.()?.removeAllRanges();
+    setActiveEditingBlockId(null);
+
     const clickedIsSelected = selectedIds.some(
       (id) => normalizeId(id) === normalizeId(blockId)
     );
@@ -593,8 +606,7 @@ export default function PageCanvas(
       : [normalizeId(blockId)];
 
     if (!clickedIsSelected) {
-      onBlockMouseDown?.(event, blockId);
-      onSelectBlockForPanel?.(clickedBlock);
+      onContextSelectBlocks?.([blockId]);
     }
 
     const rect = blockElement.getBoundingClientRect();
@@ -1503,7 +1515,20 @@ export default function PageCanvas(
     <div
       ref={stageRef}
       onMouseDownCapture={
-        handleDuplicatePointerDown
+        (event) => {
+          if (
+            event.button === 2 &&
+            event.target?.closest?.(
+              "[data-semantic-block-id], [data-block-root='true'][data-block-id]"
+            )
+          ) {
+            // 阻止右键按下先走左键的模块编辑、拖拽和聚焦逻辑。
+            event.stopPropagation();
+            return;
+          }
+
+          handleDuplicatePointerDown(event);
+        }
       }
       onMouseDown={
         handleStageMouseDown
