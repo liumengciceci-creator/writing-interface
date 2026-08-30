@@ -1188,7 +1188,8 @@ export default function FloatingEditableBlock({
           "visible",
 
         cursor:
-          isEditing
+          isEditing ||
+          groupEditingEnabled
             ? "text"
             : "grab",
       }}

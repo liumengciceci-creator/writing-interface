@@ -3265,7 +3265,8 @@ const SingleSemanticEditor =
                         "#111827",
 
                       cursor:
-                        isEditing
+                        isEditing ||
+                        contextEditingIdSet.has(blockId)
                           ? "text"
                           : "grab",
 

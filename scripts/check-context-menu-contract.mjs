@@ -27,7 +27,9 @@ expectSource(canvas, /contextInstructionIds=\{/, "Instruction focus ids are not 
 expectSource(canvas, /contextEditingIds=\{/, "Group editing ids are not passed to the editor");
 expectSource(canvas, /activeBlockId:[\s\S]*anchorElement: currentAnchor/, "Dialog does not follow the currently generated block");
 expectSource(canvas, /borderTop:[\s\S]*1px solid #e5e7eb/, "Context actions are missing separators");
+expectSource(canvas, /slice\(targetIndex \+ 1\)[\s\S]*handleApplyInstructionToBlock/, "Selection highlight is not removed as each block starts generating");
 expectSource(editor, /visualFocusedIdSet\.has\(blockId\)/, "Unselected blocks are not dimmed by focus group");
+expectSource(editor, /contextEditingIdSet\.has\(blockId\)[\s\S]*\? "text"/, "Group text editing does not use the text cursor");
 expectSource(composer, /isSubmitting[\s\S]*onStop/, "Instruction composer has no stop state");
 expectSource(composer, /background:\s*"#ffffff"/, "Stop icon is not a white square");
 expectSource(generation, /lastGenerationPrompt/, "Last generation prompt is not retained");

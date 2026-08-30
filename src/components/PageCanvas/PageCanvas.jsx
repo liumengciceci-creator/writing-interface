@@ -713,7 +713,12 @@ export default function PageCanvas(
 
     try {
       // 逐个回写现有模块文字；不创建、合并、排序或移动模块。
-      for (const block of targetBlocks) {
+      for (
+        let targetIndex = 0;
+        targetIndex < targetBlocks.length;
+        targetIndex += 1
+      ) {
+        const block = targetBlocks[targetIndex];
         if (batchInstructionCancelledRef.current) break;
 
         const currentAnchor = Array.from(
@@ -750,6 +755,14 @@ export default function PageCanvas(
             window.requestAnimationFrame(() => resolve())
           );
         }
+
+        // 当前模块真正开始生成时才移除它的选中高亮；
+        // 尚未轮到的模块继续保持高亮，提示接下来的处理范围。
+        onContextSelectBlocks?.(
+          targetBlocks
+            .slice(targetIndex + 1)
+            .map((item) => item.id)
+        );
 
         await handleApplyInstructionToBlock(block, instruction);
       }
