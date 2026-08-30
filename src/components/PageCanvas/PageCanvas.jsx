@@ -30,6 +30,69 @@ function normalizeId(value) {
     : String(value);
 }
 
+function ContextMenuIcon({ type }) {
+  const commonProps = {
+    "aria-hidden": "true",
+    width: 17,
+    height: 17,
+    viewBox: "0 0 20 20",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.65,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+
+  if (type === "instruction") {
+    return (
+      <svg {...commonProps}>
+        <path d="m4 16 9.2-9.2 2 2L6 18H4v-2Z" />
+        <path d="m13.2 3 .45 1.35L15 4.8l-1.35.45L13.2 6.6l-.45-1.35-1.35-.45 1.35-.45L13.2 3Z" />
+        <path d="m6.3 4.6.3.9.9.3-.9.3-.3.9-.3-.9-.9-.3.9-.3.3-.9Z" />
+      </svg>
+    );
+  }
+
+  if (type === "regenerate") {
+    return (
+      <svg {...commonProps}>
+        <path d="M15.8 7.1A6.4 6.4 0 0 0 5 5.1L3.6 6.6" />
+        <path d="M3.6 3.4v3.2h3.2" />
+        <path d="M4.2 12.9A6.4 6.4 0 0 0 15 14.9l1.4-1.5" />
+        <path d="M16.4 16.6v-3.2h-3.2" />
+      </svg>
+    );
+  }
+
+  if (type === "restore") {
+    return (
+      <svg {...commonProps}>
+        <path d="M4.2 6.5A6.5 6.5 0 1 1 3.5 12" />
+        <path d="M4.2 3.6v2.9h2.9" />
+        <path d="M10 6.4v4l2.6 1.6" />
+      </svg>
+    );
+  }
+
+  if (type === "edit") {
+    return (
+      <svg {...commonProps}>
+        <path d="M4 14.7V17h2.3L15.8 7.5l-2.3-2.3L4 14.7Z" />
+        <path d="m12.4 6.3 2.3 2.3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...commonProps}>
+      <path d="M4.8 6.3h10.4" />
+      <path d="M8 3.8h4l.7 2.5H7.3L8 3.8Z" />
+      <path d="m6.2 6.3.7 10h6.2l.7-10" />
+      <path d="M8.6 9v4.7M11.4 9v4.7" />
+    </svg>
+  );
+}
+
 /**
  * 判断原生拖拽是否携带 ArguWeave 模块。
  * Sidebar 新标签和已有正文模块都会写入这两个 MIME 类型。
@@ -2489,6 +2552,9 @@ export default function PageCanvas(
                 onClick={item.action}
                 style={{
                   width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
                   border: 0,
                   borderTop:
                     index === 0
@@ -2511,7 +2577,8 @@ export default function PageCanvas(
                   event.currentTarget.style.background = "transparent";
                 }}
               >
-                {item.label}
+                <ContextMenuIcon type={item.key} />
+                <span>{item.label}</span>
               </button>
             ))}
           </div>,
