@@ -30,6 +30,19 @@ const checks = [
       appSource.includes("template.label ||\n          template.type") &&
       appSource.includes('template.text ||\n          ""'),
   },
+  {
+    name: "新建模块带用户来源标记，同名模块不会被迁移误删",
+    pass:
+      sidebarSource.includes('templateOrigin:\n          "user"') &&
+      appSource.includes('item.templateOrigin ===\n            "user"'),
+  },
+  {
+    name: "新版默认模块重置旧改名、删除和排序缓存",
+    pass:
+      sidebarSource.includes("hidden-default-block-templates-v2") &&
+      sidebarSource.includes("default-block-template-overrides-v3") &&
+      sidebarSource.includes("title-plus-five-default-modules-v1"),
+  },
 ];
 
 const failedChecks = checks.filter((check) => !check.pass);

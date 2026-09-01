@@ -56,10 +56,10 @@ const CUSTOM_COLORS = [
 ];
 
 const HIDDEN_DEFAULT_TEMPLATES_STORAGE_KEY =
-  "writing-interface-hidden-default-block-templates";
+  "writing-interface-hidden-default-block-templates-v2";
 
 const DEFAULT_TEMPLATE_OVERRIDES_STORAGE_KEY =
-  "writing-interface-default-block-template-overrides-v2";
+  "writing-interface-default-block-template-overrides-v3";
 
 const LEGACY_PALETTE_WIDTH_STORAGE_KEY =
   "writing-interface-palette-width";
@@ -74,7 +74,7 @@ const TEMPLATE_ORDER_VERSION_STORAGE_KEY =
   "writing-interface-label-template-order-version";
 
 const CURRENT_TEMPLATE_ORDER_VERSION =
-  "eight-default-modules-v1";
+  "title-plus-five-default-modules-v1";
 
 function loadTemplateOrder() {
   try {
@@ -1519,6 +1519,9 @@ export default function Sidebar({
 
         text:
           "",
+
+        templateOrigin:
+          "user",
 
         isCustom:
           true,

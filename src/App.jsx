@@ -46,6 +46,20 @@ import {
 const CUSTOM_TEMPLATES_STORAGE_KEY =
   "writing-interface-custom-block-templates";
 
+const LEGACY_DEFAULT_TEMPLATE_LABELS =
+  new Set([
+    "标题",
+    "论点",
+    "原因",
+    "解释",
+    "证据",
+    "反论",
+    "对比",
+    "过渡",
+    "结论",
+    "总结",
+  ]);
+
 const waitForReviewBeat = (duration) =>
   new Promise((resolve) => window.setTimeout(resolve, duration));
 
@@ -101,16 +115,35 @@ function loadCustomTemplates() {
       return [];
     }
 
-    return parsedValue.filter(
-      (item) =>
-        item &&
-        typeof item.id ===
-          "string" &&
-        typeof item.type ===
-          "string" &&
-        typeof item.color ===
-          "string"
-    );
+    return parsedValue
+      .filter(
+        (item) =>
+          item &&
+          typeof item.id ===
+            "string" &&
+          typeof item.type ===
+            "string" &&
+          typeof item.color ===
+            "string"
+      )
+      .filter((item) => {
+        const normalizedLabel =
+          String(
+            item.label ||
+            item.type ||
+            ""
+          ).trim();
+
+        // 早期版本曾把旧默认模块副本写入自定义模板。
+        // 新版本由用户主动创建的模板带有来源标记，即使名称相同也保留。
+        return (
+          item.templateOrigin ===
+            "user" ||
+          !LEGACY_DEFAULT_TEMPLATE_LABELS.has(
+            normalizedLabel
+          )
+        );
+      });
   } catch (error) {
     console.error(
       "读取自定义标签失败：",
@@ -1756,6 +1789,10 @@ export default function App() {
         text:
           template.text ||
           "",
+
+        templateOrigin:
+          template.templateOrigin ||
+          "user",
 
         isCustom:
           true,
