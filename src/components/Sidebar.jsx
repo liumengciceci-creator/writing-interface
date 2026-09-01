@@ -1285,26 +1285,10 @@ export default function Sidebar({
       })
     ),
 
-    ...customTemplates.filter(
-      (item) => {
-        const normalizedLabel = String(
-          item?.label || item?.type || ""
-        ).trim();
-
-        return ![
-          "标题",
-          "论点",
-          "原因",
-          "解释",
-          "证据",
-          "反论",
-          "对比",
-          "过渡",
-          "结论",
-          "总结",
-        ].includes(normalizedLabel);
-      }
-    ).map(
+    // 自定义模块在创建时已经和当前可见模块做过重名校验。
+    // 这里不能再按旧版默认模块名称过滤，否则用户新增“原因”、
+    // “结论”、“对比”等模块后，数据虽已保存却会立即从列表消失。
+    ...customTemplates.map(
       (item) => {
         const savedFill =
           typeof item.fill ===
@@ -1817,11 +1801,11 @@ export default function Sidebar({
         {allTemplates.map(
           (item) => (
             <div
-              key={`${
+              key={
                 item.isCustom
-                  ? "custom"
-                  : "default"
-              }-${item.type}`}
+                  ? `custom-${item.id}`
+                  : `default-${item.type}`
+              }
 
               style={{
                 position:

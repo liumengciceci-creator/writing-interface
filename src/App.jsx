@@ -1738,6 +1738,10 @@ export default function App() {
         type:
           template.type,
 
+        label:
+          template.label ||
+          template.type,
+
         color:
           template.color,
 
@@ -1748,6 +1752,10 @@ export default function App() {
         width:
           template.width ||
           160,
+
+        text:
+          template.text ||
+          "",
 
         isCustom:
           true,
